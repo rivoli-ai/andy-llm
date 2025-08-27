@@ -1,0 +1,13 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <IsPackable>true</IsPackable>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <PackageReference Include="Andy.Configuration" Version="2025.7.16-rc.6" />
+    <PackageReference Include="Cerebras.Cloud.Sdk.Unofficial" Version="2025.7.13-rc.8" />
+    <PackageReference Include="OpenAI" Version="2.0.0" />
+  </ItemGroup>
+
+</Project>

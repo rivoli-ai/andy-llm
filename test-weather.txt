@@ -1,0 +1,2 @@
+what's the weather in Paris
+exit

@@ -41,10 +41,31 @@ ScaffoldingReadMe.txt
 *~
 CodeCoverage/
 
+# Test coverage and results
+coverage/
+coveragereport/
+coverage-results/
+coverage-results-*/
+coverage-report/
+coverage-report-*/
+test-results/
+test-results-*/
+
+# macOS
+.DS_Store
+**/.DS_Store
+
+# Container build artifacts
+container/bin-safe/
+container/bin-isolated/
+container/rootfs/
+container/rootfs-safe/
+
 # MSBuild Binary and Structured Log
 *.binlog
 
 # MSTest test Results
+[Tt]est-[Rr]esult*/
 [Tt]est[Rr]esult*/
 [Bb]uild[Ll]og.*
 
