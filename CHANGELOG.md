@@ -8,12 +8,25 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 ### Added
+- Azure OpenAI provider implementation with deployment-based model access
+- Ollama provider implementation for local LLM execution
 - Enhanced security features for API key handling
 - Retry policies using Polly for improved resilience
 - Telemetry and metrics support for observability
 - Comprehensive cancellation token support
 - Progress reporting for long-running operations
 - Timeout configuration options
+- HttpClientFactory support for better HTTP client management
+- Extended configuration options for Azure and Ollama providers
+- Dedicated Azure OpenAI example with enterprise scenarios
+- Dedicated Ollama example with local LLM guidance
+- Comprehensive tests for Azure and Ollama providers
+
+### Documentation
+- Updated Getting Started guide with all four providers
+- Enhanced API Reference with Azure and Ollama provider details
+- Updated Architecture documentation with current provider implementations
+- Added detailed README files for Azure and Ollama examples
 
 ## [0.1.0] - 2024-08-28
 

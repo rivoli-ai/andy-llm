@@ -110,14 +110,12 @@ public class LlmProviderFactory : ILlmProviderFactory
 
     private ILlmProvider CreateAzureProvider()
     {
-        // TODO: Implement Azure OpenAI provider
-        throw new NotImplementedException("Azure OpenAI provider not yet implemented");
+        return _serviceProvider.GetRequiredService<Providers.AzureOpenAIProvider>();
     }
 
     private ILlmProvider CreateLocalProvider()
     {
-        // TODO: Implement local/Ollama provider
-        throw new NotImplementedException("Local/Ollama provider not yet implemented");
+        return _serviceProvider.GetRequiredService<Providers.OllamaProvider>();
     }
 }
 

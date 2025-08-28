@@ -34,20 +34,27 @@ Andy.Llm is designed as a provider-agnostic LLM integration library that maintai
 │  • Caching                                                  │
 └─────────────────────────────────────────────────────────────┘
                                 │
-                ┌───────────────┴───────────────┐
-                ▼                               ▼
-┌──────────────────────────┐    ┌──────────────────────────┐
-│     OpenAIProvider       │    │    CerebrasProvider      │
-│  • Official SDK          │    │  • Cerebras SDK         │
-│  • Streaming support     │    │  • Tool calling         │
-│  • Function calling      │    │  • Custom models        │
-└──────────────────────────┘    └──────────────────────────┘
-                │                               │
-                └───────────────┬───────────────┘
-                                ▼
-                    ┌─────────────────────┐
-                    │   External APIs     │
-                    └─────────────────────┘
+        ┌───────────────┬───────────────┬───────────────┐
+        ▼               ▼               ▼               ▼
+┌──────────────┐ ┌──────────────┐ ┌──────────────┐ ┌──────────────┐
+│   OpenAI     │ │   Cerebras   │ │    Azure     │ │   Ollama     │
+│  Provider    │ │   Provider   │ │   OpenAI     │ │   Provider   │
+│              │ │              │ │   Provider   │ │              │
+│ • OpenAI SDK │ │ • Cerebras   │ │ • Azure SDK  │ │ • HTTP API   │
+│ • Streaming  │ │   SDK        │ │ • Deployment │ │ • Local LLM  │
+│ • Functions  │ │ • Fast       │ │   based     │ │ • No cloud   │
+│ • GPT-4/3.5  │ │   inference  │ │ • Enterprise │ │ • Privacy    │
+└──────────────┘ └──────────────┘ └──────────────┘ └──────────────┘
+        │               │               │               │
+        └───────────────┴───────────────┴───────────────┘
+                                │
+                    ┌───────────────────────┐
+                    │   External Services   │
+                    │ • OpenAI API          │
+                    │ • Cerebras Cloud      │
+                    │ • Azure OpenAI        │
+                    │ • Local Ollama        │
+                    └───────────────────────┘
 ```
 
 ## Design Principles
@@ -180,14 +187,21 @@ public class OpenAIProvider : ILlmProvider
 }
 ```
 
+### Current Provider Implementations
+
+1. **OpenAIProvider**: Uses official OpenAI SDK, full feature support
+2. **CerebrasProvider**: Fast inference using Cerebras Cloud SDK
+3. **AzureOpenAIProvider**: Enterprise Azure OpenAI with deployment-based access
+4. **OllamaProvider**: Local LLM execution via HTTP API
+
 ### Adding New Providers
 
 To add a new provider:
 
-1. Implement `ILlmProvider`
-2. Register in DI container
-3. Add to factory switch statement
-4. Add configuration mapping
+1. Implement `ILlmProvider` interface
+2. Register in DI container (ServiceCollectionExtensions)
+3. Update factory switch statement in LlmProviderFactory
+4. Add configuration mapping in ConfigureLlmFromEnvironment
 
 ## Message Flow
 

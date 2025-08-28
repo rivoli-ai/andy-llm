@@ -21,11 +21,20 @@ public class TelemetryExample
         // Setup dependency injection with telemetry
         var services = new ServiceCollection();
         
-        // Configure logging
+        // Configure logging with clean console output
         services.AddLogging(builder =>
         {
-            builder.AddConsole();
-            builder.SetMinimumLevel(LogLevel.Debug);
+            builder.AddSimpleConsole(options =>
+            {
+                options.IncludeScopes = false;
+                options.SingleLine = true;
+                options.TimestampFormat = "";
+            });
+            builder.SetMinimumLevel(LogLevel.Information);
+            // Hide HTTP client and provider logs
+            builder.AddFilter("System.Net.Http", LogLevel.Warning);
+            builder.AddFilter("Andy.Llm.Providers", LogLevel.Warning);
+            builder.AddFilter("Andy.Llm.Services", LogLevel.Warning);
         });
 
         // Configure OpenTelemetry using separate configuration
@@ -45,32 +54,55 @@ public class TelemetryExample
         services.AddSingleton<LlmMetrics>();
         services.AddSingleton<TelemetryMiddleware>();
         services.ConfigureLlmFromEnvironment();
+        services.AddLlmServices(options =>
+        {
+            options.DefaultProvider = "openai";
+        });
 
         var serviceProvider = services.BuildServiceProvider();
+        var logger = serviceProvider.GetRequiredService<ILogger<TelemetryExample>>();
 
-        // Example 1: Using TelemetryMiddleware
-        await RunWithTelemetryMiddleware(serviceProvider);
+        try
+        {
+            // Check for API key
+            if (string.IsNullOrEmpty(Environment.GetEnvironmentVariable("OPENAI_API_KEY")))
+            {
+                logger.LogError("OPENAI_API_KEY environment variable is not set!");
+                logger.LogError("Please set your OpenAI API key:");
+                logger.LogError("  export OPENAI_API_KEY=sk-...");
+                return;
+            }
+            
+            logger.LogInformation("=== Telemetry and Monitoring Examples ===\n");
+            
+            // Example 1: Using TelemetryMiddleware
+            await RunWithTelemetryMiddleware(serviceProvider, logger);
 
-        // Example 2: Direct metrics recording
-        await RunWithDirectMetrics(serviceProvider);
+            // Example 2: Direct metrics recording
+            await RunWithDirectMetrics(serviceProvider, logger);
 
-        // Example 3: Custom metrics listener
-        await RunWithCustomMetricsListener();
+            // Example 3: Custom metrics listener
+            await RunWithCustomMetricsListener(logger);
 
-        // Example 4: Progress reporting
-        await RunWithProgressReporting();
+            // Example 4: Progress reporting
+            await RunWithProgressReporting(logger);
 
-        Console.WriteLine("\nTelemetry examples completed!");
+            logger.LogInformation("\nTelemetry examples completed!");
+        }
+        catch (Exception ex)
+        {
+            logger.LogError(ex, "An error occurred during telemetry examples");
+        }
     }
 
-    static async Task RunWithTelemetryMiddleware(IServiceProvider serviceProvider)
+    static async Task RunWithTelemetryMiddleware(IServiceProvider serviceProvider, ILogger logger)
     {
-        Console.WriteLine("\n=== Example 1: Using TelemetryMiddleware ===");
+        logger.LogInformation("\n=== Example 1: Using TelemetryMiddleware ===");
         
         var llmClient = serviceProvider.GetRequiredService<LlmClient>();
         var metrics = serviceProvider.GetRequiredService<LlmMetrics>();
-        var logger = serviceProvider.GetRequiredService<ILogger<TelemetryMiddleware>>();
-        var telemetry = new TelemetryMiddleware(metrics, logger);
+        var telemetryLogger = serviceProvider.GetRequiredService<ILogger<TelemetryMiddleware>>();
+        var telemetry = new TelemetryMiddleware(metrics, telemetryLogger);
 
         try
         {
@@ -94,22 +126,23 @@ public class TelemetryExample
                 },
                 CancellationToken.None);
 
-            Console.WriteLine($"Response: {response.Content}");
+            logger.LogInformation("Response: {Response}", response.Content);
             
             if (response.Usage != null)
             {
-                Console.WriteLine($"Tokens used - Prompt: {response.Usage.PromptTokens}, Completion: {response.Usage.CompletionTokens}");
+                logger.LogInformation("Tokens used - Prompt: {PromptTokens}, Completion: {CompletionTokens}", 
+                    response.Usage.PromptTokens, response.Usage.CompletionTokens);
             }
         }
         catch (Exception ex)
         {
-            Console.WriteLine($"Error: {ex.Message}");
+            logger.LogError("Error: {Message}", ex.Message);
         }
     }
 
-    static async Task RunWithDirectMetrics(IServiceProvider serviceProvider)
+    static async Task RunWithDirectMetrics(IServiceProvider serviceProvider, ILogger logger)
     {
-        Console.WriteLine("\n=== Example 2: Direct Metrics Recording ===");
+        logger.LogInformation("\n=== Example 2: Direct Metrics Recording ===");
         
         var metrics = serviceProvider.GetRequiredService<LlmMetrics>();
         var llmClient = serviceProvider.GetRequiredService<LlmClient>();
@@ -131,11 +164,11 @@ public class TelemetryExample
                     return "Operation completed successfully";
                 });
 
-            Console.WriteLine($"Result: {result}");
+            logger.LogInformation("Result: {Result}", result);
         }
         catch (Exception ex)
         {
-            Console.WriteLine($"Operation failed: {ex.Message}");
+            logger.LogError("Operation failed: {Message}", ex.Message);
         }
 
         // Manual metrics recording
@@ -143,12 +176,12 @@ public class TelemetryExample
         metrics.RecordLatency("openai", "gpt-4", 150.5, success: true);
         metrics.RecordRetry("openai", 1);
         
-        Console.WriteLine("Metrics recorded successfully");
+        logger.LogInformation("Metrics recorded successfully");
     }
 
-    static async Task RunWithCustomMetricsListener()
+    static async Task RunWithCustomMetricsListener(ILogger logger)
     {
-        Console.WriteLine("\n=== Example 3: Custom Metrics Listener ===");
+        logger.LogInformation("\n=== Example 3: Custom Metrics Listener ===");
         
         var metrics = new LlmMetrics();
         var metricsCollected = new Dictionary<string, double>();
@@ -160,14 +193,15 @@ public class TelemetryExample
             if (instrument.Meter.Name == LlmMetrics.MeterName)
             {
                 listener.EnableMeasurementEvents(instrument);
-                Console.WriteLine($"Subscribed to instrument: {instrument.Name}");
+                logger.LogInformation("Subscribed to instrument: {InstrumentName}", instrument.Name);
             }
         };
 
         listener.SetMeasurementEventCallback<long>((instrument, measurement, tags, state) =>
         {
             var tagString = string.Join(", ", tags.ToArray().Select(t => $"{t.Key}={t.Value}"));
-            Console.WriteLine($"[METRIC] {instrument.Name}: {measurement} [{tagString}]");
+            logger.LogInformation("[METRIC] {InstrumentName}: {Measurement} [{Tags}]", 
+                instrument.Name, measurement, tagString);
             
             // Store for analysis
             metricsCollected[instrument.Name] = metricsCollected.GetValueOrDefault(instrument.Name) + measurement;
@@ -176,7 +210,8 @@ public class TelemetryExample
         listener.SetMeasurementEventCallback<double>((instrument, measurement, tags, state) =>
         {
             var tagString = string.Join(", ", tags.ToArray().Select(t => $"{t.Key}={t.Value}"));
-            Console.WriteLine($"[METRIC] {instrument.Name}: {measurement:F2} [{tagString}]");
+            logger.LogInformation("[METRIC] {InstrumentName}: {Measurement:F2} [{Tags}]", 
+                instrument.Name, measurement, tagString);
             
             metricsCollected[instrument.Name] = metricsCollected.GetValueOrDefault(instrument.Name) + measurement;
         });
@@ -191,18 +226,18 @@ public class TelemetryExample
         
         await Task.Delay(100); // Let metrics process
 
-        Console.WriteLine("\nCollected metrics summary:");
+        logger.LogInformation("\nCollected metrics summary:");
         foreach (var kvp in metricsCollected)
         {
-            Console.WriteLine($"  {kvp.Key}: {kvp.Value:F2}");
+            logger.LogInformation("  {Key}: {Value:F2}", kvp.Key, kvp.Value);
         }
 
         metrics.Dispose();
     }
 
-    static async Task RunWithProgressReporting()
+    static async Task RunWithProgressReporting(ILogger logger)
     {
-        Console.WriteLine("\n=== Example 4: Progress Reporting ===");
+        logger.LogInformation("\n=== Example 4: Progress Reporting ===");
         
         var progressReporter = new ConsoleProgressReporter();
         await ProcessDocumentsWithProgress(progressReporter);
@@ -253,7 +288,7 @@ public class TelemetryExample
             
             if (value.Phase != _lastPhase)
             {
-                Console.WriteLine($"\n[{value.Phase}] {value.Message}");
+                Console.Write($"\n[{value.Phase}] {value.Message}");
                 _lastPhase = value.Phase;
             }
             

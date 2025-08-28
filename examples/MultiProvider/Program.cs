@@ -19,8 +19,16 @@ public class MultiProvider
         
         services.AddLogging(builder =>
         {
-            builder.AddConsole();
-            builder.SetMinimumLevel(LogLevel.Debug);
+            builder.AddSimpleConsole(options =>
+            {
+                options.IncludeScopes = false;
+                options.SingleLine = true;
+                options.TimestampFormat = "";
+            });
+            builder.SetMinimumLevel(LogLevel.Information);
+            // Hide HTTP client logs
+            builder.AddFilter("System.Net.Http", LogLevel.Warning);
+            builder.AddFilter("Andy.Llm.Providers", LogLevel.Warning);
         });
 
         // Configure multiple providers
@@ -44,171 +52,331 @@ public class MultiProvider
                 Enabled = true
             };
             
-            // You can add more providers here...
+            // Azure OpenAI configuration
+            options.Providers["azure"] = new ProviderConfig
+            {
+                ApiKey = Environment.GetEnvironmentVariable("AZURE_OPENAI_KEY"),
+                ApiBase = Environment.GetEnvironmentVariable("AZURE_OPENAI_ENDPOINT"),
+                DeploymentName = Environment.GetEnvironmentVariable("AZURE_OPENAI_DEPLOYMENT"),
+                Enabled = !string.IsNullOrEmpty(Environment.GetEnvironmentVariable("AZURE_OPENAI_KEY"))
+            };
+            
+            // Ollama configuration
+            options.Providers["ollama"] = new ProviderConfig
+            {
+                ApiBase = Environment.GetEnvironmentVariable("OLLAMA_API_BASE") ?? "http://localhost:11434",
+                Model = Environment.GetEnvironmentVariable("OLLAMA_MODEL"),
+                Enabled = true
+            };
         });
 
         var serviceProvider = services.BuildServiceProvider();
-        var providerFactory = serviceProvider.GetRequiredService<ILlmProviderFactory>();
         var logger = serviceProvider.GetRequiredService<ILogger<MultiProvider>>();
-
-        Console.WriteLine("Multi-Provider Example");
-        Console.WriteLine("======================");
-        Console.WriteLine("Available commands:");
-        Console.WriteLine("  /provider <name> - Switch provider (openai, cerebras)");
-        Console.WriteLine("  /test - Test all configured providers");
-        Console.WriteLine("  exit - Quit");
-        Console.WriteLine();
-
-        var currentProviderName = "openai";
-        ILlmProvider currentProvider = null;
-
+        
         try
         {
-            currentProvider = providerFactory.CreateProvider(currentProviderName);
-            Console.WriteLine($"Using provider: {currentProviderName}\n");
+            var factory = serviceProvider.GetRequiredService<ILlmProviderFactory>();
+
+            logger.LogInformation("=== Multi-Provider Example ===\n");
+
+            // Example 1: Use default provider
+            await UseDefaultProvider(factory, logger);
+
+            // Example 2: Use specific providers
+            await UseSpecificProviders(factory, logger);
+
+            // Example 3: Provider fallback
+            await DemonstrateProviderFallback(factory, logger);
+
+            // Example 4: Compare providers
+            await CompareProviders(factory, logger);
+
+            // Example 5: Provider-specific features
+            await ProviderSpecificFeatures(factory, logger);
+
+            logger.LogInformation("\nMulti-provider examples completed!");
         }
         catch (Exception ex)
         {
-            logger.LogError(ex, "Failed to create default provider");
-            Console.WriteLine($"Failed to create default provider. Trying to find available provider...");
-            
-            try
-            {
-                currentProvider = await providerFactory.CreateAvailableProviderAsync();
-                currentProviderName = currentProvider.Name;
-                Console.WriteLine($"Using fallback provider: {currentProviderName}\n");
-            }
-            catch
-            {
-                Console.WriteLine("No providers available. Please check your configuration.");
-                return;
-            }
+            logger.LogError(ex, "An error occurred during multi-provider examples");
         }
+    }
 
-        while (true)
+    static async Task UseDefaultProvider(ILlmProviderFactory factory, ILogger logger)
+    {
+        logger.LogInformation("\n=== Example 1: Using Default Provider ===");
+        
+        try
         {
-            Console.Write($"[{currentProviderName}] You: ");
-            var input = Console.ReadLine();
+            var provider = factory.CreateProvider(); // Uses default (OpenAI)
+            logger.LogInformation("Default provider: {ProviderName}", provider.Name);
 
-            if (string.IsNullOrWhiteSpace(input))
-                continue;
-
-            if (input.Equals("exit", StringComparison.OrdinalIgnoreCase))
-                break;
-
-            if (input.StartsWith("/provider ", StringComparison.OrdinalIgnoreCase))
-            {
-                var newProvider = input.Substring("/provider ".Length).Trim();
-                try
-                {
-                    currentProvider = providerFactory.CreateProvider(newProvider);
-                    currentProviderName = newProvider;
-                    Console.WriteLine($"Switched to provider: {currentProviderName}\n");
-                }
-                catch (Exception ex)
-                {
-                    Console.WriteLine($"Failed to switch provider: {ex.Message}\n");
-                }
-                continue;
-            }
-
-            if (input.Equals("/test", StringComparison.OrdinalIgnoreCase))
-            {
-                await TestAllProviders(providerFactory, logger);
-                continue;
-            }
-
-            // Create request
             var request = new LlmRequest
             {
                 Messages = new List<Message>
                 {
-                    Message.CreateText(MessageRole.User, input)
+                    Message.CreateText(MessageRole.User, "Say hello in one word.")
                 },
-                MaxTokens = 500,
-                Temperature = 0.7
+                MaxTokens = 10
             };
 
-            try
-            {
-                Console.Write($"[{currentProviderName}] Assistant: ");
-                
-                // Stream the response
-                var fullResponse = "";
-                await foreach (var chunk in currentProvider.StreamCompleteAsync(request))
-                {
-                    if (!string.IsNullOrEmpty(chunk.TextDelta))
-                    {
-                        Console.Write(chunk.TextDelta);
-                        fullResponse += chunk.TextDelta;
-                    }
-                }
-                Console.WriteLine("\n");
-            }
-            catch (Exception ex)
-            {
-                Console.WriteLine($"Error: {ex.Message}\n");
-                logger.LogError(ex, "Provider error");
-            }
+            var response = await provider.CompleteAsync(request);
+            logger.LogInformation("Response: {Response}", response.Content);
         }
-
-        Console.WriteLine("Goodbye!");
+        catch (Exception ex)
+        {
+            logger.LogError("Default provider failed: {Message}", ex.Message);
+        }
     }
 
-    private static async Task TestAllProviders(ILlmProviderFactory factory, ILogger logger)
+    static async Task UseSpecificProviders(ILlmProviderFactory factory, ILogger logger)
     {
-        Console.WriteLine("\nTesting all configured providers...");
-        Console.WriteLine("===================================");
+        logger.LogInformation("\n=== Example 2: Using Specific Providers ===");
 
         var providers = new[] { "openai", "cerebras", "azure", "ollama" };
-        var testRequest = new LlmRequest
-        {
-            Messages = new List<Message>
-            {
-                Message.CreateText(MessageRole.User, "Say 'Hello' and nothing else.")
-            },
-            MaxTokens = 10,
-            Temperature = 0
-        };
-
+        
         foreach (var providerName in providers)
         {
-            Console.Write($"Testing {providerName}... ");
-            
             try
             {
                 var provider = factory.CreateProvider(providerName);
                 
-                // Check if available
-                var isAvailable = await provider.IsAvailableAsync();
-                if (!isAvailable)
+                if (!await provider.IsAvailableAsync())
                 {
-                    Console.WriteLine("Not available");
+                    logger.LogWarning("{Provider} is not available", providerName);
                     continue;
                 }
 
-                // Try a simple completion
-                var response = await provider.CompleteAsync(testRequest);
-                if (!string.IsNullOrEmpty(response.Content))
+                logger.LogInformation("\nUsing {Provider}:", providerName);
+                
+                var request = new LlmRequest
                 {
-                    Console.WriteLine($"✓ Working (Response: {response.Content.Trim()})");
-                }
-                else
+                    Messages = new List<Message>
+                    {
+                        Message.CreateText(MessageRole.User, 
+                            $"What provider are you? Reply in 5 words or less.")
+                    },
+                    MaxTokens = 50
+                };
+
+                var response = await provider.CompleteAsync(request);
+                logger.LogInformation("  Response: {Response}", response.Content);
+                
+                if (response.TokensUsed.HasValue)
                 {
-                    Console.WriteLine("✗ No response");
+                    logger.LogInformation("  Tokens used: {Tokens}", response.TokensUsed);
                 }
-            }
-            catch (NotSupportedException)
-            {
-                Console.WriteLine("Not configured");
             }
             catch (Exception ex)
             {
-                Console.WriteLine($"✗ Error: {ex.Message}");
-                logger.LogDebug(ex, "Provider test failed for {Provider}", providerName);
+                logger.LogWarning("Provider {Provider} failed: {Message}", providerName, ex.Message);
             }
         }
+    }
 
-        Console.WriteLine("\nTest complete.\n");
+    static async Task DemonstrateProviderFallback(ILlmProviderFactory factory, ILogger logger)
+    {
+        logger.LogInformation("\n=== Example 3: Provider Fallback ===");
+        
+        try
+        {
+            // This will automatically find the first available provider
+            var provider = await factory.CreateAvailableProviderAsync(CancellationToken.None);
+            logger.LogInformation("Found available provider: {Provider}", provider.Name);
+
+            var request = new LlmRequest
+            {
+                Messages = new List<Message>
+                {
+                    Message.CreateText(MessageRole.User, "What's 2+2?")
+                },
+                MaxTokens = 10
+            };
+
+            var response = await provider.CompleteAsync(request);
+            logger.LogInformation("Response: {Response}", response.Content);
+        }
+        catch (Exception ex)
+        {
+            logger.LogError("Provider fallback failed: {Message}", ex.Message);
+        }
+    }
+
+    static async Task CompareProviders(ILlmProviderFactory factory, ILogger logger)
+    {
+        logger.LogInformation("\n=== Example 4: Compare Provider Performance ===");
+
+        var prompt = "Explain recursion in one sentence.";
+        var providers = new[] { "openai", "cerebras" };
+
+        foreach (var providerName in providers)
+        {
+            try
+            {
+                var provider = factory.CreateProvider(providerName);
+                
+                if (!await provider.IsAvailableAsync())
+                {
+                    logger.LogWarning("{Provider} not available for comparison", providerName);
+                    continue;
+                }
+
+                logger.LogInformation("\n{Provider} response:", providerName);
+
+                var request = new LlmRequest
+                {
+                    Messages = new List<Message>
+                    {
+                        Message.CreateText(MessageRole.User, prompt)
+                    },
+                    MaxTokens = 100,
+                    Temperature = 0.7
+                };
+
+                var stopwatch = System.Diagnostics.Stopwatch.StartNew();
+                var response = await provider.CompleteAsync(request);
+                stopwatch.Stop();
+
+                logger.LogInformation("  Response: {Response}", response.Content);
+                logger.LogInformation("  Time: {ElapsedMs}ms", stopwatch.ElapsedMilliseconds);
+                
+                if (response.TokensUsed.HasValue)
+                {
+                    logger.LogInformation("  Tokens: {Tokens}", response.TokensUsed);
+                    var tokensPerSecond = response.TokensUsed.Value * 1000.0 / stopwatch.ElapsedMilliseconds;
+                    logger.LogInformation("  Speed: {TokensPerSecond:F1} tokens/sec", tokensPerSecond);
+                }
+            }
+            catch (Exception ex)
+            {
+                logger.LogError("Provider {Provider} comparison failed: {Message}", 
+                    providerName, ex.Message);
+            }
+        }
+    }
+
+    static async Task ProviderSpecificFeatures(ILlmProviderFactory factory, ILogger logger)
+    {
+        logger.LogInformation("\n=== Example 5: Provider-Specific Features ===");
+
+        // OpenAI - Function Calling
+        try
+        {
+            logger.LogInformation("\nOpenAI - Function Calling:");
+            var openai = factory.CreateProvider("openai");
+            
+            if (await openai.IsAvailableAsync())
+            {
+                var context = new ConversationContext
+                {
+                    SystemInstruction = "You are a helpful assistant.",
+                    AvailableTools = 
+                    {
+                        new ToolDeclaration
+                        {
+                            Name = "get_time",
+                            Description = "Get the current time",
+                            Parameters = new Dictionary<string, object>
+                            {
+                                ["type"] = "object",
+                                ["properties"] = new Dictionary<string, object>()
+                            }
+                        }
+                    }
+                };
+
+                context.AddUserMessage("What time is it?");
+                var request = context.CreateRequest("gpt-4o-mini");
+
+                var response = await openai.CompleteAsync(request);
+                
+                if (response.FunctionCalls.Any())
+                {
+                    logger.LogInformation("  Function call requested: {Function}", 
+                        response.FunctionCalls.First().Name);
+                }
+                else
+                {
+                    logger.LogInformation("  Response: {Response}", response.Content);
+                }
+            }
+            else
+            {
+                logger.LogWarning("OpenAI not available");
+            }
+        }
+        catch (Exception ex)
+        {
+            logger.LogError("OpenAI feature demo failed: {Message}", ex.Message);
+        }
+
+        // Cerebras - Fast Inference
+        try
+        {
+            logger.LogInformation("\nCerebras - Fast Inference:");
+            var cerebras = factory.CreateProvider("cerebras");
+            
+            if (await cerebras.IsAvailableAsync())
+            {
+                var request = new LlmRequest
+                {
+                    Messages = new List<Message>
+                    {
+                        Message.CreateText(MessageRole.User, 
+                            "Generate a list of 10 random numbers between 1 and 100.")
+                    },
+                    MaxTokens = 200,
+                    Temperature = 0.9
+                };
+
+                var stopwatch = System.Diagnostics.Stopwatch.StartNew();
+                var response = await cerebras.CompleteAsync(request);
+                stopwatch.Stop();
+
+                logger.LogInformation("  Response length: {Length} chars", response.Content.Length);
+                logger.LogInformation("  Generation time: {ElapsedMs}ms", stopwatch.ElapsedMilliseconds);
+                logger.LogInformation("  (Cerebras is optimized for speed)");
+            }
+            else
+            {
+                logger.LogWarning("Cerebras not available");
+            }
+        }
+        catch (Exception ex)
+        {
+            logger.LogError("Cerebras feature demo failed: {Message}", ex.Message);
+        }
+
+        // Ollama - Local Models
+        try
+        {
+            logger.LogInformation("\nOllama - Local Models:");
+            var ollama = factory.CreateProvider("ollama");
+            
+            if (await ollama.IsAvailableAsync())
+            {
+                var request = new LlmRequest
+                {
+                    Messages = new List<Message>
+                    {
+                        Message.CreateText(MessageRole.User, 
+                            "What are the benefits of running models locally?")
+                    },
+                    MaxTokens = 100
+                };
+
+                var response = await ollama.CompleteAsync(request);
+                logger.LogInformation("  Response: {Response}", response.Content.Substring(0, Math.Min(100, response.Content.Length)) + "...");
+                logger.LogInformation("  (Running locally - no API costs!)");
+            }
+            else
+            {
+                logger.LogWarning("Ollama not available - is it running locally?");
+            }
+        }
+        catch (Exception ex)
+        {
+            logger.LogError("Ollama feature demo failed: {Message}", ex.Message);
+        }
     }
 }

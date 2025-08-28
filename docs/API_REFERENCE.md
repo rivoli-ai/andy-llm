@@ -504,6 +504,84 @@ Provider for Cerebras Cloud API using OpenAI-compatible endpoint.
 
 **Note:** Cerebras uses an OpenAI-compatible API, so it works with the OpenAI SDK. Function calling support depends on the model capabilities.
 
+### AzureOpenAIProvider
+
+Provider for Azure OpenAI Service with enterprise features.
+
+**Supported Features:**
+- Text completion
+- Streaming
+- Function calling
+- Deployment-based model access
+- Enterprise security and compliance
+- VNet integration and private endpoints
+
+**Configuration:**
+```csharp
+{
+    "ApiKey": "your-azure-key",
+    "ApiBase": "https://your-resource.openai.azure.com",
+    "DeploymentName": "gpt-4", // Your deployment name
+    "ApiVersion": "2024-02-15-preview", // API version
+    "Model": "gpt-4" // Model identifier
+}
+```
+
+**Environment Variables:**
+- `AZURE_OPENAI_ENDPOINT` - Your Azure OpenAI endpoint
+- `AZURE_OPENAI_KEY` - Your API key
+- `AZURE_OPENAI_DEPLOYMENT` - Your deployment name
+- `AZURE_OPENAI_API_VERSION` - API version (optional)
+
+**Key Differences from OpenAI:**
+- Uses deployment names instead of model names
+- Requires Azure subscription
+- Offers enterprise compliance (SOC 2, ISO 27001, HIPAA)
+- Data stays in your subscription
+- Built-in content filtering
+
+### OllamaProvider
+
+Provider for Ollama local LLM server.
+
+**Supported Features:**
+- Text completion
+- Streaming
+- Local model execution
+- No API key required
+- Complete privacy
+
+**Configuration:**
+```csharp
+{
+    "ApiBase": "http://localhost:11434", // Ollama server URL
+    "Model": "llama2" // Local model name
+}
+```
+
+**Environment Variables:**
+- `OLLAMA_API_BASE` - Server URL (default: http://localhost:11434)
+- `OLLAMA_MODEL` - Model to use (default: llama2)
+
+**Available Models (examples):**
+- `llama2` - Meta's Llama 2
+- `mistral` - Mistral 7B
+- `codellama` - Code-specialized model
+- `phi` - Microsoft's Phi-2
+- Custom models via Modelfile
+
+**Installation:**
+```bash
+# Install Ollama
+curl -fsSL https://ollama.ai/install.sh | sh
+
+# Pull a model
+ollama pull llama2
+
+# Start server
+ollama serve
+```
+
 ## Error Handling
 
 ### Common Exceptions

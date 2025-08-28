@@ -13,84 +13,132 @@ public class StreamingExample
     {
         // Setup
         var services = new ServiceCollection();
-        services.AddLogging(builder => builder.AddConsole());
+        services.AddLogging(builder => 
+        {
+            builder.AddSimpleConsole(options =>
+            {
+                options.IncludeScopes = false;
+                options.SingleLine = true;
+                options.TimestampFormat = "";
+            });
+            builder.SetMinimumLevel(LogLevel.Information);
+            // Hide HTTP client and provider logs
+            builder.AddFilter("System.Net.Http", LogLevel.Warning);
+            builder.AddFilter("Andy.Llm.Providers", LogLevel.Warning);
+            builder.AddFilter("Andy.Llm.Services", LogLevel.Warning);
+        });
+        
+        // Configure LLM services
         services.ConfigureLlmFromEnvironment();
+        services.AddLlmServices(options =>
+        {
+            options.DefaultProvider = "openai";
+        });
         
         var serviceProvider = services.BuildServiceProvider();
-        var llmClient = serviceProvider.GetRequiredService<LlmClient>();
-
-        // Example 1: Basic streaming
-        await BasicStreaming(llmClient);
-
-        // Example 2: Streaming with cancellation
-        await StreamingWithCancellation(llmClient);
-
-        // Example 3: Streaming with progress display
-        await StreamingWithProgress(llmClient);
-
-        // Example 4: Streaming with error handling
-        await StreamingWithErrorHandling(llmClient);
-
-        // Example 5: Streaming function calls
-        await StreamingWithFunctionCalls(llmClient);
-
-        Console.WriteLine("\nStreaming examples completed!");
-    }
-
-    static async Task BasicStreaming(LlmClient client)
-    {
-        Console.WriteLine("\n=== Example 1: Basic Streaming ===");
-        Console.WriteLine("Prompt: Tell me a short story about streaming data\n");
-
-        var request = new LlmRequest
-        {
-            Messages = new List<Message>
-            {
-                Message.CreateText(MessageRole.System, "You are a helpful assistant."),
-                Message.CreateText(MessageRole.User, "Tell me a short story about streaming data")
-            },
-            Stream = true,
-            MaxTokens = 200
-        };
-
-        Console.Write("Response: ");
-        var fullResponse = "";
+        var logger = serviceProvider.GetRequiredService<ILogger<StreamingExample>>();
         
-        await foreach (var chunk in client.StreamCompleteAsync(request))
+        try
         {
-            if (!string.IsNullOrEmpty(chunk.TextDelta))
+            logger.LogInformation("=== Streaming Examples ===\n");
+            logger.LogInformation("Starting streaming demonstrations with OpenAI...\n");
+            
+            // Check for API key
+            if (string.IsNullOrEmpty(Environment.GetEnvironmentVariable("OPENAI_API_KEY")))
             {
-                Console.Write(chunk.TextDelta);
-                fullResponse += chunk.TextDelta;
+                logger.LogError("OPENAI_API_KEY environment variable is not set!");
+                logger.LogError("Please set your OpenAI API key:");
+                logger.LogError("  export OPENAI_API_KEY=sk-...");
+                return;
             }
+            
+            var llmClient = serviceProvider.GetRequiredService<LlmClient>();
 
-            if (chunk.IsComplete)
-            {
-                Console.WriteLine("\n\n[Stream completed]");
-            }
+            // Example 1: Basic streaming
+            await BasicStreaming(llmClient, logger);
+
+            // Example 2: Streaming with cancellation
+            await StreamingWithCancellation(llmClient, logger);
+
+            // Example 3: Streaming with progress display
+            await StreamingWithProgress(llmClient, logger);
+
+            // Example 4: Streaming with error handling
+            await StreamingWithErrorHandling(llmClient, logger);
+
+            // Example 5: Streaming function calls
+            await StreamingWithFunctionCalls(llmClient, logger);
+
+            logger.LogInformation("\nStreaming examples completed!");
         }
-
-        Console.WriteLine($"Total characters received: {fullResponse.Length}");
+        catch (Exception ex)
+        {
+            logger.LogError(ex, "An error occurred during streaming examples");
+        }
     }
 
-    static async Task StreamingWithCancellation(LlmClient client)
+    static async Task BasicStreaming(LlmClient client, ILogger logger)
     {
-        Console.WriteLine("\n=== Example 2: Streaming with Cancellation ===");
-        Console.WriteLine("This example will cancel after receiving 50 characters\n");
-
-        var cts = new CancellationTokenSource();
+        logger.LogInformation("\n=== Example 1: Basic Streaming ===");
+        
         var request = new LlmRequest
         {
             Messages = new List<Message>
             {
-                Message.CreateText(MessageRole.User, "Count from 1 to 100 slowly")
+                Message.CreateText(MessageRole.User, "Write a short poem about programming.")
             },
+            Model = "gpt-4o-mini",
             Stream = true
         };
 
-        var charCount = 0;
-        Console.Write("Response: ");
+        logger.LogInformation("Streaming response:");
+        try
+        {
+            await foreach (var chunk in client.StreamCompleteAsync(request))
+            {
+                if (!string.IsNullOrEmpty(chunk.TextDelta))
+                {
+                    Console.Write(chunk.TextDelta);
+                }
+                
+                if (chunk.Error != null)
+                {
+                    logger.LogError("\nError: {Error}", chunk.Error);
+                    break;
+                }
+                
+                if (chunk.IsComplete)
+                {
+                    logger.LogInformation("\n[Stream complete]");
+                }
+            }
+        }
+        catch (Exception ex)
+        {
+            logger.LogError("Streaming failed: {Message}", ex.Message);
+        }
+    }
 
+    static async Task StreamingWithCancellation(LlmClient client, ILogger logger)
+    {
+        logger.LogInformation("\n=== Example 2: Streaming with Cancellation ===");
+        
+        using var cts = new CancellationTokenSource();
+        var request = new LlmRequest
+        {
+            Messages = new List<Message>
+            {
+                Message.CreateText(MessageRole.User, "Count from 1 to 100 slowly, one number at a time.")
+            },
+            Model = "gpt-4o-mini",
+            Stream = true
+        };
+
+        logger.LogInformation("Streaming (will cancel after 2 seconds):");
+        
+        // Cancel after 2 seconds
+        cts.CancelAfter(TimeSpan.FromSeconds(2));
+        
         try
         {
             await foreach (var chunk in client.StreamCompleteAsync(request, cts.Token))
@@ -98,233 +146,160 @@ public class StreamingExample
                 if (!string.IsNullOrEmpty(chunk.TextDelta))
                 {
                     Console.Write(chunk.TextDelta);
-                    charCount += chunk.TextDelta.Length;
-
-                    // Cancel after 50 characters
-                    if (charCount >= 50)
-                    {
-                        Console.WriteLine("\n\n[Cancelling stream...]");
-                        cts.Cancel();
-                    }
                 }
             }
         }
         catch (OperationCanceledException)
         {
-            Console.WriteLine("[Stream cancelled successfully]");
+            logger.LogInformation("\n[Stream cancelled]");
         }
-
-        Console.WriteLine($"Received {charCount} characters before cancellation");
+        catch (Exception ex)
+        {
+            logger.LogError("Streaming failed: {Message}", ex.Message);
+        }
     }
 
-    static async Task StreamingWithProgress(LlmClient client)
+    static async Task StreamingWithProgress(LlmClient client, ILogger logger)
     {
-        Console.WriteLine("\n=== Example 3: Streaming with Progress Display ===");
+        logger.LogInformation("\n=== Example 3: Streaming with Progress ===");
         
         var request = new LlmRequest
         {
             Messages = new List<Message>
             {
-                Message.CreateText(MessageRole.User, "List 5 interesting facts about space")
+                Message.CreateText(MessageRole.User, "List 5 programming languages with brief descriptions.")
             },
-            Stream = true,
-            MaxTokens = 300
+            Model = "gpt-4o-mini",
+            Stream = true
         };
 
-        var tokenCount = 0;
-        var startTime = DateTime.UtcNow;
-        var response = "";
-
-        Console.WriteLine("Streaming response with live stats:\n");
-        var cursorTop = Console.CursorTop;
-
-        await foreach (var chunk in client.StreamCompleteAsync(request))
-        {
-            if (!string.IsNullOrEmpty(chunk.TextDelta))
-            {
-                response += chunk.TextDelta;
-                tokenCount++;
-
-                // Update display
-                Console.SetCursorPosition(0, cursorTop);
-                Console.WriteLine(response);
-                Console.WriteLine(new string('-', 50));
-                
-                var elapsed = (DateTime.UtcNow - startTime).TotalSeconds;
-                var tokensPerSecond = tokenCount / elapsed;
-                
-                Console.WriteLine($"Tokens: {tokenCount} | Speed: {tokensPerSecond:F1} tokens/sec | Time: {elapsed:F1}s");
-            }
-
-            if (chunk.IsComplete)
-            {
-                Console.WriteLine("\n[Stream completed]");
-            }
-        }
-    }
-
-    static async Task StreamingWithErrorHandling(LlmClient client)
-    {
-        Console.WriteLine("\n=== Example 4: Streaming with Error Handling ===");
+        logger.LogInformation("Streaming response with character count:");
         
-        var request = new LlmRequest
-        {
-            Messages = new List<Message>
-            {
-                Message.CreateText(MessageRole.User, "Generate text")
-            },
-            Stream = true,
-            MaxTokens = 100,
-            Temperature = 0.8
-        };
-
-        var retryCount = 0;
-        const int maxRetries = 3;
+        int totalChars = 0;
+        int chunkCount = 0;
         
-        while (retryCount < maxRetries)
-        {
-            try
-            {
-                Console.WriteLine($"Attempt {retryCount + 1} of {maxRetries}...");
-                Console.Write("Response: ");
-
-                await foreach (var chunk in client.StreamCompleteAsync(request))
-                {
-                    if (!string.IsNullOrEmpty(chunk.Error))
-                    {
-                        throw new Exception($"Stream error: {chunk.Error}");
-                    }
-
-                    if (!string.IsNullOrEmpty(chunk.TextDelta))
-                    {
-                        Console.Write(chunk.TextDelta);
-                    }
-
-                    if (chunk.IsComplete)
-                    {
-                        Console.WriteLine("\n[Success]");
-                        return; // Success, exit retry loop
-                    }
-                }
-                
-                return; // Success
-            }
-            catch (Exception ex)
-            {
-                Console.WriteLine($"\n[Error: {ex.Message}]");
-                retryCount++;
-                
-                if (retryCount < maxRetries)
-                {
-                    var delay = Math.Pow(2, retryCount) * 1000;
-                    Console.WriteLine($"Retrying in {delay}ms...\n");
-                    await Task.Delay((int)delay);
-                }
-                else
-                {
-                    Console.WriteLine("Max retries exceeded. Stream failed.");
-                }
-            }
-        }
-    }
-
-    static async Task StreamingWithFunctionCalls(LlmClient client)
-    {
-        Console.WriteLine("\n=== Example 5: Streaming with Function Calls ===");
-        
-        var context = new ConversationContext();
-        
-        // Define a tool
-        context.AvailableTools.Add(new ToolDeclaration
-        {
-            Name = "get_current_time",
-            Description = "Get the current time in a specified timezone",
-            Parameters = new Dictionary<string, object>
-            {
-                ["type"] = "object",
-                ["properties"] = new Dictionary<string, object>
-                {
-                    ["timezone"] = new 
-                    { 
-                        type = "string", 
-                        description = "The timezone (e.g., 'UTC', 'EST', 'PST')" 
-                    }
-                },
-                ["required"] = new[] { "timezone" }
-            }
-        });
-
-        context.AddUserMessage("What time is it in Tokyo?");
-        
-        var request = context.CreateRequest();
-        request.Stream = true;
-
-        Console.WriteLine("Streaming response with potential function calls:\n");
-        
-        var functionCallDetected = false;
-        var responseText = "";
-
-        await foreach (var chunk in client.StreamCompleteAsync(request))
-        {
-            if (!string.IsNullOrEmpty(chunk.TextDelta))
-            {
-                Console.Write(chunk.TextDelta);
-                responseText += chunk.TextDelta;
-            }
-
-            if (chunk.FunctionCall != null && !functionCallDetected)
-            {
-                functionCallDetected = true;
-                Console.WriteLine($"\n\n[Function Call Detected]");
-                Console.WriteLine($"Function: {chunk.FunctionCall.Name}");
-                Console.WriteLine($"Arguments: {string.Join(", ", chunk.FunctionCall.Arguments.Select(kvp => $"{kvp.Key}={kvp.Value}"))}");
-                
-                // Simulate function execution
-                var result = GetCurrentTime("Asia/Tokyo");
-                Console.WriteLine($"Result: {result}\n");
-                
-                // Add function result to context
-                context.AddToolResponse(
-                    chunk.FunctionCall.Name,
-                    chunk.FunctionCall.Id,
-                    result);
-            }
-
-            if (chunk.IsComplete)
-            {
-                Console.WriteLine("\n[Stream completed]");
-                
-                if (functionCallDetected)
-                {
-                    // Continue conversation with function result
-                    Console.WriteLine("\nContinuing with function result...");
-                    var followUpRequest = context.CreateRequest();
-                    followUpRequest.Stream = true;
-                    
-                    await foreach (var followUpChunk in client.StreamCompleteAsync(followUpRequest))
-                    {
-                        if (!string.IsNullOrEmpty(followUpChunk.TextDelta))
-                        {
-                            Console.Write(followUpChunk.TextDelta);
-                        }
-                    }
-                }
-            }
-        }
-    }
-
-    static string GetCurrentTime(string timezone)
-    {
         try
         {
-            var tz = TimeZoneInfo.FindSystemTimeZoneById(
-                timezone.Replace("Asia/Tokyo", "Tokyo Standard Time"));
-            var time = TimeZoneInfo.ConvertTimeFromUtc(DateTime.UtcNow, tz);
-            return $"Current time in {timezone}: {time:yyyy-MM-dd HH:mm:ss}";
+            await foreach (var chunk in client.StreamCompleteAsync(request))
+            {
+                if (!string.IsNullOrEmpty(chunk.TextDelta))
+                {
+                    Console.Write(chunk.TextDelta);
+                    totalChars += chunk.TextDelta.Length;
+                    chunkCount++;
+                }
+                
+                if (chunk.IsComplete)
+                {
+                    logger.LogInformation("\n[Stream complete: {TotalChars} characters in {ChunkCount} chunks]", 
+                        totalChars, chunkCount);
+                }
+            }
         }
-        catch
+        catch (Exception ex)
         {
-            return $"Unable to get time for timezone: {timezone}";
+            logger.LogError("Streaming failed: {Message}", ex.Message);
+        }
+    }
+
+    static async Task StreamingWithErrorHandling(LlmClient client, ILogger logger)
+    {
+        logger.LogInformation("\n=== Example 4: Streaming with Error Handling ===");
+        
+        // Intentionally use a very long prompt that might cause issues
+        var request = new LlmRequest
+        {
+            Messages = new List<Message>
+            {
+                Message.CreateText(MessageRole.User, "Generate a simple greeting.")
+            },
+            Model = "gpt-4o-mini",
+            Stream = true,
+            MaxTokens = 10  // Very low token limit to demonstrate handling
+        };
+
+        logger.LogInformation("Streaming with error handling:");
+        
+        try
+        {
+            await foreach (var chunk in client.StreamCompleteAsync(request))
+            {
+                if (!string.IsNullOrEmpty(chunk.TextDelta))
+                {
+                    Console.Write(chunk.TextDelta);
+                }
+                
+                if (chunk.Error != null)
+                {
+                    logger.LogError("\nStream error: {Error}", chunk.Error);
+                    break;
+                }
+                
+                // Check if output was truncated (would need FinishReason in streaming)
+                // This information may not be available in streaming chunks
+                
+                if (chunk.IsComplete)
+                {
+                    logger.LogInformation("\n[Stream complete]");
+                }
+            }
+        }
+        catch (Exception ex)
+        {
+            logger.LogError("Streaming failed: {Message}", ex.Message);
+            logger.LogDebug(ex, "Full error details");
+        }
+    }
+
+    static async Task StreamingWithFunctionCalls(LlmClient client, ILogger logger)
+    {
+        logger.LogInformation("\n=== Example 5: Streaming with Complex Content ===");
+        logger.LogInformation("Demonstrating streaming with a more complex request\n");
+        
+        // Note: Function calling in streaming mode is not always supported
+        // We'll use a regular streaming request instead
+        var request = new LlmRequest
+        {
+            Messages = new List<Message>
+            {
+                Message.CreateText(MessageRole.System, "You are a helpful assistant that explains things step by step."),
+                Message.CreateText(MessageRole.User, "Calculate 15% of 240 and show your work.")
+            },
+            Model = "gpt-4o-mini",
+            Stream = true,
+            MaxTokens = 200
+        };
+        
+        logger.LogInformation("Streaming response with step-by-step calculation:");
+        
+        try
+        {
+            int chunkCount = 0;
+            
+            await foreach (var chunk in client.StreamCompleteAsync(request))
+            {
+                if (!string.IsNullOrEmpty(chunk.TextDelta))
+                {
+                    Console.Write(chunk.TextDelta);
+                    chunkCount++;
+                }
+                
+                if (chunk.Error != null)
+                {
+                    logger.LogError("\nStream error: {Error}", chunk.Error);
+                    break;
+                }
+                
+                if (chunk.IsComplete)
+                {
+                    logger.LogInformation("\n[Stream complete - {ChunkCount} chunks received]", chunkCount);
+                }
+            }
+        }
+        catch (Exception ex)
+        {
+            logger.LogError("Streaming with functions failed: {Message}", ex.Message);
+            logger.LogDebug(ex, "Full error details");
         }
     }
 }

@@ -5,7 +5,11 @@ This guide will help you understand and use the Andy.Llm library effectively.
 ## Prerequisites
 
 - .NET 8.0 or later
-- An API key from at least one supported provider (OpenAI, Cerebras, Azure OpenAI, etc.)
+- An API key from at least one supported provider:
+  - **OpenAI**: API key from platform.openai.com
+  - **Cerebras**: API key from Cerebras Cloud
+  - **Azure OpenAI**: Azure subscription with deployed OpenAI resource
+  - **Ollama**: Local installation (no API key needed)
 - Basic understanding of async/await in C#
 
 ## Installation
@@ -18,11 +22,17 @@ dotnet add package Andy.Llm
 
 ### 1. Providers
 
-A **Provider** is an implementation that connects to a specific LLM service (OpenAI, Cerebras, etc.). Each provider:
+A **Provider** is an implementation that connects to a specific LLM service. Each provider:
 - Handles API authentication
 - Translates requests to provider-specific format
 - Manages streaming and error handling
 - Implements the `ILlmProvider` interface
+
+**Supported Providers**:
+- **OpenAI**: GPT-4, GPT-3.5, with function calling
+- **Cerebras**: Fast inference with Llama models
+- **Azure OpenAI**: Enterprise features, compliance, VNet integration
+- **Ollama**: Local models, complete privacy, no cloud dependency
 
 ### 2. Messages
 
@@ -182,6 +192,15 @@ export OPENAI_MODEL="gpt-4o-mini"
 # For Cerebras
 export CEREBRAS_API_KEY="..."
 export CEREBRAS_MODEL="llama3.1-8b"
+
+# For Azure OpenAI
+export AZURE_OPENAI_ENDPOINT="https://myresource.openai.azure.com"
+export AZURE_OPENAI_KEY="..."
+export AZURE_OPENAI_DEPLOYMENT="gpt-4"
+
+# For Ollama (local)
+export OLLAMA_API_BASE="http://localhost:11434"
+export OLLAMA_MODEL="llama2"
 ```
 
 Then in code:
@@ -205,6 +224,16 @@ services.ConfigureLlmFromEnvironment();
       "cerebras": {
         "ApiKey": "...",
         "Model": "llama3.1-70b"
+      },
+      "azure": {
+        "ApiKey": "...",
+        "ApiBase": "https://myresource.openai.azure.com",
+        "DeploymentName": "gpt-4",
+        "ApiVersion": "2024-02-15-preview"
+      },
+      "ollama": {
+        "ApiBase": "http://localhost:11434",
+        "Model": "llama2"
       }
     }
   }

@@ -12,10 +12,20 @@ var provider = providerEnv.ToLower();
 // Use the correct model for each provider
 var model = provider == "cerebras" ? "llama-3.3-70b" : "gpt-4o-mini";
 
-Console.WriteLine($"Using provider: {provider}, model: {model}");
-
 var services = new ServiceCollection();
-services.AddLogging(builder => builder.AddConsole().SetMinimumLevel(LogLevel.Warning));
+services.AddLogging(builder => 
+{
+    builder.AddSimpleConsole(options =>
+    {
+        options.IncludeScopes = false;
+        options.SingleLine = true;
+        options.TimestampFormat = "";
+    });
+    builder.SetMinimumLevel(LogLevel.Information);
+    // Hide HTTP client logs
+    builder.AddFilter("System.Net.Http", LogLevel.Warning);
+    builder.AddFilter("Andy.Llm.Providers", LogLevel.Warning);
+});
 services.ConfigureLlmFromEnvironment();
 services.AddLlmServices(options =>
 {
@@ -23,68 +33,90 @@ services.AddLlmServices(options =>
 });
 
 var serviceProvider = services.BuildServiceProvider();
-var client = serviceProvider.GetRequiredService<LlmClient>();
+var logger = serviceProvider.GetRequiredService<ILogger<Program>>();
 
-// Create a conversation context
-var conversation = new ConversationContext
+try
 {
-    SystemInstruction = "You are a helpful AI assistant. Keep your responses concise.",
-    MaxContextMessages = 10 // Keep last 10 messages
-};
+    logger.LogInformation("Using provider: {Provider}, model: {Model}", provider, model);
+    
+    var client = serviceProvider.GetRequiredService<LlmClient>();
 
-Console.WriteLine("=== Conversation Chat Example ===");
-Console.WriteLine($"Provider: {provider.ToUpper()}, Model: {model}");
-Console.WriteLine("Type 'exit' to quit, 'clear' to reset conversation, 'summary' to see context");
-Console.WriteLine("Set LLM_PROVIDER=cerebras or LLM_PROVIDER=openai to switch providers\n");
+    // Create a conversation context
+    var conversation = new ConversationContext
+    {
+        SystemInstruction = "You are a helpful AI assistant. Keep your responses concise.",
+        MaxContextMessages = 10 // Keep last 10 messages
+    };
 
-while (true)
+    logger.LogInformation("=== Conversation Chat Example ===");
+    logger.LogInformation("Provider: {Provider}, Model: {Model}", provider.ToUpper(), model);
+    logger.LogInformation("Type 'exit' to quit, 'clear' to reset conversation, 'summary' to see context");
+    logger.LogInformation("Set LLM_PROVIDER=cerebras or LLM_PROVIDER=openai to switch providers\n");
+
+    while (true)
+    {
+        Console.Write("You: ");
+        var input = Console.ReadLine();
+        
+        if (string.IsNullOrEmpty(input))
+            continue;
+            
+        if (input.ToLower() == "exit")
+            break;
+            
+        if (input.ToLower() == "clear")
+        {
+            conversation.Clear();
+            conversation.SystemInstruction = "You are a helpful AI assistant. Keep your responses concise.";
+            logger.LogInformation("[Conversation cleared]\n");
+            continue;
+        }
+        
+        if (input.ToLower() == "summary")
+        {
+            logger.LogInformation("\n[Conversation Summary]");
+            logger.LogInformation("{Summary}", conversation.GetSummary());
+            logger.LogInformation("Character count: {CharCount}\n", conversation.GetCharacterCount());
+            continue;
+        }
+        
+        try
+        {
+            // Add user message
+            conversation.AddUserMessage(input);
+            
+            // Create request with conversation context
+            var request = conversation.CreateRequest(model);
+            
+            // Get response
+            Console.Write("Assistant: ");
+            var response = await client.CompleteAsync(request);
+            Console.WriteLine(response.Content);
+            
+            // Add assistant response to context
+            conversation.AddAssistantMessage(response.Content);
+            
+            // Show token usage if available
+            if (response.TokensUsed.HasValue)
+            {
+                logger.LogInformation("[Tokens used: {TokensUsed}]", response.TokensUsed);
+            }
+            
+            Console.WriteLine();
+        }
+        catch (Exception ex)
+        {
+            logger.LogError("Error processing request: {Message}", ex.Message);
+            logger.LogDebug(ex, "Full error details");
+        }
+    }
+
+    logger.LogInformation("Goodbye!");
+}
+catch (Exception ex)
 {
-    Console.Write("You: ");
-    var input = Console.ReadLine();
-    
-    if (string.IsNullOrEmpty(input))
-        continue;
-        
-    if (input.ToLower() == "exit")
-        break;
-        
-    if (input.ToLower() == "clear")
-    {
-        conversation.Clear();
-        conversation.SystemInstruction = "You are a helpful AI assistant. Keep your responses concise.";
-        Console.WriteLine("[Conversation cleared]\n");
-        continue;
-    }
-    
-    if (input.ToLower() == "summary")
-    {
-        Console.WriteLine("\n[Conversation Summary]");
-        Console.WriteLine(conversation.GetSummary());
-        Console.WriteLine($"Character count: {conversation.GetCharacterCount()}\n");
-        continue;
-    }
-    
-    // Add user message
-    conversation.AddUserMessage(input);
-    
-    // Create request with conversation context
-    var request = conversation.CreateRequest(model);
-    
-    // Get response
-    Console.Write("Assistant: ");
-    var response = await client.CompleteAsync(request);
-    Console.WriteLine(response.Content);
-    
-    // Add assistant response to context
-    conversation.AddAssistantMessage(response.Content);
-    
-    // Show token usage if available
-    if (response.TokensUsed.HasValue)
-    {
-        Console.WriteLine($"[Tokens used: {response.TokensUsed}]");
-    }
-    
-    Console.WriteLine();
+    logger.LogError(ex, "An error occurred during the conversation");
 }
 
-Console.WriteLine("Goodbye!");
+// Simple Program class for logger
+partial class Program { }

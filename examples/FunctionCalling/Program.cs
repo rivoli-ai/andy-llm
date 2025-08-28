@@ -12,10 +12,20 @@ var providerEnv = Environment.GetEnvironmentVariable("LLM_PROVIDER") ?? "openai"
 var provider = providerEnv.ToLower();
 var model = provider == "cerebras" ? "llama-3.3-70b" : "gpt-4o-mini";
 
-Console.WriteLine($"Using provider: {provider}, model: {model}");
-
 var services = new ServiceCollection();
-services.AddLogging(builder => builder.AddConsole().SetMinimumLevel(LogLevel.Warning));
+services.AddLogging(builder => 
+{
+    builder.AddSimpleConsole(options =>
+    {
+        options.IncludeScopes = false;
+        options.SingleLine = true;
+        options.TimestampFormat = "";
+    });
+    builder.SetMinimumLevel(LogLevel.Information);
+    // Hide HTTP client logs
+    builder.AddFilter("System.Net.Http", LogLevel.Warning);
+    builder.AddFilter("Andy.Llm.Providers", LogLevel.Warning);
+});
 services.ConfigureLlmFromEnvironment();
 services.AddLlmServices(options =>
 {
@@ -23,230 +33,186 @@ services.AddLlmServices(options =>
 });
 
 var serviceProvider = services.BuildServiceProvider();
-var client = serviceProvider.GetRequiredService<LlmClient>();
+var logger = serviceProvider.GetRequiredService<ILogger<Program>>();
 
-// Define available tools
-var weatherTool = new ToolDeclaration
+try
 {
-    Name = "get_weather",
-    Description = "Get the current weather for a location",
-    Parameters = new Dictionary<string, object>
+    logger.LogInformation("Using provider: {Provider}, model: {Model}", provider, model);
+    
+    var client = serviceProvider.GetRequiredService<LlmClient>();
+
+    // Define available tools
+    var weatherTool = new ToolDeclaration
     {
-        ["type"] = "object",
-        ["properties"] = new Dictionary<string, object>
+        Name = "get_weather",
+        Description = "Get the current weather for a location",
+        Parameters = new Dictionary<string, object>
         {
-            ["location"] = new Dictionary<string, object>
+            ["type"] = "object",
+            ["properties"] = new Dictionary<string, object>
             {
-                ["type"] = "string",
-                ["description"] = "The city and state, e.g., San Francisco, CA"
+                ["location"] = new Dictionary<string, object>
+                {
+                    ["type"] = "string",
+                    ["description"] = "The city and state, e.g., San Francisco, CA"
+                },
+                ["unit"] = new Dictionary<string, object>
+                {
+                    ["type"] = "string",
+                    ["enum"] = new[] { "celsius", "fahrenheit" },
+                    ["description"] = "The temperature unit"
+                }
             },
-            ["unit"] = new Dictionary<string, object>
-            {
-                ["type"] = "string",
-                ["enum"] = new[] { "celsius", "fahrenheit" },
-                ["description"] = "The temperature unit"
-            }
-        },
-        ["required"] = new[] { "location" }
-    }
-};
+            ["required"] = new[] { "location" }
+        }
+    };
 
-var calculatorTool = new ToolDeclaration
-{
-    Name = "calculate",
-    Description = "Perform mathematical calculations",
-    Parameters = new Dictionary<string, object>
+    // Create conversation context with tools
+    var context = new ConversationContext
     {
-        ["type"] = "object",
-        ["properties"] = new Dictionary<string, object>
-        {
-            ["expression"] = new Dictionary<string, object>
-            {
-                ["type"] = "string",
-                ["description"] = "The mathematical expression to evaluate"
-            }
-        },
-        ["required"] = new[] { "expression" }
-    }
-};
+        SystemInstruction = "You are a helpful assistant with access to weather information.",
+        AvailableTools = { weatherTool }
+    };
 
-// Create conversation with tools
-var conversation = new ConversationContext
-{
-    SystemInstruction = "You are a helpful assistant that can check weather and perform calculations.",
-    AvailableTools = new List<ToolDeclaration> { weatherTool, calculatorTool }
-};
+    logger.LogInformation("=== Function Calling Example ===");
+    logger.LogInformation("Provider: {Provider}, Model: {Model}", provider.ToUpper(), model);
+    logger.LogInformation("Ask about the weather in any city!\n");
 
-Console.WriteLine("=== Function Calling Example ===");
-Console.WriteLine($"Provider: {provider.ToUpper()}, Model: {model}");
-Console.WriteLine("Available tools: get_weather, calculate");
-Console.WriteLine("Try asking: 'What's the weather in New York?' or 'Calculate 15% of 250'");
-Console.WriteLine("Set LLM_PROVIDER=cerebras or LLM_PROVIDER=openai to switch providers\n");
+    // Example interaction
+    var userMessage = "What's the weather like in San Francisco?";
+    logger.LogInformation("User: {Message}", userMessage);
 
-// Simulate tool implementations
-object? ExecuteTool(string toolName, Dictionary<string, object?> arguments)
-{
-    switch (toolName)
-    {
-        case "get_weather":
-            var location = arguments["location"]?.ToString() ?? "Unknown";
-            var unit = arguments.ContainsKey("unit") ? arguments["unit"]?.ToString() : "fahrenheit";
-            
-            // Simulated weather data
-            var temp = Random.Shared.Next(60, 85);
-            return new
-            {
-                location = location,
-                temperature = temp,
-                unit = unit,
-                condition = "partly cloudy",
-                humidity = Random.Shared.Next(40, 70)
-            };
-            
-        case "calculate":
-            var expression = arguments["expression"]?.ToString() ?? "0";
-            try
-            {
-                // Handle percentage calculations
-                if (expression.Contains("%") || expression.Contains("*"))
-                {
-                    // Handle "4% of 5935" format
-                    if (expression.Contains("% of"))
-                    {
-                        var parts = expression.Split(new[] { "% of" }, StringSplitOptions.TrimEntries);
-                        if (parts.Length == 2 && 
-                            double.TryParse(parts[0], out var percentage) &&
-                            double.TryParse(parts[1], out var value))
-                        {
-                            var result = (percentage / 100) * value;
-                            return new { expression = expression, result = result };
-                        }
-                    }
-                    // Handle "4% 5935" format
-                    else if (expression.Contains("%"))
-                    {
-                        var parts = expression.Split('%');
-                        if (parts.Length == 2 && 
-                            double.TryParse(parts[0].Trim(), out var percentage) &&
-                            double.TryParse(parts[1].Trim(), out var value))
-                        {
-                            var result = (percentage / 100) * value;
-                            return new { expression = expression, result = result };
-                        }
-                    }
-                    // Handle "0.04 * 5935" format
-                    else if (expression.Contains("*"))
-                    {
-                        var parts = expression.Split('*');
-                        if (parts.Length == 2 && 
-                            double.TryParse(parts[0].Trim(), out var multiplier) &&
-                            double.TryParse(parts[1].Trim(), out var value))
-                        {
-                            var result = multiplier * value;
-                            return new { expression = expression, result = result };
-                        }
-                    }
-                }
-                // Handle simple arithmetic
-                else if (expression.Contains("+"))
-                {
-                    var parts = expression.Split('+');
-                    if (parts.Length == 2 && 
-                        double.TryParse(parts[0].Trim(), out var a) &&
-                        double.TryParse(parts[1].Trim(), out var b))
-                    {
-                        return new { expression = expression, result = a + b };
-                    }
-                }
-                else if (expression.Contains("-"))
-                {
-                    var parts = expression.Split('-');
-                    if (parts.Length == 2 && 
-                        double.TryParse(parts[0].Trim(), out var a) &&
-                        double.TryParse(parts[1].Trim(), out var b))
-                    {
-                        return new { expression = expression, result = a - b };
-                    }
-                }
-                else if (expression.Contains("/"))
-                {
-                    var parts = expression.Split('/');
-                    if (parts.Length == 2 && 
-                        double.TryParse(parts[0].Trim(), out var a) &&
-                        double.TryParse(parts[1].Trim(), out var b) && b != 0)
-                    {
-                        return new { expression = expression, result = a / b };
-                    }
-                }
-                // Handle single number
-                else if (double.TryParse(expression.Trim(), out var singleValue))
-                {
-                    return new { expression = expression, result = singleValue };
-                }
-                
-                return new { expression = expression, result = "Unable to calculate" };
-            }
-            catch
-            {
-                return new { expression = expression, error = "Invalid expression" };
-            }
-            
-        default:
-            return new { error = $"Unknown tool: {toolName}" };
-    }
-}
+    context.AddUserMessage(userMessage);
 
-// Interactive loop
-while (true)
-{
-    Console.Write("You: ");
-    var input = Console.ReadLine();
-    
-    if (string.IsNullOrEmpty(input) || input.ToLower() == "exit")
-        break;
-        
-    // Add user message
-    conversation.AddUserMessage(input);
-    
-    // Get response with function calling
-    var request = conversation.CreateRequest(model);
+    // Create request with tools
+    var request = context.CreateRequest(model);
+
+    // Get initial response
     var response = await client.CompleteAsync(request);
-    
-    // Check for function calls
-    if (response.FunctionCalls?.Any() == true)
+
+    // Check if the model wants to call functions
+    if (response.FunctionCalls != null && response.FunctionCalls.Any())
     {
-        Console.WriteLine($"Assistant: {response.Content}");
-        
-        // FIRST: Add assistant message with tool calls to conversation
-        conversation.AddAssistantMessageWithToolCalls(response.Content, response.FunctionCalls);
-        
-        // THEN: Execute function calls and add tool responses
+        logger.LogInformation("Model wants to call functions:");
         foreach (var call in response.FunctionCalls)
         {
-            Console.WriteLine($"[Calling {call.Name}...]");
-            
-            var result = ExecuteTool(call.Name, call.Arguments);
-            var resultJson = JsonSerializer.Serialize(result, new JsonSerializerOptions { WriteIndented = true });
-            Console.WriteLine($"[Tool Result: {resultJson}]");
-            
-            // Add tool response to conversation (AFTER the assistant message with tool calls)
-            conversation.AddToolResponse(call.Name, call.Id, result);
+            logger.LogInformation("  Function: {Name}", call.Name);
+            logger.LogInformation("  Arguments: {Args}", JsonSerializer.Serialize(call.Arguments));
+
+            // Simulate function execution
+            if (call.Name == "get_weather")
+            {
+                var location = call.Arguments["location"]?.ToString() ?? "Unknown";
+                var unit = call.Arguments.ContainsKey("unit") 
+                    ? call.Arguments["unit"]?.ToString() 
+                    : "fahrenheit";
+
+                // Simulated weather data
+                var weatherData = new
+                {
+                    location = location,
+                    temperature = 72,
+                    unit = unit,
+                    condition = "Partly cloudy",
+                    humidity = 65,
+                    wind_speed = 12
+                };
+
+                logger.LogInformation("Executed function: {Result}", JsonSerializer.Serialize(weatherData));
+
+                // Add tool response to context
+                context.AddToolResponse(
+                    call.Name,
+                    call.Id,
+                    JsonSerializer.Serialize(weatherData)
+                );
+            }
         }
-        
-        // Get final response after tool execution
-        request = conversation.CreateRequest(model);
-        var finalResponse = await client.CompleteAsync(request);
-        Console.WriteLine($"Assistant: {finalResponse.Content}");
-        conversation.AddAssistantMessage(finalResponse.Content);
+
+        // Get final response with function results
+        logger.LogInformation("\nGetting final response with function results...");
+        var finalRequest = context.CreateRequest(model);
+        var finalResponse = await client.CompleteAsync(finalRequest);
+        logger.LogInformation("Assistant: {Response}", finalResponse.Content);
     }
     else
     {
-        // Regular response without function calls
-        Console.WriteLine($"Assistant: {response.Content}");
-        conversation.AddAssistantMessage(response.Content);
+        // No function calls, just display the response
+        logger.LogInformation("Assistant: {Response}", response.Content);
     }
-    
-    Console.WriteLine();
+
+    // Interactive mode
+    logger.LogInformation("\n=== Interactive Mode ===");
+    logger.LogInformation("Type 'exit' to quit\n");
+
+    while (true)
+    {
+        Console.Write("You: ");
+        var input = Console.ReadLine();
+
+        if (string.IsNullOrEmpty(input) || input.ToLower() == "exit")
+            break;
+
+        try
+        {
+            context.AddUserMessage(input);
+            request = context.CreateRequest(model);
+            response = await client.CompleteAsync(request);
+
+            // Handle function calls
+            if (response.FunctionCalls != null && response.FunctionCalls.Any())
+            {
+                foreach (var call in response.FunctionCalls)
+                {
+                    logger.LogInformation("Calling function: {Name}", call.Name);
+                    
+                    if (call.Name == "get_weather")
+                    {
+                        var location = call.Arguments["location"]?.ToString() ?? "Unknown";
+                        var weatherData = new
+                        {
+                            location = location,
+                            temperature = Random.Shared.Next(60, 85),
+                            unit = "fahrenheit",
+                            condition = new[] { "Sunny", "Cloudy", "Rainy", "Partly cloudy" }[Random.Shared.Next(4)],
+                            humidity = Random.Shared.Next(40, 80)
+                        };
+
+                        context.AddToolResponse(
+                            call.Name,
+                            call.Id,
+                            JsonSerializer.Serialize(weatherData)
+                        );
+                    }
+                }
+
+                // Get final response
+                var finalRequest = context.CreateRequest(model);
+                var finalResponse = await client.CompleteAsync(finalRequest);
+                logger.LogInformation("Assistant: {Response}", finalResponse.Content);
+                context.AddAssistantMessage(finalResponse.Content);
+            }
+            else
+            {
+                logger.LogInformation("Assistant: {Response}", response.Content);
+                context.AddAssistantMessage(response.Content);
+            }
+        }
+        catch (Exception ex)
+        {
+            logger.LogError("Error processing request: {Message}", ex.Message);
+            logger.LogDebug(ex, "Full error details");
+        }
+
+        Console.WriteLine();
+    }
+
+    logger.LogInformation("Goodbye!");
+}
+catch (Exception ex)
+{
+    logger.LogError(ex, "An error occurred during the function calling example");
 }
 
-Console.WriteLine("Goodbye!");
+// Simple Program class for logger
+partial class Program { }

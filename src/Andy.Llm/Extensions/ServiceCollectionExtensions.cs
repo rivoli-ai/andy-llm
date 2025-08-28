@@ -29,6 +29,11 @@ public static class ServiceCollectionExtensions
         // Register providers
         services.AddSingleton<OpenAIProvider>();
         services.AddSingleton<CerebrasProvider>();
+        services.AddSingleton<AzureOpenAIProvider>();
+        services.AddSingleton<OllamaProvider>();
+        
+        // Register HttpClientFactory for providers that need it
+        services.AddHttpClient();
         
         // Register factory
         services.AddSingleton<ILlmProviderFactory, LlmProviderFactory>();
@@ -51,6 +56,11 @@ public static class ServiceCollectionExtensions
         // Register providers
         services.AddSingleton<OpenAIProvider>();
         services.AddSingleton<CerebrasProvider>();
+        services.AddSingleton<AzureOpenAIProvider>();
+        services.AddSingleton<OllamaProvider>();
+        
+        // Register HttpClientFactory for providers that need it
+        services.AddHttpClient();
         
         // Register factory
         services.AddSingleton<ILlmProviderFactory, LlmProviderFactory>();

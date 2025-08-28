@@ -246,6 +246,10 @@ The [examples](examples/) directory contains complete, runnable projects demonst
 - **[ConversationChat](examples/ConversationChat/)** - Interactive chat with conversation context management
 - **[FunctionCalling](examples/FunctionCalling/)** - OpenAI-compatible tool/function calling with weather and calculator examples
 
+### Provider-Specific Examples
+- **[AzureOpenAI](examples/AzureOpenAI/)** - Enterprise deployment with Azure OpenAI Service
+- **[Ollama](examples/Ollama/)** - Local LLM execution with complete privacy
+
 ### Advanced Examples
 - **[Streaming](examples/Streaming/)** - Real-time streaming responses with cancellation and progress tracking
 - **[MultiProvider](examples/MultiProvider/)** - Comparing responses from multiple LLM providers simultaneously
