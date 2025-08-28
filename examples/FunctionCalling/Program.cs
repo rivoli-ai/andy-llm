@@ -93,6 +93,9 @@ try
     // Check if the model wants to call functions
     if (response.FunctionCalls != null && response.FunctionCalls.Any())
     {
+        // IMPORTANT: Add the assistant's message with function calls to context
+        context.AddAssistantMessageWithToolCalls(response.Content, response.FunctionCalls);
+        
         logger.LogInformation("Model wants to call functions:");
         foreach (var call in response.FunctionCalls)
         {
@@ -162,6 +165,9 @@ try
             // Handle function calls
             if (response.FunctionCalls != null && response.FunctionCalls.Any())
             {
+                // Add assistant's message with function calls to context
+                context.AddAssistantMessageWithToolCalls(response.Content, response.FunctionCalls);
+                
                 foreach (var call in response.FunctionCalls)
                 {
                     logger.LogInformation("Calling function: {Name}", call.Name);
