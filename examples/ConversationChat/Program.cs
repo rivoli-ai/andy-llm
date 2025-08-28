@@ -6,12 +6,20 @@ using Microsoft.Extensions.Logging;
 
 // Example: Multi-turn conversation with context management
 
+// Determine which provider to use
+var providerEnv = Environment.GetEnvironmentVariable("LLM_PROVIDER") ?? "openai";
+var provider = providerEnv.ToLower();
+// Use the correct model for each provider
+var model = provider == "cerebras" ? "llama-3.3-70b" : "gpt-4o-mini";
+
+Console.WriteLine($"Using provider: {provider}, model: {model}");
+
 var services = new ServiceCollection();
 services.AddLogging(builder => builder.AddConsole().SetMinimumLevel(LogLevel.Warning));
 services.ConfigureLlmFromEnvironment();
 services.AddLlmServices(options =>
 {
-    options.DefaultProvider = "openai";
+    options.DefaultProvider = provider;
 });
 
 var serviceProvider = services.BuildServiceProvider();
@@ -25,7 +33,9 @@ var conversation = new ConversationContext
 };
 
 Console.WriteLine("=== Conversation Chat Example ===");
-Console.WriteLine("Type 'exit' to quit, 'clear' to reset conversation, 'summary' to see context\n");
+Console.WriteLine($"Provider: {provider.ToUpper()}, Model: {model}");
+Console.WriteLine("Type 'exit' to quit, 'clear' to reset conversation, 'summary' to see context");
+Console.WriteLine("Set LLM_PROVIDER=cerebras or LLM_PROVIDER=openai to switch providers\n");
 
 while (true)
 {
@@ -58,7 +68,7 @@ while (true)
     conversation.AddUserMessage(input);
     
     // Create request with conversation context
-    var request = conversation.CreateRequest("gpt-4o-mini");
+    var request = conversation.CreateRequest(model);
     
     // Get response
     Console.Write("Assistant: ");

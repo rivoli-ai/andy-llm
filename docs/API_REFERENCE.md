@@ -9,6 +9,10 @@
 - `Andy.Llm.Providers` - Provider implementations
 - `Andy.Llm.Services` - Factory and service classes
 - `Andy.Llm.Extensions` - Extension methods for DI
+- `Andy.Llm.Security` - API key protection and data sanitization
+- `Andy.Llm.Telemetry` - Metrics and distributed tracing
+- `Andy.Llm.Resilience` - Retry policies and circuit breakers
+- `Andy.Llm.Progress` - Progress reporting and cancellation
 
 ## Core Classes
 
@@ -123,7 +127,15 @@ public class LlmResponse
     public string? FinishReason { get; set; }
     public int? TokensUsed { get; set; }
     public string? Model { get; set; }
+    public TokenUsage? Usage { get; set; }
     public Dictionary<string, object>? Metadata { get; set; }
+}
+
+public class TokenUsage
+{
+    public int PromptTokens { get; set; }
+    public int CompletionTokens { get; set; }
+    public int TotalTokens { get; set; }
 }
 ```
 
@@ -303,6 +315,147 @@ IServiceCollection AddLlmProvider<TProvider>(this IServiceCollection services) w
 IServiceCollection ConfigureLlmFromEnvironment(this IServiceCollection services)
 ```
 
+## Security
+
+### SecureApiKeyProvider
+
+Securely stores API keys using SecureString.
+
+```csharp
+public class SecureApiKeyProvider : IDisposable
+{
+    void SetApiKey(string provider, string apiKey)
+    string? GetApiKey(string provider)
+    bool HasApiKey(string provider)
+    void RemoveApiKey(string provider)
+    void Clear()
+}
+```
+
+### SensitiveDataSanitizer
+
+Sanitizes sensitive data from logs and outputs.
+
+```csharp
+public static class SensitiveDataSanitizer
+{
+    static string Sanitize(string? input)
+    static string MaskApiKey(string? apiKey, int visibleChars = 4)
+    static bool ContainsSensitiveData(string? input)
+    static string SanitizeException(Exception? exception)
+}
+```
+
+## Telemetry
+
+### LlmMetrics
+
+Collects OpenTelemetry-compatible metrics.
+
+```csharp
+public class LlmMetrics : IDisposable
+{
+    void RecordRequest(string provider, string model, string operation)
+    void RecordTokens(string provider, string model, int promptTokens, int completionTokens)
+    void RecordLatency(string provider, string model, double latencyMs, bool success = true)
+    void RecordError(string provider, string model, string errorType)
+    void RecordRetry(string provider, int attemptNumber)
+    void RecordTimeout(string provider, string phase)
+}
+```
+
+### TelemetryMiddleware
+
+Wraps operations with telemetry collection.
+
+```csharp
+public class TelemetryMiddleware
+{
+    Task<T> ExecuteWithTelemetryAsync<T>(
+        string provider,
+        string model,
+        string operationName,
+        Func<CancellationToken, Task<T>> operation,
+        CancellationToken cancellationToken = default)
+}
+```
+
+## Resilience
+
+### ResiliencePolicies
+
+Provides Polly-based resilience policies.
+
+```csharp
+public static class ResiliencePolicies
+{
+    static IAsyncPolicy<HttpResponseMessage> GetRetryPolicy(
+        ILogger? logger = null,
+        int maxRetryAttempts = 3)
+    
+    static IAsyncPolicy<HttpResponseMessage> GetCircuitBreakerPolicy(
+        ILogger? logger = null,
+        int handledEventsAllowedBeforeBreaking = 3,
+        TimeSpan? durationOfBreak = null)
+    
+    static IAsyncPolicy<HttpResponseMessage> GetTimeoutPolicy(
+        TimeSpan? timeout = null)
+    
+    static IAsyncPolicy<HttpResponseMessage> GetCombinedPolicy(
+        ILogger? logger = null,
+        ResilienceOptions? options = null)
+}
+```
+
+### ResilienceOptions
+
+```csharp
+public class ResilienceOptions
+{
+    public int MaxRetryAttempts { get; set; } = 3;
+    public int CircuitBreakerThreshold { get; set; } = 3;
+    public TimeSpan CircuitBreakerDuration { get; set; } = TimeSpan.FromSeconds(30);
+    public TimeSpan Timeout { get; set; } = TimeSpan.FromSeconds(30);
+    public bool EnableRetry { get; set; } = true;
+    public bool EnableCircuitBreaker { get; set; } = true;
+    public bool EnableTimeout { get; set; } = true;
+}
+```
+
+## Progress
+
+### LlmProgressReporter
+
+Reports operation progress.
+
+```csharp
+public class LlmProgressReporter
+{
+    public LlmProgressReporter(Action<LlmOperationProgress> onProgress)
+    
+    void ReportStart(string operationType)
+    void ReportPhase(string phase, int percentComplete, string? message = null)
+    void ReportTokens(int tokensProcessed, int? estimatedTotal = null)
+    void ReportCompletion(string? message = null)
+    void ReportError(string errorMessage)
+}
+```
+
+### LlmOperationProgress
+
+```csharp
+public class LlmOperationProgress
+{
+    public string OperationType { get; set; }
+    public string Phase { get; set; }
+    public int PercentComplete { get; set; }
+    public string? Message { get; set; }
+    public int TokensProcessed { get; set; }
+    public int? EstimatedTotalTokens { get; set; }
+    public TimeSpan? EstimatedTimeRemaining { get; set; }
+}
+```
+
 ## Providers
 
 ### OpenAIProvider
@@ -310,11 +463,11 @@ IServiceCollection ConfigureLlmFromEnvironment(this IServiceCollection services)
 Provider for OpenAI API and compatible services.
 
 **Supported Features:**
-- ✅ Text completion
-- ✅ Streaming
-- ✅ Function calling
-- ✅ Multiple models
-- ✅ Custom endpoints
+- Text completion
+- Streaming
+- Function calling
+- Multiple models
+- Custom endpoints
 
 **Configuration:**
 ```csharp
@@ -331,10 +484,10 @@ Provider for OpenAI API and compatible services.
 Provider for Cerebras Cloud API using OpenAI-compatible endpoint.
 
 **Supported Features:**
-- ✅ Text completion
-- ✅ Streaming  
-- ⚠️  Function calling (model-dependent, may not be supported)
-- ✅ Fast inference with Llama models
+- Text completion
+- Streaming  
+- Function calling (model-dependent, may not be supported)
+- Fast inference with Llama models
 
 **Configuration:**
 ```csharp

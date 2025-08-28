@@ -317,7 +317,7 @@ public async Task<LlmResponse> CompleteWithRetryAsync(LlmRequest request)
 ### 1. Use Dependency Injection
 
 ```csharp
-// ✅ Good: Use DI for better testability
+// Good: Use DI for better testability
 public class ChatService
 {
     private readonly LlmClient _client;
@@ -328,7 +328,7 @@ public class ChatService
     }
 }
 
-// ❌ Avoid: Direct instantiation
+// Avoid: Direct instantiation
 public class ChatService
 {
     private readonly LlmClient _client = new LlmClient("key");
@@ -338,21 +338,21 @@ public class ChatService
 ### 2. Manage Context Properly
 
 ```csharp
-// ✅ Good: Set reasonable limits
+// Good: Set reasonable limits
 var context = new ConversationContext
 {
     MaxContextMessages = 20,      // Limit message count
     MaxContextCharacters = 50000  // Limit total size
 };
 
-// ❌ Avoid: Unlimited context growth
+// Avoid: Unlimited context growth
 var context = new ConversationContext(); // No limits set
 ```
 
 ### 3. Handle Streaming Properly
 
 ```csharp
-// ✅ Good: Handle cancellation
+// Good: Handle cancellation
 await foreach (var chunk in client.StreamCompleteAsync(request, cancellationToken))
 {
     if (cancellationToken.IsCancellationRequested)
@@ -361,7 +361,7 @@ await foreach (var chunk in client.StreamCompleteAsync(request, cancellationToke
     ProcessChunk(chunk);
 }
 
-// ❌ Avoid: No cancellation support
+// Avoid: No cancellation support
 await foreach (var chunk in client.StreamCompleteAsync(request))
 {
     ProcessChunk(chunk); // Can't cancel
@@ -371,14 +371,14 @@ await foreach (var chunk in client.StreamCompleteAsync(request))
 ### 4. Use Appropriate Models
 
 ```csharp
-// ✅ Good: Choose model based on task
+// Good: Choose model based on task
 var request = new LlmRequest
 {
     Model = simpleTask ? "gpt-3.5-turbo" : "gpt-4o",
     // ...
 };
 
-// ❌ Avoid: Always using most expensive model
+// Avoid: Always using most expensive model
 var request = new LlmRequest
 {
     Model = "gpt-4o", // Overkill for simple tasks
@@ -389,11 +389,11 @@ var request = new LlmRequest
 ### 5. Secure API Keys
 
 ```csharp
-// ✅ Good: Use secure storage
+// Good: Use secure storage
 var apiKey = Environment.GetEnvironmentVariable("OPENAI_API_KEY");
 var apiKey = configuration["OpenAI:ApiKey"]; // From secure config
 
-// ❌ Never: Hardcode keys
+// Never: Hardcode keys
 var apiKey = "sk-abc123..."; // Security risk!
 ```
 

@@ -1,0 +1,37 @@
+{
+  "LlmTestSettings": {
+    "RunIntegrationTests": false,
+    "Providers": {
+      "OpenAI": {
+        "ApiKey": "test-key-from-env",
+        "Model": "gpt-4o-mini",
+        "Enabled": false
+      },
+      "Cerebras": {
+        "ApiKey": "test-key-from-env",
+        "Model": "llama3.1-8b",
+        "Enabled": false
+      },
+      "Ollama": {
+        "ApiBase": "http://localhost:11434",
+        "Model": "llama2",
+        "Enabled": false
+      }
+    },
+    "TestTimeout": 30000,
+    "UseRealProviders": false,
+    "MockResponses": {
+      "DefaultResponse": "This is a test response from the mock provider.",
+      "FunctionCallResponse": {
+        "Name": "test_function",
+        "Arguments": "{\"param\": \"value\"}"
+      }
+    }
+  },
+  "Logging": {
+    "LogLevel": {
+      "Default": "Information",
+      "Andy.Llm": "Debug"
+    }
+  }
+}

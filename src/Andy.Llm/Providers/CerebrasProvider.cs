@@ -22,8 +22,16 @@ public class CerebrasProvider : ILlmProvider
     private readonly ProviderConfig _config;
     private readonly string _defaultModel;
 
+    /// <summary>
+    /// Gets the name of this provider.
+    /// </summary>
     public string Name => "Cerebras";
 
+    /// <summary>
+    /// Initializes a new instance of the <see cref="CerebrasProvider"/> class.
+    /// </summary>
+    /// <param name="options">The LLM options.</param>
+    /// <param name="logger">The logger.</param>
     public CerebrasProvider(
         IOptions<LlmOptions> options,
         ILogger<CerebrasProvider> logger)
@@ -49,7 +57,8 @@ public class CerebrasProvider : ILlmProvider
             }
         }
 
-        _defaultModel = _config.Model ?? "llama3.1-8b";
+        // Use llama-3.3-70b which supports tool calling
+        _defaultModel = _config.Model ?? "llama-3.3-70b";
 
         // Cerebras uses OpenAI-compatible API
         var cerebrasOptions = new OpenAIClientOptions
@@ -64,6 +73,11 @@ public class CerebrasProvider : ILlmProvider
         _logger.LogInformation("Cerebras provider initialized with model: {Model}", _defaultModel);
     }
 
+    /// <summary>
+    /// Checks if the provider is available.
+    /// </summary>
+    /// <param name="cancellationToken">The cancellation token.</param>
+    /// <returns>True if the provider is available; otherwise, false.</returns>
     public async Task<bool> IsAvailableAsync(CancellationToken cancellationToken = default)
     {
         try
@@ -86,6 +100,12 @@ public class CerebrasProvider : ILlmProvider
         }
     }
 
+    /// <summary>
+    /// Completes a chat request.
+    /// </summary>
+    /// <param name="request">The LLM request.</param>
+    /// <param name="cancellationToken">The cancellation token.</param>
+    /// <returns>The LLM response.</returns>
     public async Task<LlmResponse> CompleteAsync(LlmRequest request, CancellationToken cancellationToken = default)
     {
         try
@@ -136,6 +156,12 @@ public class CerebrasProvider : ILlmProvider
         }
     }
 
+    /// <summary>
+    /// Streams a chat completion response.
+    /// </summary>
+    /// <param name="request">The LLM request.</param>
+    /// <param name="cancellationToken">The cancellation token.</param>
+    /// <returns>An async stream of response chunks.</returns>
     public async IAsyncEnumerable<LlmStreamResponse> StreamCompleteAsync(
         LlmRequest request,
         [EnumeratorCancellation] CancellationToken cancellationToken = default)
@@ -254,8 +280,28 @@ public class CerebrasProvider : ILlmProvider
 
                 if (toolCallParts.Any())
                 {
-                    // Note: Cerebras may not support tool calls with all models
-                    _logger.LogWarning("Tool calls requested but may not be supported by Cerebras model {Model}", _defaultModel);
+                    // Tool calls are supported by llama-3.3-70b
+                    var toolCalls = new List<ChatToolCall>();
+                    foreach (var toolCall in toolCallParts)
+                    {
+                        toolCalls.Add(ChatToolCall.CreateFunctionToolCall(
+                            toolCall.CallId,
+                            toolCall.ToolName,
+                            BinaryData.FromString(JsonSerializer.Serialize(toolCall.Arguments))
+                        ));
+                    }
+                    
+                    if (toolCalls.Any())
+                    {
+                        var assistantText = textParts.Any() ? string.Join(" ", textParts.Select(p => p.Text)) : "";
+                        var assistantMessage = new AssistantChatMessage(assistantText);
+                        foreach (var tc in toolCalls)
+                        {
+                            assistantMessage.ToolCalls.Add(tc);
+                        }
+                        yield return assistantMessage;
+                        break;
+                    }
                 }
                 
                 if (textParts.Any())
@@ -265,8 +311,7 @@ public class CerebrasProvider : ILlmProvider
                 break;
 
             case MessageRole.Tool:
-                // Note: Cerebras may not support tool responses
-                _logger.LogWarning("Tool responses may not be supported by Cerebras model {Model}", _defaultModel);
+                // Tool responses are supported by llama-3.3-70b
                 foreach (var part in message.Parts.OfType<ToolResponsePart>())
                 {
                     var responseJson = JsonSerializer.Serialize(part.Response);
@@ -284,11 +329,9 @@ public class CerebrasProvider : ILlmProvider
             MaxOutputTokenCount = request.MaxTokens
         };
 
-        // Note: Cerebras may not support tools with all models
+        // Add tools if present - llama-3.3-70b supports tool calling
         if (request.Tools?.Any() == true)
         {
-            _logger.LogWarning("Tools requested but may not be supported by Cerebras model {Model}", _defaultModel);
-            // We can still add them - the API will ignore if not supported
             foreach (var tool in request.Tools)
             {
                 var functionTool = ChatTool.CreateFunctionTool(

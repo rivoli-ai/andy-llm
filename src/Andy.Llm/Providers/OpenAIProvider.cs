@@ -21,8 +21,16 @@ public class OpenAIProvider : ILlmProvider
     private readonly ProviderConfig _config;
     private readonly string _defaultModel;
 
+    /// <summary>
+    /// Gets the name of this provider.
+    /// </summary>
     public string Name => "OpenAI";
 
+    /// <summary>
+    /// Initializes a new instance of the <see cref="OpenAIProvider"/> class.
+    /// </summary>
+    /// <param name="options">The LLM options.</param>
+    /// <param name="logger">The logger.</param>
     public OpenAIProvider(
         IOptions<LlmOptions> options,
         ILogger<OpenAIProvider> logger)
@@ -67,6 +75,11 @@ public class OpenAIProvider : ILlmProvider
         _logger.LogInformation("OpenAI provider initialized with model: {Model}", _defaultModel);
     }
 
+    /// <summary>
+    /// Checks if the provider is available.
+    /// </summary>
+    /// <param name="cancellationToken">The cancellation token.</param>
+    /// <returns>True if the provider is available; otherwise, false.</returns>
     public async Task<bool> IsAvailableAsync(CancellationToken cancellationToken = default)
     {
         try
@@ -89,6 +102,12 @@ public class OpenAIProvider : ILlmProvider
         }
     }
 
+    /// <summary>
+    /// Completes a chat request.
+    /// </summary>
+    /// <param name="request">The LLM request.</param>
+    /// <param name="cancellationToken">The cancellation token.</param>
+    /// <returns>The LLM response.</returns>
     public async Task<LlmResponse> CompleteAsync(LlmRequest request, CancellationToken cancellationToken = default)
     {
         try
@@ -130,6 +149,12 @@ public class OpenAIProvider : ILlmProvider
         }
     }
 
+    /// <summary>
+    /// Streams a chat completion response.
+    /// </summary>
+    /// <param name="request">The LLM request.</param>
+    /// <param name="cancellationToken">The cancellation token.</param>
+    /// <returns>An async stream of response chunks.</returns>
     public async IAsyncEnumerable<LlmStreamResponse> StreamCompleteAsync(
         LlmRequest request,
         [EnumeratorCancellation] CancellationToken cancellationToken = default)

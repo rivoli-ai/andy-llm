@@ -1,8 +1,14 @@
 # Andy.Llm
 
+> **⚠️ ALPHA SOFTWARE**: This library is in active development and APIs may change. Not recommended for production use without thorough testing.
+
 A flexible, provider-agnostic .NET library for integrating with Large Language Models (LLMs) through OpenAI-compatible APIs.
 
-## 🎯 Design Goals
+[![License](https://img.shields.io/badge/License-Apache%202.0-blue.svg)](https://opensource.org/licenses/Apache-2.0)
+[![.NET](https://img.shields.io/badge/.NET-8.0-512BD4)](https://dotnet.microsoft.com/)
+[![NuGet](https://img.shields.io/nuget/v/Andy.Llm)](https://www.nuget.org/packages/Andy.Llm/)
+
+## Design Goals
 
 1. **Provider Agnostic**: Support multiple LLM providers through a unified interface
 2. **OpenAI Compatibility**: First-class support for OpenAI-compatible APIs
@@ -10,8 +16,11 @@ A flexible, provider-agnostic .NET library for integrating with Large Language M
 4. **Type Safety**: Strongly-typed models and interfaces
 5. **Modern .NET**: Built on .NET 8.0 with latest C# features
 6. **Production Ready**: Comprehensive error handling, logging, and testing
+7. **Resilient**: Built-in retry policies and circuit breakers with Polly
+8. **Observable**: Telemetry, metrics, and distributed tracing support
+9. **Secure**: API key protection and sensitive data sanitization
 
-## 🚀 Quick Start
+## Quick Start
 
 ### Installation
 
@@ -87,6 +96,20 @@ The library supports configuration through environment variables for all major p
 - `OLLAMA_MODEL` - Model to use (e.g., llama2)
 
 ## 📚 Features
+
+### Core Capabilities
+- **Multi-Provider Support**: OpenAI, Cerebras, Azure OpenAI, Ollama
+- **Streaming Responses**: Real-time token streaming
+- **Function/Tool Calling**: OpenAI-compatible function calling
+- **Conversation Management**: Context and token limit management
+- **Dependency Injection**: Full DI container integration
+
+### Enterprise Features
+- **Security**: Secure API key storage with SecureString, sensitive data sanitization
+- **Resilience**: Retry policies, circuit breakers, timeout handling via Polly
+- **Observability**: Metrics collection, distributed tracing, structured logging (see [Telemetry Guide](docs/TELEMETRY.md))
+- **Progress Reporting**: Real-time progress updates for long operations
+- **Cancellation Support**: Comprehensive cancellation token support
 
 ### Streaming Responses
 
@@ -179,11 +202,19 @@ var cerebrasProvider = factory.CreateProvider("cerebras");
 var provider = await factory.CreateAvailableProviderAsync();
 ```
 
-## 🏗️ Architecture
+## Architecture
 
 See [ARCHITECTURE.md](docs/ARCHITECTURE.md) for detailed architecture documentation.
 
-## 🧪 Testing
+## Telemetry and Monitoring
+
+Andy.Llm provides comprehensive telemetry through OpenTelemetry-compatible APIs. See the [Telemetry Guide](docs/TELEMETRY.md) for:
+- Metrics collection and export
+- Distributed tracing setup
+- Integration with Prometheus, Jaeger, Application Insights
+- Terminal application monitoring
+
+## Testing
 
 The library includes comprehensive unit and integration tests:
 
@@ -198,27 +229,84 @@ dotnet test --collect:"XPlat Code Coverage"
 dotnet test --filter "Category!=Integration"
 ```
 
-## 📖 Examples
+## 📖 Documentation
 
-Check the [examples](examples/) directory for complete examples:
-- [SimpleChat.cs](examples/SimpleChat.cs) - Basic chat interface
-- [FunctionCalling.cs](examples/FunctionCalling.cs) - Tool/function calling
-- [MultiProvider.cs](examples/MultiProvider.cs) - Multiple provider support
+- [Getting Started Guide](docs/GETTING_STARTED.md) - Quick setup and basic usage
+- [Architecture Documentation](docs/ARCHITECTURE.md) - System design and components
+- [API Reference](docs/API_REFERENCE.md) - Complete API documentation
+- [Telemetry Guide](docs/TELEMETRY.md) - Monitoring and observability setup
+- [Examples](examples/) - Code examples and patterns
 
-## 🤝 Contributing
+## Examples
+
+The [examples](examples/) directory contains complete, runnable projects demonstrating various features:
+
+### Core Examples
+- **[SimpleCompletion](examples/SimpleCompletion/)** - Basic text completion with multiple providers
+- **[ConversationChat](examples/ConversationChat/)** - Interactive chat with conversation context management
+- **[FunctionCalling](examples/FunctionCalling/)** - OpenAI-compatible tool/function calling with weather and calculator examples
+
+### Advanced Examples
+- **[Streaming](examples/Streaming/)** - Real-time streaming responses with cancellation and progress tracking
+- **[MultiProvider](examples/MultiProvider/)** - Comparing responses from multiple LLM providers simultaneously
+- **[Telemetry](examples/Telemetry/)** - Metrics collection, distributed tracing, and progress reporting
+
+Run any example with:
+```bash
+dotnet run --project examples/SimpleCompletion
+# Set provider with environment variable
+LLM_PROVIDER=cerebras dotnet run --project examples/ConversationChat
+```
+
+## Contributing
 
 Contributions are welcome! Please read our [Contributing Guide](CONTRIBUTING.md) for details.
 
-## 📄 License
+## License
 
-This project is licensed under the Apache-2.0 License - see the [LICENSE](LICENSE) file for details.
+Copyright 2025 Rivoli AI
 
-## 🔗 Related Projects
+Licensed under the Apache License, Version 2.0 (the "License");
+you may not use this file except in compliance with the License.
+You may obtain a copy of the License at
+
+    http://www.apache.org/licenses/LICENSE-2.0
+
+Unless required by applicable law or agreed to in writing, software
+distributed under the License is distributed on an "AS IS" BASIS,
+WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+See the License for the specific language governing permissions and
+limitations under the License.
+
+See the [LICENSE](LICENSE) file for the full license text.
+
+### Third-Party Licenses
+
+This project uses the following open-source libraries:
+- **OpenAI SDK** - MIT License
+- **Cerebras.Cloud.SDK** - Apache-2.0 License  
+- **Microsoft.Extensions.Http.Polly** - MIT License
+- **Microsoft.Extensions.Logging** - MIT License
+- **System.Diagnostics.DiagnosticSource** - MIT License
+- **Andy.Configuration** - Apache-2.0 License
+
+All dependencies are compatible with the Apache-2.0 license.
+
+## Security
+
+- API keys are stored securely using SecureString
+- Sensitive data is automatically sanitized in logs
+- Support for Azure Key Vault and other secret managers
+- No hardcoded credentials or secrets
+
+For security concerns, please email security@rivoli-ai.com
+
+## Related Projects
 
 - [Andy.Configuration](https://www.nuget.org/packages/Andy.Configuration) - Configuration management
 - [OpenAI-DotNet](https://github.com/openai/openai-dotnet) - Official OpenAI SDK
 - [Cerebras.Cloud.SDK](https://www.nuget.org/packages/Cerebras.Cloud.Sdk.Unofficial) - Cerebras SDK
 
-## 📝 Changelog
+## Changelog
 
 See [CHANGELOG.md](CHANGELOG.md) for version history and release notes.

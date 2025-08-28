@@ -26,9 +26,19 @@ public class LlmResponse
     public int? TokensUsed { get; set; }
 
     /// <summary>
+    /// Detailed token usage information
+    /// </summary>
+    public TokenUsage? Usage { get; set; }
+
+    /// <summary>
     /// The model that was actually used
     /// </summary>
     public string? Model { get; set; }
+
+    /// <summary>
+    /// Text delta for streaming responses
+    /// </summary>
+    public string? TextDelta { get; set; }
 
     /// <summary>
     /// Provider-specific metadata
@@ -81,4 +91,25 @@ public class FunctionCall
     /// Arguments to pass to the function
     /// </summary>
     public Dictionary<string, object?> Arguments { get; set; } = new();
+}
+
+/// <summary>
+/// Represents token usage information for a request
+/// </summary>
+public class TokenUsage
+{
+    /// <summary>
+    /// Number of tokens in the prompt
+    /// </summary>
+    public int PromptTokens { get; set; }
+
+    /// <summary>
+    /// Number of tokens in the completion
+    /// </summary>
+    public int CompletionTokens { get; set; }
+
+    /// <summary>
+    /// Total tokens (prompt + completion)
+    /// </summary>
+    public int TotalTokens { get; set; }
 }

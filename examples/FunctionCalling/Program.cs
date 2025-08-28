@@ -7,12 +7,19 @@ using System.Text.Json;
 
 // Example: Function calling with tool responses
 
+// Determine which provider to use
+var providerEnv = Environment.GetEnvironmentVariable("LLM_PROVIDER") ?? "openai";
+var provider = providerEnv.ToLower();
+var model = provider == "cerebras" ? "llama-3.3-70b" : "gpt-4o-mini";
+
+Console.WriteLine($"Using provider: {provider}, model: {model}");
+
 var services = new ServiceCollection();
 services.AddLogging(builder => builder.AddConsole().SetMinimumLevel(LogLevel.Warning));
 services.ConfigureLlmFromEnvironment();
 services.AddLlmServices(options =>
 {
-    options.DefaultProvider = "openai";
+    options.DefaultProvider = provider;
 });
 
 var serviceProvider = services.BuildServiceProvider();
@@ -71,8 +78,10 @@ var conversation = new ConversationContext
 };
 
 Console.WriteLine("=== Function Calling Example ===");
+Console.WriteLine($"Provider: {provider.ToUpper()}, Model: {model}");
 Console.WriteLine("Available tools: get_weather, calculate");
-Console.WriteLine("Try asking: 'What's the weather in New York?' or 'Calculate 15% of 250'\n");
+Console.WriteLine("Try asking: 'What's the weather in New York?' or 'Calculate 15% of 250'");
+Console.WriteLine("Set LLM_PROVIDER=cerebras or LLM_PROVIDER=openai to switch providers\n");
 
 // Simulate tool implementations
 object? ExecuteTool(string toolName, Dictionary<string, object?> arguments)
@@ -200,7 +209,7 @@ while (true)
     conversation.AddUserMessage(input);
     
     // Get response with function calling
-    var request = conversation.CreateRequest("gpt-4o-mini");
+    var request = conversation.CreateRequest(model);
     var response = await client.CompleteAsync(request);
     
     // Check for function calls
@@ -225,7 +234,7 @@ while (true)
         }
         
         // Get final response after tool execution
-        request = conversation.CreateRequest("gpt-4o-mini");
+        request = conversation.CreateRequest(model);
         var finalResponse = await client.CompleteAsync(request);
         Console.WriteLine($"Assistant: {finalResponse.Content}");
         conversation.AddAssistantMessage(finalResponse.Content);

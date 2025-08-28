@@ -16,6 +16,12 @@ public class LlmProviderFactory : ILlmProviderFactory
     private readonly ILogger<LlmProviderFactory> _logger;
     private readonly Dictionary<string, ILlmProvider> _providerCache = new();
 
+    /// <summary>
+    /// Initializes a new instance of the <see cref="LlmProviderFactory"/> class.
+    /// </summary>
+    /// <param name="serviceProvider">The service provider.</param>
+    /// <param name="options">The LLM options.</param>
+    /// <param name="logger">The logger.</param>
     public LlmProviderFactory(
         IServiceProvider serviceProvider,
         IOptions<LlmOptions> options,
@@ -26,6 +32,11 @@ public class LlmProviderFactory : ILlmProviderFactory
         _logger = logger ?? throw new ArgumentNullException(nameof(logger));
     }
 
+    /// <summary>
+    /// Creates an LLM provider instance.
+    /// </summary>
+    /// <param name="providerName">The name of the provider to create. If null, uses the default provider.</param>
+    /// <returns>The LLM provider instance.</returns>
     public ILlmProvider CreateProvider(string? providerName = null)
     {
         providerName = (providerName ?? _options.Value.DefaultProvider).ToLowerInvariant();
@@ -51,6 +62,11 @@ public class LlmProviderFactory : ILlmProviderFactory
         return provider;
     }
 
+    /// <summary>
+    /// Creates the first available LLM provider.
+    /// </summary>
+    /// <param name="cancellationToken">The cancellation token.</param>
+    /// <returns>The first available LLM provider.</returns>
     public async Task<ILlmProvider> CreateAvailableProviderAsync(CancellationToken cancellationToken = default)
     {
         // Try the default provider first
