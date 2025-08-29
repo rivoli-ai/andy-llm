@@ -55,6 +55,9 @@ test-results-*/
 .DS_Store
 **/.DS_Store
 
+# JetBrains IDEs
+.idea/
+
 # Container build artifacts
 container/bin-safe/
 container/bin-isolated/

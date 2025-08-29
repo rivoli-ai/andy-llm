@@ -6,10 +6,12 @@
     <RepositoryUrl>https://github.com/rivoli-ai/andy-llm</RepositoryUrl>
     <PackageProjectUrl>https://github.com/rivoli-ai/andy-llm</PackageProjectUrl>
     <PackageIcon>andy-llm-icon.png</PackageIcon>
+    <PackageReadmeFile>README.md</PackageReadmeFile>
   </PropertyGroup>
 
   <ItemGroup>
     <None Include="../../assets/andy-llm-icon.png" Pack="true" PackagePath="/" />
+    <None Include="../../README.md" Pack="true" PackagePath="/" />
   </ItemGroup>
 
   <ItemGroup>
