@@ -5,11 +5,11 @@
     <PackageTags>llm;ai;openai;cerebras;azure;ollama;gpt;chatgpt;ml;machine-learning;nlp</PackageTags>
     <RepositoryUrl>https://github.com/rivoli-ai/andy-llm</RepositoryUrl>
     <PackageProjectUrl>https://github.com/rivoli-ai/andy-llm</PackageProjectUrl>
-    <PackageIcon>icon.png</PackageIcon>
+    <PackageIcon>andy-llm-icon.png</PackageIcon>
   </PropertyGroup>
 
   <ItemGroup>
-    <None Include="../../assets/icon.png" Pack="true" PackagePath="/" Condition="Exists('../../assets/icon.png')" />
+    <None Include="../../assets/andy-llm-icon.png" Pack="true" PackagePath="/" />
   </ItemGroup>
 
   <ItemGroup>
