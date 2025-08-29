@@ -4,6 +4,7 @@ using Andy.Llm.Abstractions;
 using Andy.Llm.Services;
 using Andy.Llm.Configuration;
 using Andy.Llm.Extensions;
+using Andy.Llm.Examples.Shared;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
 
@@ -17,19 +18,7 @@ public class MultiProvider
         // Setup dependency injection
         var services = new ServiceCollection();
         
-        services.AddLogging(builder =>
-        {
-            builder.AddSimpleConsole(options =>
-            {
-                options.IncludeScopes = false;
-                options.SingleLine = true;
-                options.TimestampFormat = "";
-            });
-            builder.SetMinimumLevel(LogLevel.Information);
-            // Hide HTTP client logs
-            builder.AddFilter("System.Net.Http", LogLevel.Warning);
-            builder.AddFilter("Andy.Llm.Providers", LogLevel.Warning);
-        });
+        services.AddLogging(builder => builder.AddCleanConsole());
 
         // Configure multiple providers
         services.AddLlmServices(options =>
@@ -40,16 +29,16 @@ public class MultiProvider
             options.Providers["openai"] = new ProviderConfig
             {
                 ApiKey = Environment.GetEnvironmentVariable("OPENAI_API_KEY"),
-                Model = "gpt-4o-mini",
-                Enabled = true
+                Model = Environment.GetEnvironmentVariable("OPENAI_MODEL") ?? "gpt-4o",
+                Enabled = !string.IsNullOrEmpty(Environment.GetEnvironmentVariable("OPENAI_API_KEY"))
             };
             
             // Cerebras configuration
             options.Providers["cerebras"] = new ProviderConfig
             {
                 ApiKey = Environment.GetEnvironmentVariable("CEREBRAS_API_KEY"),
-                Model = "llama3.1-8b",
-                Enabled = true
+                Model = Environment.GetEnvironmentVariable("CEREBRAS_MODEL") ?? "llama-3.3-70b",
+                Enabled = !string.IsNullOrEmpty(Environment.GetEnvironmentVariable("CEREBRAS_API_KEY"))
             };
             
             // Azure OpenAI configuration
@@ -65,7 +54,7 @@ public class MultiProvider
             options.Providers["ollama"] = new ProviderConfig
             {
                 ApiBase = Environment.GetEnvironmentVariable("OLLAMA_API_BASE") ?? "http://localhost:11434",
-                Model = Environment.GetEnvironmentVariable("OLLAMA_MODEL"),
+                Model = Environment.GetEnvironmentVariable("OLLAMA_MODEL") ?? "gpt-oss:20b",
                 Enabled = true
             };
         });
@@ -125,13 +114,14 @@ public class MultiProvider
         }
         catch (Exception ex)
         {
-            logger.LogError("Default provider failed: {Message}", ex.Message);
+            logger.LogWarning("Default provider failed: {Message}", ex.Message);
         }
     }
 
     static async Task UseSpecificProviders(ILlmProviderFactory factory, ILogger logger)
     {
         logger.LogInformation("\n=== Example 2: Using Specific Providers ===");
+        logger.LogInformation("Note: Cerebras runs open-source models like Llama (Meta) at high speed");
 
         var providers = new[] { "openai", "cerebras", "azure", "ollama" };
         
@@ -154,12 +144,17 @@ public class MultiProvider
                     Messages = new List<Message>
                     {
                         Message.CreateText(MessageRole.User, 
-                            $"What provider are you? Reply in 5 words or less.")
+                            $"Complete this: 'The sky is' (3 words)")
                     },
-                    MaxTokens = 50
+                    MaxTokens = 50,
+                    Model = providerName == "ollama" ? "gpt-oss:20b" : null
                 };
 
                 var response = await provider.CompleteAsync(request);
+                if (string.IsNullOrEmpty(response.Content))
+                {
+                    logger.LogWarning("  Response is empty! Model: {Model}", request.Model ?? "default");
+                }
                 logger.LogInformation("  Response: {Response}", response.Content);
                 
                 if (response.TokensUsed.HasValue)
@@ -286,7 +281,8 @@ public class MultiProvider
                 };
 
                 context.AddUserMessage("What time is it?");
-                var request = context.CreateRequest("gpt-4o-mini");
+                var model = Environment.GetEnvironmentVariable("OPENAI_MODEL") ?? "gpt-4o";
+                var request = context.CreateRequest(model);
 
                 var response = await openai.CompleteAsync(request);
                 
@@ -313,7 +309,7 @@ public class MultiProvider
         // Cerebras - Fast Inference
         try
         {
-            logger.LogInformation("\nCerebras - Fast Inference:");
+            logger.LogInformation("\nCerebras - Fast Inference (using Llama models):");
             var cerebras = factory.CreateProvider("cerebras");
             
             if (await cerebras.IsAvailableAsync())
@@ -362,11 +358,22 @@ public class MultiProvider
                         Message.CreateText(MessageRole.User, 
                             "What are the benefits of running models locally?")
                     },
-                    MaxTokens = 100
+                    MaxTokens = 100,
+                    Model = "gpt-oss:20b"  // Explicitly specify Ollama model
                 };
 
                 var response = await ollama.CompleteAsync(request);
-                logger.LogInformation("  Response: {Response}", response.Content.Substring(0, Math.Min(100, response.Content.Length)) + "...");
+                if (!string.IsNullOrEmpty(response.Content))
+                {
+                    var truncated = response.Content.Length > 100 
+                        ? response.Content.Substring(0, 100) + "..."
+                        : response.Content;
+                    logger.LogInformation("  Response: {Response}", truncated);
+                }
+                else
+                {
+                    logger.LogWarning("  Ollama returned empty response");
+                }
                 logger.LogInformation("  (Running locally - no API costs!)");
             }
             else

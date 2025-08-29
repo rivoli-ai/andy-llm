@@ -21,6 +21,12 @@ public class OllamaProvider : ILlmProvider
     private readonly string _apiBase;
     private readonly string _defaultModel;
 
+    /// <summary>
+    /// Initializes a new instance of the <see cref="OllamaProvider"/> class.
+    /// </summary>
+    /// <param name="options">The LLM options containing Ollama configuration.</param>
+    /// <param name="logger">The logger instance.</param>
+    /// <param name="httpClientFactory">Optional HTTP client factory for creating HTTP clients.</param>
     public OllamaProvider(
         IOptions<LlmOptions> options,
         ILogger<OllamaProvider> logger,
@@ -32,7 +38,7 @@ public class OllamaProvider : ILlmProvider
         var config = LoadConfiguration(options.Value);
         
         _apiBase = config.ApiBase ?? Environment.GetEnvironmentVariable("OLLAMA_API_BASE") ?? "http://localhost:11434";
-        _defaultModel = config.Model ?? Environment.GetEnvironmentVariable("OLLAMA_MODEL") ?? "llama2";
+        _defaultModel = config.Model ?? Environment.GetEnvironmentVariable("OLLAMA_MODEL") ?? "gpt-oss:20b";
         
         // Create HTTP client
         _httpClient = httpClientFactory?.CreateClient("Ollama") ?? new HttpClient();
@@ -43,8 +49,16 @@ public class OllamaProvider : ILlmProvider
             _apiBase, _defaultModel);
     }
 
+    /// <summary>
+    /// Gets the name of the provider.
+    /// </summary>
     public string Name => "ollama";
 
+    /// <summary>
+    /// Checks if the Ollama service is available.
+    /// </summary>
+    /// <param name="cancellationToken">The cancellation token.</param>
+    /// <returns>True if the service is available, false otherwise.</returns>
     public async Task<bool> IsAvailableAsync(CancellationToken cancellationToken = default)
     {
         try
@@ -59,6 +73,12 @@ public class OllamaProvider : ILlmProvider
         }
     }
 
+    /// <summary>
+    /// Completes a chat request using Ollama.
+    /// </summary>
+    /// <param name="request">The LLM request.</param>
+    /// <param name="cancellationToken">The cancellation token.</param>
+    /// <returns>The LLM response.</returns>
     public async Task<LlmResponse> CompleteAsync(LlmRequest request, CancellationToken cancellationToken = default)
     {
         var ollamaRequest = CreateOllamaRequest(request, stream: false);
@@ -72,19 +92,23 @@ public class OllamaProvider : ILlmProvider
             
             response.EnsureSuccessStatusCode();
             
-            var ollamaResponse = await response.Content.ReadFromJsonAsync<OllamaChatResponse>(
-                cancellationToken: cancellationToken);
+            var responseContent = await response.Content.ReadAsStringAsync(cancellationToken);
+            _logger.LogDebug("Ollama raw response: {Response}", responseContent);
+            
+            var ollamaResponse = System.Text.Json.JsonSerializer.Deserialize<OllamaChatResponse>(responseContent);
             
             if (ollamaResponse == null)
             {
                 throw new InvalidOperationException("Received null response from Ollama");
             }
             
+            _logger.LogDebug("Ollama parsed message content: {Content}", ollamaResponse.Message?.Content ?? "(null)");
+            
             return ConvertResponse(ollamaResponse, request.Model ?? _defaultModel);
         }
         catch (HttpRequestException ex)
         {
-            _logger.LogError(ex, "Ollama request failed");
+            _logger.LogError("Ollama request failed: {Message}", ex.Message);
             
             // Check if it's a 404 error (model not found)
             if (ex.StatusCode == System.Net.HttpStatusCode.NotFound)
@@ -93,13 +117,19 @@ public class OllamaProvider : ILlmProvider
                 throw new InvalidOperationException(
                     $"Model '{modelName}' not found in Ollama. " +
                     $"Please ensure the model is installed with 'ollama pull {modelName}' " +
-                    $"or set OLLAMA_MODEL environment variable to an installed model.", ex);
+                    $"or set OLLAMA_MODEL environment variable to an installed model (e.g., gpt-oss:20b, phi4:latest).", ex);
             }
             
             throw new InvalidOperationException($"Ollama request failed: {ex.Message}", ex);
         }
     }
 
+    /// <summary>
+    /// Streams a chat completion response from Ollama.
+    /// </summary>
+    /// <param name="request">The LLM request.</param>
+    /// <param name="cancellationToken">The cancellation token.</param>
+    /// <returns>An async enumerable of stream responses.</returns>
     public async IAsyncEnumerable<LlmStreamResponse> StreamCompleteAsync(
         LlmRequest request,
         [EnumeratorCancellation] CancellationToken cancellationToken = default)
@@ -286,9 +316,17 @@ public class OllamaProvider : ILlmProvider
 
     private LlmResponse ConvertResponse(OllamaChatResponse ollamaResponse, string model)
     {
+        // Some models (like gpt-oss) return content in 'thinking' field instead of 'content'
+        var content = ollamaResponse.Message?.Content;
+        if (string.IsNullOrEmpty(content) && !string.IsNullOrEmpty(ollamaResponse.Message?.Thinking))
+        {
+            content = ollamaResponse.Message.Thinking;
+            _logger.LogDebug("Using 'thinking' field as content for model {Model}", model);
+        }
+        
         return new LlmResponse
         {
-            Content = ollamaResponse.Message?.Content ?? string.Empty,
+            Content = content ?? string.Empty,
             Model = model,
             FunctionCalls = new List<FunctionCall>(), // Ollama doesn't support function calling yet
             TokensUsed = ollamaResponse.PromptEvalCount + ollamaResponse.EvalCount,
@@ -332,6 +370,9 @@ internal class OllamaMessage
     
     [JsonPropertyName("content")]
     public required string Content { get; set; }
+    
+    [JsonPropertyName("thinking")]
+    public string? Thinking { get; set; }  // Some models like gpt-oss use this field
 }
 
 internal class OllamaOptions

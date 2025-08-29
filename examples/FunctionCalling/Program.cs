@@ -1,6 +1,7 @@
 using Andy.Llm;
 using Andy.Llm.Models;
 using Andy.Llm.Extensions;
+using Andy.Llm.Examples.Shared;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
 using System.Text.Json;
@@ -13,19 +14,7 @@ var provider = providerEnv.ToLower();
 var model = provider == "cerebras" ? "llama-3.3-70b" : "gpt-4o-mini";
 
 var services = new ServiceCollection();
-services.AddLogging(builder => 
-{
-    builder.AddSimpleConsole(options =>
-    {
-        options.IncludeScopes = false;
-        options.SingleLine = true;
-        options.TimestampFormat = "";
-    });
-    builder.SetMinimumLevel(LogLevel.Information);
-    // Hide HTTP client logs
-    builder.AddFilter("System.Net.Http", LogLevel.Warning);
-    builder.AddFilter("Andy.Llm.Providers", LogLevel.Warning);
-});
+services.AddLogging(builder => builder.AddCleanConsole());
 services.ConfigureLlmFromEnvironment();
 services.AddLlmServices(options =>
 {
@@ -37,7 +26,8 @@ var logger = serviceProvider.GetRequiredService<ILogger<Program>>();
 
 try
 {
-    logger.LogInformation("Using provider: {Provider}, model: {Model}", provider, model);
+    logger.LogInformation("\n=== Function Calling Example ===");
+    logger.LogInformation("Provider: {Provider}, Model: {Model}", provider.ToUpper(), model);
     
     var client = serviceProvider.GetRequiredService<LlmClient>();
 
@@ -74,8 +64,6 @@ try
         AvailableTools = { weatherTool }
     };
 
-    logger.LogInformation("=== Function Calling Example ===");
-    logger.LogInformation("Provider: {Provider}, Model: {Model}", provider.ToUpper(), model);
     logger.LogInformation("Ask about the weather in any city!\n");
 
     // Example interaction
@@ -96,7 +84,7 @@ try
         // IMPORTANT: Add the assistant's message with function calls to context
         context.AddAssistantMessageWithToolCalls(response.Content, response.FunctionCalls);
         
-        logger.LogInformation("Model wants to call functions:");
+        logger.LogInformation("\nModel wants to call functions:");
         foreach (var call in response.FunctionCalls)
         {
             logger.LogInformation("  Function: {Name}", call.Name);
@@ -121,7 +109,7 @@ try
                     wind_speed = 12
                 };
 
-                logger.LogInformation("Executed function: {Result}", JsonSerializer.Serialize(weatherData));
+                logger.LogInformation("\nExecuted function: {Result}", JsonSerializer.Serialize(weatherData));
 
                 // Add tool response to context
                 context.AddToolResponse(
@@ -146,7 +134,7 @@ try
 
     // Interactive mode
     logger.LogInformation("\n=== Interactive Mode ===");
-    logger.LogInformation("Type 'exit' to quit\n");
+    logger.LogInformation("Type 'exit' to quit");
 
     while (true)
     {

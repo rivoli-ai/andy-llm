@@ -1,4 +1,5 @@
 using Andy.Llm;
+using Andy.Llm.Examples.Shared;
 using Andy.Llm.Extensions;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
@@ -7,19 +8,7 @@ using Microsoft.Extensions.Logging;
 
 // Setup services
 var services = new ServiceCollection();
-services.AddLogging(builder => 
-{
-    builder.AddSimpleConsole(options =>
-    {
-        options.IncludeScopes = false;
-        options.SingleLine = true;
-        options.TimestampFormat = "";
-    });
-    builder.SetMinimumLevel(LogLevel.Information);
-    // Hide HTTP client logs
-    builder.AddFilter("System.Net.Http", LogLevel.Warning);
-    builder.AddFilter("Andy.Llm.Providers", LogLevel.Warning);
-});
+        services.AddLogging(builder => builder.AddCleanConsole());
 
 // Configure from environment variables
 // Set OPENAI_API_KEY and/or CEREBRAS_API_KEY

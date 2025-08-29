@@ -6,7 +6,7 @@ using Andy.Llm.Services;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
-
+using Andy.Llm.Examples.Shared;
 /// <summary>
 /// Example demonstrating Azure OpenAI Service integration with Andy.Llm
 /// </summary>
@@ -27,19 +27,7 @@ class Program
         var services = new ServiceCollection();
         
         // Add logging with clean console output
-        services.AddLogging(builder =>
-        {
-            builder.AddSimpleConsole(options =>
-            {
-                options.IncludeScopes = false;
-                options.SingleLine = true;
-                options.TimestampFormat = "";
-            });
-            builder.SetMinimumLevel(LogLevel.Information);
-            // Hide HTTP client logs
-            builder.AddFilter("System.Net.Http", LogLevel.Warning);
-            builder.AddFilter("Andy.Llm.Providers", LogLevel.Warning);
-        });
+        services.AddLogging(builder => builder.AddCleanConsole());
 
         // Add LLM services with configuration
         services.AddLlmServices(configuration);

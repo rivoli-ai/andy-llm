@@ -215,6 +215,10 @@ public class LlmMetrics : IDisposable
         return Activity.Current?.Source.StartActivity(name, kind);
     }
 
+    /// <summary>
+    /// Releases the unmanaged resources used by the LlmMetrics and optionally releases the managed resources.
+    /// </summary>
+    /// <param name="disposing">True to release both managed and unmanaged resources; false to release only unmanaged resources.</param>
     protected virtual void Dispose(bool disposing)
     {
         if (!_disposed)
@@ -227,6 +231,9 @@ public class LlmMetrics : IDisposable
         }
     }
 
+    /// <summary>
+    /// Performs application-defined tasks associated with freeing, releasing, or resetting unmanaged resources.
+    /// </summary>
     public void Dispose()
     {
         Dispose(true);

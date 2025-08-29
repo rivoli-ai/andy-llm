@@ -3,7 +3,7 @@ using Andy.Llm.Extensions;
 using Andy.Llm.Models;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
-
+using Andy.Llm.Examples.Shared;
 /// <summary>
 /// Example demonstrating streaming responses with Andy.Llm
 /// </summary>
@@ -13,20 +13,7 @@ public class StreamingExample
     {
         // Setup
         var services = new ServiceCollection();
-        services.AddLogging(builder => 
-        {
-            builder.AddSimpleConsole(options =>
-            {
-                options.IncludeScopes = false;
-                options.SingleLine = true;
-                options.TimestampFormat = "";
-            });
-            builder.SetMinimumLevel(LogLevel.Information);
-            // Hide HTTP client and provider logs
-            builder.AddFilter("System.Net.Http", LogLevel.Warning);
-            builder.AddFilter("Andy.Llm.Providers", LogLevel.Warning);
-            builder.AddFilter("Andy.Llm.Services", LogLevel.Warning);
-        });
+        services.AddLogging(builder => builder.AddCleanConsole()); 
         
         // Configure LLM services
         services.ConfigureLlmFromEnvironment();

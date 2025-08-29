@@ -5,6 +5,7 @@ using Andy.Llm.Progress;
 using Andy.Llm.Telemetry;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
+using Andy.Llm.Examples.Shared;
 using OpenTelemetry;
 using OpenTelemetry.Metrics;
 using OpenTelemetry.Resources;
@@ -22,20 +23,7 @@ public class TelemetryExample
         var services = new ServiceCollection();
         
         // Configure logging with clean console output
-        services.AddLogging(builder =>
-        {
-            builder.AddSimpleConsole(options =>
-            {
-                options.IncludeScopes = false;
-                options.SingleLine = true;
-                options.TimestampFormat = "";
-            });
-            builder.SetMinimumLevel(LogLevel.Information);
-            // Hide HTTP client and provider logs
-            builder.AddFilter("System.Net.Http", LogLevel.Warning);
-            builder.AddFilter("Andy.Llm.Providers", LogLevel.Warning);
-            builder.AddFilter("Andy.Llm.Services", LogLevel.Warning);
-        });
+        services.AddLogging(builder => builder.AddCleanConsole());
 
         // Configure OpenTelemetry using separate configuration
         using var meterProvider = Sdk.CreateMeterProviderBuilder()

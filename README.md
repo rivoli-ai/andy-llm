@@ -69,7 +69,7 @@ var serviceProvider = services.BuildServiceProvider();
 var llmClient = serviceProvider.GetRequiredService<LlmClient>();
 ```
 
-## 🔧 Configuration
+## Configuration
 
 ### Environment Variables
 
@@ -95,7 +95,7 @@ The library supports configuration through environment variables for all major p
 - `OLLAMA_API_BASE` - Your local endpoint (e.g., http://localhost:11434)
 - `OLLAMA_MODEL` - Model to use (e.g., llama2)
 
-## 📚 Features
+## Features
 
 ### Core Capabilities
 - **Multi-Provider Support**: OpenAI, Cerebras, Azure OpenAI, Ollama

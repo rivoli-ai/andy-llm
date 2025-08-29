@@ -21,6 +21,11 @@ public class AzureOpenAIProvider : ILlmProvider
     private readonly ChatClient _chatClient;
     private readonly string _deploymentName;
 
+    /// <summary>
+    /// Initializes a new instance of the <see cref="AzureOpenAIProvider"/> class.
+    /// </summary>
+    /// <param name="options">The LLM options containing Azure OpenAI configuration.</param>
+    /// <param name="logger">The logger instance.</param>
     public AzureOpenAIProvider(
         IOptions<LlmOptions> options,
         ILogger<AzureOpenAIProvider> logger)
@@ -59,8 +64,16 @@ public class AzureOpenAIProvider : ILlmProvider
             endpoint, _deploymentName);
     }
 
+    /// <summary>
+    /// Gets the name of the provider.
+    /// </summary>
     public string Name => "azure";
 
+    /// <summary>
+    /// Checks if the Azure OpenAI service is available.
+    /// </summary>
+    /// <param name="cancellationToken">The cancellation token.</param>
+    /// <returns>True if the service is available, false otherwise.</returns>
     public async Task<bool> IsAvailableAsync(CancellationToken cancellationToken = default)
     {
         try
@@ -84,6 +97,12 @@ public class AzureOpenAIProvider : ILlmProvider
         }
     }
 
+    /// <summary>
+    /// Completes a chat request using Azure OpenAI.
+    /// </summary>
+    /// <param name="request">The LLM request.</param>
+    /// <param name="cancellationToken">The cancellation token.</param>
+    /// <returns>The LLM response.</returns>
     public async Task<LlmResponse> CompleteAsync(LlmRequest request, CancellationToken cancellationToken = default)
     {
         try
@@ -102,6 +121,12 @@ public class AzureOpenAIProvider : ILlmProvider
         }
     }
 
+    /// <summary>
+    /// Streams a chat completion response from Azure OpenAI.
+    /// </summary>
+    /// <param name="request">The LLM request.</param>
+    /// <param name="cancellationToken">The cancellation token.</param>
+    /// <returns>An async enumerable of stream responses.</returns>
     public async IAsyncEnumerable<LlmStreamResponse> StreamCompleteAsync(
         LlmRequest request,
         [System.Runtime.CompilerServices.EnumeratorCancellation] CancellationToken cancellationToken = default)
