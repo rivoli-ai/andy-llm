@@ -46,7 +46,7 @@ jobs:
         
         echo "VERSION=$VERSION" >> $GITHUB_ENV
         
-        dotnet pack src/Andy.LLM/Andy.LLM.csproj \
+        dotnet pack src/Andy.Llm/Andy.Llm.csproj \
           --configuration Release \
           --no-build \
           --output ./artifacts \
