@@ -148,7 +148,7 @@ public class IntegrationTests : IClassFixture<IntegrationTestFixture>
     /// Tests function calling with mocked provider.
     /// </summary>
     [Fact]
-    public async Task FunctionCalling_ShouldWork()
+    public Task FunctionCalling_ShouldWork()
     {
         var context = new ConversationContext();
         context.AvailableTools.Add(new ToolDeclaration
@@ -200,6 +200,8 @@ public class IntegrationTests : IClassFixture<IntegrationTestFixture>
         Assert.NotNull(toolPart);
         Assert.Equal("get_weather", toolPart.ToolName);
         Assert.Equal("call_123", toolPart.CallId);
+        
+        return Task.CompletedTask;
     }
 }
 
@@ -270,7 +272,7 @@ public class SkipException : Exception
 /// </summary>
 public class SkippableFactAttribute : FactAttribute
 {
-    public override string Skip
+    public override string? Skip
     {
         get => base.Skip ?? GetSkipReason();
         set => base.Skip = value;

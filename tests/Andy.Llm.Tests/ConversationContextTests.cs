@@ -85,8 +85,8 @@ public class ConversationContextTests
         Assert.Equal("gpt-4", request.Model);
         Assert.Equal("Be helpful", request.SystemPrompt);
         Assert.Equal(2, request.Messages.Count); // User and Assistant messages
-        Assert.Single(request.Tools);
-        Assert.Equal("calculator", request.Tools[0].Name);
+        Assert.Single(request.Tools!);
+        Assert.Equal("calculator", request.Tools![0].Name);
     }
 
     [Fact]
