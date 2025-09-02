@@ -190,4 +190,29 @@ public class MockLlmProvider : ILlmProvider
             IsComplete = true
         };
     }
+    
+    public async Task<IEnumerable<ModelInfo>> ListModelsAsync(CancellationToken cancellationToken = default)
+    {
+        await Task.Delay(10, cancellationToken);
+        
+        return new List<ModelInfo>
+        {
+            new ModelInfo
+            {
+                Id = "mock-model-1",
+                Name = "Mock Model 1",
+                Provider = "mock",
+                Description = "Test model 1",
+                MaxTokens = 4096
+            },
+            new ModelInfo
+            {
+                Id = "mock-model-2",
+                Name = "Mock Model 2",
+                Provider = "mock",
+                Description = "Test model 2",
+                MaxTokens = 8192
+            }
+        };
+    }
 }

@@ -31,4 +31,11 @@ public interface ILlmProvider
     /// Validates if the provider is properly configured and available
     /// </summary>
     Task<bool> IsAvailableAsync(CancellationToken cancellationToken = default);
+
+    /// <summary>
+    /// Lists available models from the provider
+    /// </summary>
+    /// <param name="cancellationToken">The cancellation token.</param>
+    /// <returns>A collection of available models.</returns>
+    Task<IEnumerable<ModelInfo>> ListModelsAsync(CancellationToken cancellationToken = default);
 }

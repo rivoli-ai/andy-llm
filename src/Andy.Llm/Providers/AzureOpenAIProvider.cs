@@ -237,6 +237,75 @@ public class AzureOpenAIProvider : ILlmProvider
         }
     }
 
+    /// <summary>
+    /// Lists available models from Azure OpenAI.
+    /// </summary>
+    /// <param name="cancellationToken">The cancellation token.</param>
+    /// <returns>A collection of available models.</returns>
+    public async Task<IEnumerable<ModelInfo>> ListModelsAsync(CancellationToken cancellationToken = default)
+    {
+        // Azure OpenAI doesn't provide a models listing endpoint
+        // Instead, we return info about the configured deployment
+        var models = new List<ModelInfo>
+        {
+            new ModelInfo
+            {
+                Id = _deploymentName,
+                Name = _deploymentName,
+                Provider = "azure",
+                Description = $"Azure OpenAI deployment: {_deploymentName}",
+                Family = GetDeploymentFamily(_deploymentName),
+                ParameterSize = GetDeploymentParameterSize(_deploymentName),
+                MaxTokens = GetDeploymentMaxTokens(_deploymentName),
+                SupportsFunctions = true,
+                SupportsVision = _deploymentName.Contains("vision") || _deploymentName.Contains("gpt-4o"),
+                Metadata = new Dictionary<string, object>
+                {
+                    ["deployment"] = _deploymentName,
+                    ["endpoint"] = _config.ApiBase ?? "Not specified"
+                }
+            }
+        };
+
+        return await Task.FromResult(models);
+    }
+
+    private static string? GetDeploymentFamily(string deploymentName)
+    {
+        return deploymentName switch
+        {
+            var name when name.Contains("gpt-4o") => "GPT-4o",
+            var name when name.Contains("gpt-4") => "GPT-4",
+            var name when name.Contains("gpt-35") || name.Contains("gpt-3.5") => "GPT-3.5",
+            _ => null
+        };
+    }
+
+    private static string? GetDeploymentParameterSize(string deploymentName)
+    {
+        // Azure doesn't expose parameter counts
+        return deploymentName switch
+        {
+            var name when name.Contains("gpt-4") => "Large",
+            var name when name.Contains("gpt-35") || name.Contains("gpt-3.5") => "Medium",
+            _ => null
+        };
+    }
+
+    private static int? GetDeploymentMaxTokens(string deploymentName)
+    {
+        return deploymentName switch
+        {
+            var name when name.Contains("gpt-4o") => 128000,
+            var name when name.Contains("gpt-4-turbo") => 128000,
+            var name when name.Contains("gpt-4-32k") => 32768,
+            var name when name.Contains("gpt-4") && !name.Contains("32k") => 8192,
+            var name when name.Contains("gpt-35-turbo-16k") || name.Contains("gpt-3.5-turbo-16k") => 16385,
+            var name when name.Contains("gpt-35-turbo") || name.Contains("gpt-3.5-turbo") => 4096,
+            _ => null
+        };
+    }
+
     private ProviderConfig LoadConfiguration(LlmOptions options)
     {
         if (options.Providers.TryGetValue("azure", out var config))

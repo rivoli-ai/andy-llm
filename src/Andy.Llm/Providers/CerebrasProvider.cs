@@ -1,7 +1,10 @@
 using System.ClientModel;
 using ClientResultException = System.ClientModel.ClientResultException;
+using System.Net.Http;
+using System.Net.Http.Headers;
 using System.Runtime.CompilerServices;
 using System.Text.Json;
+using System.Text.Json.Serialization;
 using Andy.Llm.Abstractions;
 using Andy.Llm.Configuration;
 using Andy.Llm.Models;
@@ -18,6 +21,7 @@ namespace Andy.Llm.Providers;
 public class CerebrasProvider : ILlmProvider
 {
     private readonly ChatClient _chatClient;
+    private readonly HttpClient _httpClient;
     private readonly ILogger<CerebrasProvider> _logger;
     private readonly ProviderConfig _config;
     private readonly string _defaultModel;
@@ -34,7 +38,8 @@ public class CerebrasProvider : ILlmProvider
     /// <param name="logger">The logger.</param>
     public CerebrasProvider(
         IOptions<LlmOptions> options,
-        ILogger<CerebrasProvider> logger)
+        ILogger<CerebrasProvider> logger,
+        IHttpClientFactory? httpClientFactory = null)
     {
         _logger = logger ?? throw new ArgumentNullException(nameof(logger));
         
@@ -69,6 +74,11 @@ public class CerebrasProvider : ILlmProvider
         // Use OpenAI SDK with Cerebras endpoint
         var openAiClient = new OpenAIClient(new ApiKeyCredential(_config.ApiKey), cerebrasOptions);
         _chatClient = openAiClient.GetChatClient(_defaultModel);
+        
+        // Create HTTP client for models endpoint
+        _httpClient = httpClientFactory?.CreateClient("Cerebras") ?? new HttpClient();
+        _httpClient.BaseAddress = new Uri(_config.ApiBase ?? "https://api.cerebras.ai/v1/");
+        _httpClient.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", _config.ApiKey);
         
         _logger.LogInformation("Cerebras provider initialized with model: {Model}", _defaultModel);
     }
@@ -239,6 +249,110 @@ public class CerebrasProvider : ILlmProvider
                 };
             }
         }
+    }
+
+    /// <summary>
+    /// Lists available models from Cerebras.
+    /// </summary>
+    /// <param name="cancellationToken">The cancellation token.</param>
+    /// <returns>A collection of available models.</returns>
+    public async Task<IEnumerable<ModelInfo>> ListModelsAsync(CancellationToken cancellationToken = default)
+    {
+        try
+        {
+            // Cerebras uses OpenAI-compatible API, try to query models endpoint
+            var response = await _httpClient.GetAsync("models", cancellationToken);
+            response.EnsureSuccessStatusCode();
+            
+            var content = await response.Content.ReadAsStringAsync(cancellationToken);
+            var modelsResponse = JsonSerializer.Deserialize<CerebrasModelsResponse>(content);
+            
+            if (modelsResponse?.Data == null)
+            {
+                return Enumerable.Empty<ModelInfo>();
+            }
+            
+            return modelsResponse.Data
+                .Select(model => new ModelInfo
+                {
+                    Id = model.Id ?? string.Empty,
+                    Name = model.Id ?? string.Empty,
+                    Provider = "cerebras",
+                    Created = model.Created.HasValue ? DateTimeOffset.FromUnixTimeSeconds(model.Created.Value).DateTime : null,
+                    Description = GetModelDescription(model.Id),
+                    Family = GetModelFamily(model.Id),
+                    ParameterSize = GetParameterSize(model.Id),
+                    MaxTokens = GetMaxTokens(model.Id),
+                    SupportsFunctions = SupportsFunctionCalling(model.Id),
+                    SupportsVision = false, // Cerebras doesn't support vision models yet
+                    Metadata = new Dictionary<string, object>
+                    {
+                        ["owned_by"] = model.OwnedBy ?? "cerebras",
+                        ["speed"] = "Ultra-fast inference"
+                    }
+                })
+                .OrderBy(m => m.Name);
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Failed to list Cerebras models");
+            return Enumerable.Empty<ModelInfo>();
+        }
+    }
+
+    private static string? GetModelDescription(string? modelId)
+    {
+        if (modelId == null) return null;
+        
+        return modelId switch
+        {
+            "llama-3.3-70b" => "Meta's Llama 3.3 70B model - supports tool calling",
+            "llama-3.1-70b" or "llama3.1-70b" => "Meta's Llama 3.1 70B model",
+            "llama-3.1-8b" or "llama3.1-8b" => "Meta's Llama 3.1 8B model",
+            _ => "High-performance model"
+        };
+    }
+
+    private static string? GetModelFamily(string? modelId)
+    {
+        if (modelId == null) return null;
+        
+        return modelId switch
+        {
+            var id when id.Contains("llama") => "Llama",
+            _ => null
+        };
+    }
+
+    private static string? GetParameterSize(string? modelId)
+    {
+        if (modelId == null) return null;
+        
+        return modelId switch
+        {
+            var id when id.Contains("70b") => "70B",
+            var id when id.Contains("8b") => "8B",
+            _ => null
+        };
+    }
+
+    private static int? GetMaxTokens(string? modelId)
+    {
+        if (modelId == null) return null;
+        
+        return modelId switch
+        {
+            "llama-3.3-70b" => 8192,
+            var id when id.Contains("3.1") => 128000,
+            _ => 8192
+        };
+    }
+
+    private static bool SupportsFunctionCalling(string? modelId)
+    {
+        if (modelId == null) return false;
+        // Only llama-3.3-70b supports function calling
+        return modelId == "llama-3.3-70b";
     }
 
     private List<ChatMessage> ConvertMessages(LlmRequest request)
@@ -431,5 +545,24 @@ public class CerebrasProvider : ILlmProvider
         public string Id { get; set; } = "";
         public string Name { get; set; } = "";
         public string Arguments { get; set; } = "";
+    }
+
+    // Cerebras Models API response classes (OpenAI-compatible)
+    private class CerebrasModelsResponse
+    {
+        [JsonPropertyName("data")]
+        public List<CerebrasModel>? Data { get; set; }
+    }
+
+    private class CerebrasModel
+    {
+        [JsonPropertyName("id")]
+        public string? Id { get; set; }
+        
+        [JsonPropertyName("created")]
+        public long? Created { get; set; }
+        
+        [JsonPropertyName("owned_by")]
+        public string? OwnedBy { get; set; }
     }
 }

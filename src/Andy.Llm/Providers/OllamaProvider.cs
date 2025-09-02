@@ -125,6 +125,74 @@ public class OllamaProvider : ILlmProvider
     }
 
     /// <summary>
+    /// Lists available models from Ollama.
+    /// </summary>
+    /// <param name="cancellationToken">The cancellation token.</param>
+    /// <returns>A collection of available models.</returns>
+    public async Task<IEnumerable<ModelInfo>> ListModelsAsync(CancellationToken cancellationToken = default)
+    {
+        try
+        {
+            var response = await _httpClient.GetAsync("/api/tags", cancellationToken);
+            response.EnsureSuccessStatusCode();
+            
+            var content = await response.Content.ReadAsStringAsync(cancellationToken);
+            var tagsResponse = JsonSerializer.Deserialize<OllamaTagsResponse>(content);
+            
+            if (tagsResponse?.Models == null)
+            {
+                return Enumerable.Empty<ModelInfo>();
+            }
+            
+            return tagsResponse.Models.Select(model => new ModelInfo
+            {
+                Id = model.Name ?? string.Empty,
+                Name = model.Name ?? string.Empty,
+                Provider = "ollama",
+                Description = model.Details?.Format ?? "Local model",
+                Created = ParseDateTime(model.ModifiedAt),
+                Family = model.Details?.Family,
+                ParameterSize = model.Details?.ParameterSize,
+                Metadata = new Dictionary<string, object>
+                {
+                    ["size"] = FormatBytes(model.Size ?? 0),
+                    ["digest"] = model.Digest ?? string.Empty,
+                    ["quantization"] = model.Details?.QuantizationLevel ?? "unknown"
+                }
+            });
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Failed to list Ollama models");
+            return Enumerable.Empty<ModelInfo>();
+        }
+    }
+
+    private static DateTime? ParseDateTime(string? dateStr)
+    {
+        if (string.IsNullOrEmpty(dateStr))
+            return null;
+            
+        if (DateTime.TryParse(dateStr, out var date))
+            return date;
+            
+        return null;
+    }
+
+    private static string FormatBytes(long bytes)
+    {
+        string[] sizes = { "B", "KB", "MB", "GB", "TB" };
+        double len = bytes;
+        int order = 0;
+        while (len >= 1024 && order < sizes.Length - 1)
+        {
+            order++;
+            len = len / 1024;
+        }
+        return $"{len:0.##} {sizes[order]}";
+    }
+
+    /// <summary>
     /// Streams a chat completion response from Ollama.
     /// </summary>
     /// <param name="request">The LLM request.</param>
@@ -426,4 +494,46 @@ internal class OllamaChatResponse
 internal class OllamaStreamResponse : OllamaChatResponse
 {
     // Inherits all properties from OllamaChatResponse
+}
+
+internal class OllamaTagsResponse
+{
+    [JsonPropertyName("models")]
+    public List<OllamaModelInfo>? Models { get; set; }
+}
+
+internal class OllamaModelInfo
+{
+    [JsonPropertyName("name")]
+    public string? Name { get; set; }
+    
+    [JsonPropertyName("modified_at")]
+    public string? ModifiedAt { get; set; }
+    
+    [JsonPropertyName("size")]
+    public long? Size { get; set; }
+    
+    [JsonPropertyName("digest")]
+    public string? Digest { get; set; }
+    
+    [JsonPropertyName("details")]
+    public OllamaModelDetails? Details { get; set; }
+}
+
+internal class OllamaModelDetails
+{
+    [JsonPropertyName("format")]
+    public string? Format { get; set; }
+    
+    [JsonPropertyName("family")]
+    public string? Family { get; set; }
+    
+    [JsonPropertyName("families")]
+    public List<string>? Families { get; set; }
+    
+    [JsonPropertyName("parameter_size")]
+    public string? ParameterSize { get; set; }
+    
+    [JsonPropertyName("quantization_level")]
+    public string? QuantizationLevel { get; set; }
 }
