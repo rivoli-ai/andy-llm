@@ -72,7 +72,7 @@ public class LlmClient
     /// <param name="model">The model to use (defaults to gpt-4).</param>
     /// <param name="cancellationToken">Cancellation token.</param>
     /// <returns>The chat completion response.</returns>
-    public async Task<ChatCompletion> GetChatCompletionAsync(
+    public virtual async Task<ChatCompletion> GetChatCompletionAsync(
         IEnumerable<ChatMessage> messages,
         string model = "gpt-4",
         CancellationToken cancellationToken = default)
@@ -106,7 +106,7 @@ public class LlmClient
     /// <param name="model">The model to use (defaults to gpt-4).</param>
     /// <param name="cancellationToken">Cancellation token.</param>
     /// <returns>An async enumerable of streaming updates.</returns>
-    public async IAsyncEnumerable<StreamingChatCompletionUpdate> GetChatCompletionStreamAsync(
+    public virtual async IAsyncEnumerable<StreamingChatCompletionUpdate> GetChatCompletionStreamAsync(
         IEnumerable<ChatMessage> messages,
         string model = "gpt-4",
         [EnumeratorCancellation] CancellationToken cancellationToken = default)
@@ -132,7 +132,7 @@ public class LlmClient
     /// <param name="model">The model to use (defaults to gpt-4).</param>
     /// <param name="cancellationToken">Cancellation token.</param>
     /// <returns>The response content as a string.</returns>
-    public async Task<string> GetResponseAsync(
+    public virtual async Task<string> GetResponseAsync(
         string message,
         string model = "gpt-4",
         CancellationToken cancellationToken = default)
@@ -163,7 +163,7 @@ public class LlmClient
     /// <summary>
     /// Completes a chat request using the new API
     /// </summary>
-    public async Task<LlmResponse> CompleteAsync(
+    public virtual async Task<LlmResponse> CompleteAsync(
         LlmRequest request,
         CancellationToken cancellationToken = default)
     {
@@ -174,7 +174,7 @@ public class LlmClient
     /// <summary>
     /// Completes a chat request with streaming response using the new API
     /// </summary>
-    public async IAsyncEnumerable<LlmStreamResponse> StreamCompleteAsync(
+    public virtual async IAsyncEnumerable<LlmStreamResponse> StreamCompleteAsync(
         LlmRequest request,
         [EnumeratorCancellation] CancellationToken cancellationToken = default)
     {
@@ -188,7 +188,7 @@ public class LlmClient
     /// <summary>
     /// Gets a chat client for direct OpenAI SDK usage (legacy compatibility)
     /// </summary>
-    public ChatClient? GetChatClient(string model = "gpt-4o")
+    public virtual ChatClient? GetChatClient(string model = "gpt-4o")
     {
         return _openAiClient?.GetChatClient(model);
     }
