@@ -289,6 +289,16 @@ if (response.FunctionCalls.Any())
 }
 ```
 
+### Recent API Additions
+
+- `LlmRequest.Functions`: alias of `Tools` for function/tool declaration.
+- `FunctionCall.ArgumentsJson`: preserves raw JSON arguments from providers.
+- `LlmStreamResponse.FinishReason`: reason for stream completion on final chunk.
+
+Streaming now emits partial function-call deltas when providers stream arguments, and marks the final chunk with `IsComplete = true` and `FinishReason`.
+
+See `docs/implementation.md` for implementation details and current status.
+
 ### Conversation Management
 
 ```csharp
