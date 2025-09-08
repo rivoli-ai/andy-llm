@@ -9,27 +9,27 @@ using Andy.Llm.Examples.Shared;
 /// </summary>
 public class StreamingExample
 {
-    public static async Task Main(string[] args)
+    public static async Task Main()
     {
         // Setup
         var services = new ServiceCollection();
-        services.AddLogging(builder => builder.AddCleanConsole()); 
-        
+        services.AddLogging(builder => builder.AddCleanConsole());
+
         // Configure LLM services
         services.ConfigureLlmFromEnvironment();
         services.AddLlmServices(options =>
         {
             options.DefaultProvider = "openai";
         });
-        
+
         var serviceProvider = services.BuildServiceProvider();
         var logger = serviceProvider.GetRequiredService<ILogger<StreamingExample>>();
-        
+
         try
         {
             logger.LogInformation("=== Streaming Examples ===\n");
             logger.LogInformation("Starting streaming demonstrations with OpenAI...\n");
-            
+
             // Check for API key
             if (string.IsNullOrEmpty(Environment.GetEnvironmentVariable("OPENAI_API_KEY")))
             {
@@ -38,7 +38,7 @@ public class StreamingExample
                 logger.LogError("  export OPENAI_API_KEY=sk-...");
                 return;
             }
-            
+
             var llmClient = serviceProvider.GetRequiredService<LlmClient>();
 
             // Example 1: Basic streaming
@@ -67,7 +67,7 @@ public class StreamingExample
     static async Task BasicStreaming(LlmClient client, ILogger logger)
     {
         logger.LogInformation("\n=== Example 1: Basic Streaming ===");
-        
+
         var request = new LlmRequest
         {
             Messages = new List<Message>
@@ -87,13 +87,13 @@ public class StreamingExample
                 {
                     Console.Write(chunk.TextDelta);
                 }
-                
+
                 if (chunk.Error != null)
                 {
                     logger.LogError("\nError: {Error}", chunk.Error);
                     break;
                 }
-                
+
                 if (chunk.IsComplete)
                 {
                     logger.LogInformation("\n[Stream complete]");
@@ -109,7 +109,7 @@ public class StreamingExample
     static async Task StreamingWithCancellation(LlmClient client, ILogger logger)
     {
         logger.LogInformation("\n=== Example 2: Streaming with Cancellation ===");
-        
+
         using var cts = new CancellationTokenSource();
         var request = new LlmRequest
         {
@@ -122,10 +122,10 @@ public class StreamingExample
         };
 
         logger.LogInformation("Streaming (will cancel after 2 seconds):");
-        
+
         // Cancel after 2 seconds
         cts.CancelAfter(TimeSpan.FromSeconds(2));
-        
+
         try
         {
             await foreach (var chunk in client.StreamCompleteAsync(request, cts.Token))
@@ -149,7 +149,7 @@ public class StreamingExample
     static async Task StreamingWithProgress(LlmClient client, ILogger logger)
     {
         logger.LogInformation("\n=== Example 3: Streaming with Progress ===");
-        
+
         var request = new LlmRequest
         {
             Messages = new List<Message>
@@ -161,10 +161,10 @@ public class StreamingExample
         };
 
         logger.LogInformation("Streaming response with character count:");
-        
+
         int totalChars = 0;
         int chunkCount = 0;
-        
+
         try
         {
             await foreach (var chunk in client.StreamCompleteAsync(request))
@@ -175,10 +175,10 @@ public class StreamingExample
                     totalChars += chunk.TextDelta.Length;
                     chunkCount++;
                 }
-                
+
                 if (chunk.IsComplete)
                 {
-                    logger.LogInformation("\n[Stream complete: {TotalChars} characters in {ChunkCount} chunks]", 
+                    logger.LogInformation("\n[Stream complete: {TotalChars} characters in {ChunkCount} chunks]",
                         totalChars, chunkCount);
                 }
             }
@@ -192,7 +192,7 @@ public class StreamingExample
     static async Task StreamingWithErrorHandling(LlmClient client, ILogger logger)
     {
         logger.LogInformation("\n=== Example 4: Streaming with Error Handling ===");
-        
+
         // Intentionally use a very long prompt that might cause issues
         var request = new LlmRequest
         {
@@ -206,7 +206,7 @@ public class StreamingExample
         };
 
         logger.LogInformation("Streaming with error handling:");
-        
+
         try
         {
             await foreach (var chunk in client.StreamCompleteAsync(request))
@@ -215,16 +215,16 @@ public class StreamingExample
                 {
                     Console.Write(chunk.TextDelta);
                 }
-                
+
                 if (chunk.Error != null)
                 {
                     logger.LogError("\nStream error: {Error}", chunk.Error);
                     break;
                 }
-                
+
                 // Check if output was truncated (would need FinishReason in streaming)
                 // This information may not be available in streaming chunks
-                
+
                 if (chunk.IsComplete)
                 {
                     logger.LogInformation("\n[Stream complete]");
@@ -242,7 +242,7 @@ public class StreamingExample
     {
         logger.LogInformation("\n=== Example 5: Streaming with Complex Content ===");
         logger.LogInformation("Demonstrating streaming with a more complex request\n");
-        
+
         // Note: Function calling in streaming mode is not always supported
         // We'll use a regular streaming request instead
         var request = new LlmRequest
@@ -256,13 +256,13 @@ public class StreamingExample
             Stream = true,
             MaxTokens = 200
         };
-        
+
         logger.LogInformation("Streaming response with step-by-step calculation:");
-        
+
         try
         {
             int chunkCount = 0;
-            
+
             await foreach (var chunk in client.StreamCompleteAsync(request))
             {
                 if (!string.IsNullOrEmpty(chunk.TextDelta))
@@ -270,13 +270,13 @@ public class StreamingExample
                     Console.Write(chunk.TextDelta);
                     chunkCount++;
                 }
-                
+
                 if (chunk.Error != null)
                 {
                     logger.LogError("\nStream error: {Error}", chunk.Error);
                     break;
                 }
-                
+
                 if (chunk.IsComplete)
                 {
                     logger.LogInformation("\n[Stream complete - {ChunkCount} chunks received]", chunkCount);

@@ -62,12 +62,12 @@ public class StructuredResponseFactoryTests
         Assert.Equal("openai", result.Metadata.Provider);
         Assert.Equal("gpt-4-0125-preview", result.Metadata.Model);
         Assert.Equal("tool_calls", result.Metadata.FinishReason);
-        
+
         Assert.Single(result.ToolCalls);
         Assert.Equal("call_abc123", result.ToolCalls[0].Id);
         Assert.Equal("calculate_sum", result.ToolCalls[0].Name);
         Assert.NotNull(result.ToolCalls[0].Arguments);
-        
+
         Assert.NotNull(result.Metadata.Usage);
         Assert.Equal(50, result.Metadata.Usage.InputTokens);
         Assert.Equal(30, result.Metadata.Usage.OutputTokens);
@@ -141,7 +141,7 @@ public class StructuredResponseFactoryTests
         Assert.Equal("anthropic", result.Metadata.Provider);
         Assert.Equal("claude-3-opus-20240229", result.Metadata.Model);
         Assert.Equal("tool_use", result.Metadata.FinishReason);
-        
+
         Assert.Single(result.ToolCalls);
         Assert.Equal("toolu_abc123", result.ToolCalls[0].Id);
         Assert.Equal("search_knowledge", result.ToolCalls[0].Name);
@@ -149,7 +149,7 @@ public class StructuredResponseFactoryTests
         // Arguments are JsonElements
         var queryArg = result.ToolCalls[0].Arguments["query"] as JsonElement?;
         Assert.Equal("quantum computing basics", queryArg?.GetString());
-        
+
         Assert.NotNull(result.Metadata.Usage);
         Assert.Equal(120, result.Metadata.Usage.InputTokens);
         Assert.Equal(45, result.Metadata.Usage.OutputTokens);
@@ -223,14 +223,14 @@ public class StructuredResponseFactoryTests
         // Assert
         Assert.NotNull(arguments);
         Assert.Null(error);
-        
+
         // System.Text.Json deserializes to JsonElement when using Dictionary<string, object?>
         var key1 = arguments!["key1"] as JsonElement?;
         Assert.Equal("value1", key1?.GetString());
-        
+
         var key2 = arguments["key2"] as JsonElement?;
         Assert.Equal(42, key2?.GetInt32());
-        
+
         var key3 = arguments["key3"] as JsonElement?;
         Assert.True(key3?.GetBoolean());
     }

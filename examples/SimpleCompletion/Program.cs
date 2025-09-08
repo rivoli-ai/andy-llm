@@ -8,7 +8,7 @@ using Microsoft.Extensions.Logging;
 
 // Setup services
 var services = new ServiceCollection();
-        services.AddLogging(builder => builder.AddCleanConsole());
+services.AddLogging(builder => builder.AddCleanConsole());
 
 // Configure from environment variables
 // Set OPENAI_API_KEY and/or CEREBRAS_API_KEY
@@ -45,7 +45,7 @@ try
             MaxTokens = 100,
             Temperature = 0.7
         };
-        
+
         var cerebrasResponse = await cerebrasProvider.CompleteAsync(request);
         logger.LogInformation("Cerebras Response: {Response}\n", cerebrasResponse.Content);
     }

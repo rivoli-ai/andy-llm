@@ -28,7 +28,7 @@ public class ResilienceTests
         var policy = ResiliencePolicies.GetRetryPolicy(_mockLogger.Object, maxRetryAttempts: 2);
         var attemptCount = 0;
         var mockHandler = new MockHttpMessageHandler();
-        
+
         mockHandler.SetupSequence()
             .ReturnsResponse(HttpStatusCode.InternalServerError)
             .ReturnsResponse(HttpStatusCode.OK, "Success");
@@ -53,7 +53,7 @@ public class ResilienceTests
         // Arrange
         var policy = ResiliencePolicies.GetRetryPolicy(_mockLogger.Object, maxRetryAttempts: 3);
         var mockHandler = new MockHttpMessageHandler();
-        
+
         mockHandler.SetupSequence()
             .ReturnsResponse(HttpStatusCode.TooManyRequests)
             .ReturnsResponse(HttpStatusCode.TooManyRequests)
@@ -108,7 +108,7 @@ public class ResilienceTests
     {
         // Arrange
         var policy = ResiliencePolicies.GetTimeoutPolicy(TimeSpan.FromMilliseconds(50));
-        
+
         // Act & Assert
         await Assert.ThrowsAsync<TimeoutRejectedException>(async () =>
         {
@@ -138,7 +138,7 @@ public class ResilienceTests
         var policy = ResiliencePolicies.GetCombinedPolicy(_mockLogger.Object, options);
         var attemptCount = 0;
         var mockHandler = new MockHttpMessageHandler();
-        
+
         mockHandler.SetupSequence()
             .ReturnsResponse(HttpStatusCode.ServiceUnavailable)
             .ReturnsResponse(HttpStatusCode.OK, "Success");
@@ -227,7 +227,7 @@ public class ResilienceTests
         var policy = ResiliencePolicies.GetRetryPolicy(_mockLogger.Object, maxRetryAttempts: 3);
         var attemptTimes = new List<DateTime>();
         var mockHandler = new MockHttpMessageHandler();
-        
+
         mockHandler.AlwaysReturn(HttpStatusCode.InternalServerError);
         var httpClient = new HttpClient(mockHandler);
 
@@ -244,7 +244,7 @@ public class ResilienceTests
 
         // Assert - Verify exponential backoff timing
         Assert.Equal(4, attemptTimes.Count); // Initial + 3 retries
-        
+
         // Each retry should have increasing delay
         for (int i = 1; i < attemptTimes.Count; i++)
         {

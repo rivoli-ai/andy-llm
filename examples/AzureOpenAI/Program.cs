@@ -12,7 +12,7 @@ using Andy.Llm.Examples.Shared;
 /// </summary>
 class Program
 {
-    static async Task Main(string[] args)
+    static async Task Main()
     {
         Console.WriteLine("=== Azure OpenAI Service Example ===\n");
 
@@ -25,7 +25,7 @@ class Program
 
         // Configure services
         var services = new ServiceCollection();
-        
+
         // Add logging with clean console output
         services.AddLogging(builder => builder.AddCleanConsole());
 
@@ -96,7 +96,7 @@ class Program
     static async Task RunSimpleCompletion(ILlmProvider provider, ILogger logger)
     {
         logger.LogInformation("\n--- Example 1: Simple Completion ---");
-        
+
         var request = new LlmRequest
         {
             Messages = new List<Message>
@@ -122,7 +122,7 @@ class Program
     static async Task RunConversationExample(ILlmProvider provider, ILogger logger)
     {
         logger.LogInformation("\n--- Example 2: Conversation with Context ---");
-        
+
         var context = new ConversationContext
         {
             SystemInstruction = "You are an Azure cloud architecture expert. Provide concise, technical responses."
@@ -143,7 +143,7 @@ class Program
     {
         logger.LogInformation("\n--- Example 3: Streaming Response ---");
         Console.WriteLine("\nGenerating Azure best practices (streaming):\n");
-        
+
         var request = new LlmRequest
         {
             Messages = new List<Message>
@@ -178,7 +178,7 @@ class Program
     {
         logger.LogInformation("\n--- Example 4: Function Calling ---");
         logger.LogInformation("Note: Function calling requires a deployment that supports it (e.g., gpt-4)");
-        
+
         var request = new LlmRequest
         {
             Messages = new List<Message>
@@ -219,7 +219,7 @@ class Program
         try
         {
             var response = await provider.CompleteAsync(request);
-            
+
             if (response.FunctionCalls.Any())
             {
                 logger.LogInformation("Function call detected:");
@@ -243,7 +243,7 @@ class Program
     static async Task RunTokenUsageExample(ILlmProvider provider, ILogger logger)
     {
         logger.LogInformation("\n--- Example 5: Token Usage Tracking ---");
-        
+
         var request = new LlmRequest
         {
             Messages = new List<Message>
@@ -261,13 +261,13 @@ class Program
         };
 
         var response = await provider.CompleteAsync(request);
-        
+
         Console.WriteLine($"\nResponse: {response.Content}");
         Console.WriteLine("\nToken Usage Details:");
         Console.WriteLine($"  Prompt tokens: {response.Usage?.PromptTokens}");
         Console.WriteLine($"  Completion tokens: {response.Usage?.CompletionTokens}");
         Console.WriteLine($"  Total tokens: {response.Usage?.TotalTokens}");
-        
+
         // Calculate approximate cost (example rates, check Azure pricing)
         if (response.Usage != null)
         {

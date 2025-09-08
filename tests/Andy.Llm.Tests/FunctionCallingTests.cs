@@ -30,9 +30,9 @@ public class FunctionCallingTests
         // Arrange
         var request = new LlmRequest
         {
-            Messages = new List<Message> 
-            { 
-                Message.CreateText(MessageRole.User, "What's the weather in New York?") 
+            Messages = new List<Message>
+            {
+                Message.CreateText(MessageRole.User, "What's the weather in New York?")
             },
             Tools = new List<ToolDeclaration>
             {
@@ -78,6 +78,7 @@ public class FunctionCallingTests
         Assert.Single(response.FunctionCalls);
         Assert.Equal("get_weather", response.FunctionCalls[0].Name);
         Assert.Equal("New York", response.FunctionCalls[0].Arguments["location"]);
+        Assert.Null(response.FunctionCalls[0].ArgumentsJson);
     }
 
     [Fact]
@@ -118,7 +119,7 @@ public class FunctionCallingTests
         var message = context.Messages[0];
         Assert.Equal(MessageRole.Tool, message.Role);
         Assert.Single(message.Parts);
-        
+
         var toolPart = message.Parts[0] as ToolResponsePart;
         Assert.NotNull(toolPart);
         Assert.Equal("get_weather", toolPart.ToolName);
@@ -166,9 +167,9 @@ public class FunctionCallingTests
         // Arrange - Response with function call but no content
         var request = new LlmRequest
         {
-            Messages = new List<Message> 
-            { 
-                Message.CreateText(MessageRole.User, "Calculate 34*12") 
+            Messages = new List<Message>
+            {
+                Message.CreateText(MessageRole.User, "Calculate 34*12")
             }
         };
 

@@ -22,7 +22,7 @@ public static class ServiceCollectionExtensions
     {
         // Register configuration
         services.Configure<LlmOptions>(configuration.GetSection("Llm"));
-        
+
         // Register Andy.Configuration if needed
         services.AddAndyConfiguration(configuration);
 
@@ -31,13 +31,13 @@ public static class ServiceCollectionExtensions
         services.AddSingleton<CerebrasProvider>();
         services.AddSingleton<AzureOpenAIProvider>();
         services.AddSingleton<OllamaProvider>();
-        
+
         // Register HttpClientFactory for providers that need it
         services.AddHttpClient();
-        
+
         // Register factory
         services.AddSingleton<ILlmProviderFactory, LlmProviderFactory>();
-        
+
         // Register client
         services.AddScoped<LlmClient>();
 
@@ -52,19 +52,19 @@ public static class ServiceCollectionExtensions
         Action<LlmOptions> configure)
     {
         services.Configure(configure);
-        
+
         // Register providers
         services.AddSingleton<OpenAIProvider>();
         services.AddSingleton<CerebrasProvider>();
         services.AddSingleton<AzureOpenAIProvider>();
         services.AddSingleton<OllamaProvider>();
-        
+
         // Register HttpClientFactory for providers that need it
         services.AddHttpClient();
-        
+
         // Register factory
         services.AddSingleton<ILlmProviderFactory, LlmProviderFactory>();
-        
+
         // Register client
         services.AddScoped<LlmClient>();
 

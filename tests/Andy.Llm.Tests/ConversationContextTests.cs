@@ -37,7 +37,7 @@ public class ConversationContextTests
         var message = context.Messages[0];
         Assert.Equal(MessageRole.User, message.Role);
         Assert.Single(message.Parts);
-        
+
         var textPart = message.Parts[0] as TextPart;
         Assert.NotNull(textPart);
         Assert.Equal("Hello, world!", textPart.Text);
@@ -69,7 +69,7 @@ public class ConversationContextTests
         context.SystemInstruction = "Be helpful";
         context.AddUserMessage("What's 2+2?");
         context.AddAssistantMessage("2+2 equals 4");
-        
+
         var tool = new ToolDeclaration
         {
             Name = "calculator",
@@ -87,6 +87,9 @@ public class ConversationContextTests
         Assert.Equal(2, request.Messages.Count); // User and Assistant messages
         Assert.Single(request.Tools!);
         Assert.Equal("calculator", request.Tools![0].Name);
+        // Also validate Functions alias maps to Tools
+        Assert.Single(request.Functions!);
+        Assert.Equal("calculator", request.Functions![0].Name);
     }
 
     [Fact]
@@ -155,7 +158,7 @@ public class ConversationContextTests
         Assert.Single(context.Messages);
         var message = context.Messages[0];
         Assert.Equal(MessageRole.Tool, message.Role);
-        
+
         var toolPart = message.Parts[0] as ToolResponsePart;
         Assert.NotNull(toolPart);
         Assert.Equal("weather", toolPart.ToolName);

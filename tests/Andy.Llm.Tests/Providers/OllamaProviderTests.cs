@@ -27,10 +27,10 @@ public class OllamaProviderTests
         _mockLogger = new Mock<ILogger<OllamaProvider>>();
         _mockHttpClientFactory = new Mock<IHttpClientFactory>();
         _mockHttpMessageHandler = new Mock<HttpMessageHandler>();
-        
+
         _httpClient = new HttpClient(_mockHttpMessageHandler.Object);
         _mockHttpClientFactory.Setup(x => x.CreateClient("Ollama")).Returns(_httpClient);
-        
+
         _options = new LlmOptions
         {
             Providers = new Dictionary<string, ProviderConfig>
@@ -53,7 +53,7 @@ public class OllamaProviderTests
 
         // Act
         var provider = new OllamaProvider(options, _mockLogger.Object, _mockHttpClientFactory.Object);
-        
+
         // Assert
         Assert.NotNull(provider);
         Assert.Equal("ollama", provider.Name);
@@ -68,7 +68,7 @@ public class OllamaProviderTests
 
         // Act
         var provider = new OllamaProvider(options, _mockLogger.Object, _mockHttpClientFactory.Object);
-        
+
         // Assert
         Assert.NotNull(provider);
         Assert.Equal("ollama", provider.Name);
@@ -80,7 +80,7 @@ public class OllamaProviderTests
         // Arrange
         Environment.SetEnvironmentVariable("OLLAMA_API_BASE", "http://env-test:11434");
         Environment.SetEnvironmentVariable("OLLAMA_MODEL", "env-model");
-        
+
         try
         {
             var emptyOptions = new LlmOptions { Providers = new Dictionary<string, ProviderConfig>() };
@@ -107,7 +107,7 @@ public class OllamaProviderTests
         // Arrange
         var options = Options.Create(_options);
         var provider = new OllamaProvider(options, _mockLogger.Object, _mockHttpClientFactory.Object);
-        
+
         _mockHttpMessageHandler
             .Protected()
             .Setup<Task<HttpResponseMessage>>(
@@ -133,7 +133,7 @@ public class OllamaProviderTests
         // Arrange
         var options = Options.Create(_options);
         var provider = new OllamaProvider(options, _mockLogger.Object, _mockHttpClientFactory.Object);
-        
+
         _mockHttpMessageHandler
             .Protected()
             .Setup<Task<HttpResponseMessage>>(
@@ -155,7 +155,7 @@ public class OllamaProviderTests
         // Arrange
         var options = Options.Create(_options);
         var provider = new OllamaProvider(options, _mockLogger.Object, _mockHttpClientFactory.Object);
-        
+
         var request = new LlmRequest
         {
             Messages = new List<Message>
@@ -171,7 +171,7 @@ public class OllamaProviderTests
             },
             MaxTokens = 10
         };
-        
+
         var responseJson = @"{
             ""model"": ""llama2"",
             ""created_at"": ""2024-01-01T00:00:00Z"",
@@ -187,7 +187,7 @@ public class OllamaProviderTests
             ""eval_count"": 10,
             ""eval_duration"": 400000000
         }";
-        
+
         _mockHttpMessageHandler
             .Protected()
             .Setup<Task<HttpResponseMessage>>(
@@ -222,7 +222,7 @@ public class OllamaProviderTests
         // Arrange
         var options = Options.Create(_options);
         var provider = new OllamaProvider(options, _mockLogger.Object, _mockHttpClientFactory.Object);
-        
+
         var request = new LlmRequest
         {
             Messages = new List<Message>
@@ -237,7 +237,7 @@ public class OllamaProviderTests
                 }
             }
         };
-        
+
         _mockHttpMessageHandler
             .Protected()
             .Setup<Task<HttpResponseMessage>>(
@@ -261,7 +261,7 @@ public class OllamaProviderTests
         // Arrange
         var options = Options.Create(_options);
         var provider = new OllamaProvider(options, _mockLogger.Object, _mockHttpClientFactory.Object);
-        
+
         var request = new LlmRequest
         {
             Messages = new List<Message>
@@ -276,12 +276,12 @@ public class OllamaProviderTests
                 }
             }
         };
-        
+
         // Simulate streaming response (each JSON object on a separate line)
         var streamContent = @"{""message"":{""role"":""assistant"",""content"":""Hello""}, ""done"":false}
 {""message"":{""role"":""assistant"",""content"":"" there!""}, ""done"":false}
 {""message"":{""role"":""assistant"",""content"":""""}, ""done"":true}";
-        
+
         _mockHttpMessageHandler
             .Protected()
             .Setup<Task<HttpResponseMessage>>(
@@ -310,6 +310,8 @@ public class OllamaProviderTests
         Assert.Equal(" there!", responses[1].TextDelta);
         Assert.False(responses[1].IsComplete);
         Assert.True(responses[2].IsComplete);
+        // FinishReason may be null for Ollama; ensure property exists without throwing
+        _ = responses[2].FinishReason;
     }
 
     [Fact]
@@ -318,7 +320,7 @@ public class OllamaProviderTests
         // Arrange
         var options = Options.Create(_options);
         var provider = new OllamaProvider(options, _mockLogger.Object, _mockHttpClientFactory.Object);
-        
+
         var request = new LlmRequest
         {
             Messages = new List<Message>
@@ -333,10 +335,10 @@ public class OllamaProviderTests
                 }
             }
         };
-        
+
         var cts = new CancellationTokenSource();
         cts.Cancel(); // Cancel immediately
-        
+
         _mockHttpMessageHandler
             .Protected()
             .Setup<Task<HttpResponseMessage>>(
@@ -362,7 +364,7 @@ public class OllamaProviderTests
         // Arrange
         var options = Options.Create(_options);
         var provider = new OllamaProvider(options, _mockLogger.Object, _mockHttpClientFactory.Object);
-        
+
         var request = new LlmRequest
         {
             SystemPrompt = "You are a helpful assistant",
@@ -383,7 +385,7 @@ public class OllamaProviderTests
 
         // This test validates the request creation logic
         // The actual method is private, but we can test it through CompleteAsync
-        
+
         // Act & Assert - Should not throw and should process system prompt
         Assert.NotNull(request.SystemPrompt);
         Assert.Equal(0.7, request.Temperature);

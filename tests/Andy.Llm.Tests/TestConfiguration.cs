@@ -57,7 +57,7 @@ public static class TestConfiguration
         // Try environment variable first (CI/CD friendly)
         var envKey = provider.ToUpper() + "_API_KEY";
         var apiKey = Environment.GetEnvironmentVariable(envKey);
-        
+
         if (!string.IsNullOrEmpty(apiKey))
         {
             return apiKey;
@@ -149,7 +149,7 @@ public class MockLlmProvider : ILlmProvider
         _logger.LogInformation("Mock provider handling request");
         await Task.Delay(100, cancellationToken);
 
-        var response = _configuration["LlmTestSettings:MockResponses:DefaultResponse"] 
+        var response = _configuration["LlmTestSettings:MockResponses:DefaultResponse"]
             ?? "Mock response";
 
         return new LlmResponse
@@ -170,8 +170,8 @@ public class MockLlmProvider : ILlmProvider
         [System.Runtime.CompilerServices.EnumeratorCancellation] CancellationToken cancellationToken = default)
     {
         _logger.LogInformation("Mock provider handling streaming request");
-        
-        var response = _configuration["LlmTestSettings:MockResponses:DefaultResponse"] 
+
+        var response = _configuration["LlmTestSettings:MockResponses:DefaultResponse"]
             ?? "Mock streaming response";
 
         var words = response.Split(' ');
@@ -184,17 +184,17 @@ public class MockLlmProvider : ILlmProvider
                 IsComplete = false
             };
         }
-        
+
         yield return new LlmStreamResponse
         {
             IsComplete = true
         };
     }
-    
+
     public async Task<IEnumerable<ModelInfo>> ListModelsAsync(CancellationToken cancellationToken = default)
     {
         await Task.Delay(10, cancellationToken);
-        
+
         return new List<ModelInfo>
         {
             new ModelInfo

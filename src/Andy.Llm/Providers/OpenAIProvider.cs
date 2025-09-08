@@ -42,16 +42,16 @@ public class OpenAIProvider : ILlmProvider
         IHttpClientFactory? httpClientFactory = null)
     {
         _logger = logger ?? throw new ArgumentNullException(nameof(logger));
-        
+
         var llmOptions = options?.Value ?? throw new ArgumentNullException(nameof(options));
-        
+
         if (!llmOptions.Providers.TryGetValue("openai", out var config))
         {
             throw new InvalidOperationException("OpenAI provider configuration not found");
         }
 
         _config = config;
-        
+
         if (string.IsNullOrEmpty(_config.ApiKey))
         {
             // Try environment variable
@@ -77,7 +77,7 @@ public class OpenAIProvider : ILlmProvider
 
         _openAiClient = new OpenAIClient(new ApiKeyCredential(_config.ApiKey), openAiOptions);
         _chatClient = _openAiClient.GetChatClient(_defaultModel);
-        
+
         // Create HTTP client for models endpoint
         _httpClient = httpClientFactory?.CreateClient("OpenAI") ?? new HttpClient();
         _httpClient.BaseAddress = new Uri(_config.ApiBase ?? "https://api.openai.com/v1/");
@@ -86,7 +86,7 @@ public class OpenAIProvider : ILlmProvider
         {
             _httpClient.DefaultRequestHeaders.Add("OpenAI-Organization", _config.Organization);
         }
-        
+
         _logger.LogInformation("OpenAI provider initialized with model: {Model}", _defaultModel);
     }
 
@@ -101,12 +101,12 @@ public class OpenAIProvider : ILlmProvider
         {
             // Try a simple completion to check availability
             var messages = new List<ChatMessage> { new SystemChatMessage("Test") };
-            var options = new ChatCompletionOptions 
-            { 
+            var options = new ChatCompletionOptions
+            {
                 MaxOutputTokenCount = 1,
-                Temperature = 0 
+                Temperature = 0
             };
-            
+
             var response = await _chatClient.CompleteChatAsync(messages, options, cancellationToken);
             return response?.Value != null;
         }
@@ -201,7 +201,7 @@ public class OpenAIProvider : ILlmProvider
                 foreach (var toolUpdate in update.ToolCallUpdates)
                 {
                     var index = toolUpdate.Index;
-                    
+
                     if (!accumulatedToolCalls.TryGetValue(index, out var accumulated))
                     {
                         accumulated = new AccumulatedToolCall();
@@ -209,13 +209,37 @@ public class OpenAIProvider : ILlmProvider
                     }
 
                     if (!string.IsNullOrEmpty(toolUpdate.ToolCallId))
+                    {
                         accumulated.Id = toolUpdate.ToolCallId;
-                    
+                    }
+
                     if (!string.IsNullOrEmpty(toolUpdate.FunctionName))
+                    {
                         accumulated.Name = toolUpdate.FunctionName;
-                    
+                    }
+
                     if (toolUpdate.FunctionArgumentsUpdate != null)
+                    {
                         accumulated.Arguments += toolUpdate.FunctionArgumentsUpdate.ToString();
+
+                        // Emit partial function call delta
+                        if (!string.IsNullOrEmpty(accumulated.Name))
+                        {
+                            var partialCall = new FunctionCall
+                            {
+                                Id = string.IsNullOrEmpty(accumulated.Id) ? $"partial_{index}" : accumulated.Id,
+                                Name = accumulated.Name,
+                                Arguments = new Dictionary<string, object?>(),
+                                ArgumentsJson = accumulated.Arguments
+                            };
+
+                            yield return new LlmStreamResponse
+                            {
+                                FunctionCall = partialCall,
+                                IsComplete = false
+                            };
+                        }
+                    }
 
                     // Check if tool call is complete
                     if (IsToolCallComplete(accumulated))
@@ -224,7 +248,8 @@ public class OpenAIProvider : ILlmProvider
                         {
                             Id = accumulated.Id ?? $"call_{Guid.NewGuid():N}".Substring(0, 8),
                             Name = accumulated.Name,
-                            Arguments = ParseArguments(accumulated.Arguments)
+                            Arguments = ParseArguments(accumulated.Arguments),
+                            ArgumentsJson = accumulated.Arguments
                         };
 
                         yield return new LlmStreamResponse
@@ -250,7 +275,8 @@ public class OpenAIProvider : ILlmProvider
                         {
                             Id = accumulated.Id ?? $"call_{Guid.NewGuid():N}".Substring(0, 8),
                             Name = accumulated.Name,
-                            Arguments = ParseArguments(accumulated.Arguments)
+                            Arguments = ParseArguments(accumulated.Arguments),
+                            ArgumentsJson = accumulated.Arguments
                         };
 
                         yield return new LlmStreamResponse
@@ -263,7 +289,8 @@ public class OpenAIProvider : ILlmProvider
 
                 yield return new LlmStreamResponse
                 {
-                    IsComplete = true
+                    IsComplete = true,
+                    FinishReason = update.FinishReason.ToString()
                 };
             }
         }
@@ -280,15 +307,15 @@ public class OpenAIProvider : ILlmProvider
         {
             var response = await _httpClient.GetAsync("models", cancellationToken);
             response.EnsureSuccessStatusCode();
-            
+
             var content = await response.Content.ReadAsStringAsync(cancellationToken);
             var modelsResponse = JsonSerializer.Deserialize<OpenAIModelsResponse>(content);
-            
+
             if (modelsResponse?.Data == null)
             {
                 return Enumerable.Empty<ModelInfo>();
             }
-            
+
             return modelsResponse.Data
                 .Select(model => new ModelInfo
                 {
@@ -319,8 +346,11 @@ public class OpenAIProvider : ILlmProvider
 
     private static string? GetModelDescription(string? modelId)
     {
-        if (modelId == null) return null;
-        
+        if (modelId == null)
+        {
+            return null;
+        }
+
         return modelId switch
         {
             var id when id.StartsWith("gpt-4o") => "Most capable multimodal model",
@@ -337,8 +367,11 @@ public class OpenAIProvider : ILlmProvider
 
     private static string? GetModelFamily(string? modelId)
     {
-        if (modelId == null) return null;
-        
+        if (modelId == null)
+        {
+            return null;
+        }
+
         return modelId switch
         {
             var id when id.StartsWith("gpt-4o") => "GPT-4o",
@@ -354,13 +387,16 @@ public class OpenAIProvider : ILlmProvider
 
     private static string? GetParameterSize(string? modelId)
     {
-        if (modelId == null) return null;
-        
+        if (modelId == null)
+        {
+            return null;
+        }
+
         // OpenAI doesn't disclose exact parameter counts
         return modelId switch
         {
             var id when id.StartsWith("gpt-4o") => "Large",
-            var id when id.StartsWith("gpt-4") => "Large", 
+            var id when id.StartsWith("gpt-4") => "Large",
             var id when id.StartsWith("gpt-3.5") => "Medium",
             _ => null
         };
@@ -368,8 +404,11 @@ public class OpenAIProvider : ILlmProvider
 
     private static int? GetMaxTokens(string? modelId)
     {
-        if (modelId == null) return null;
-        
+        if (modelId == null)
+        {
+            return null;
+        }
+
         return modelId switch
         {
             var id when id.Contains("gpt-4o") => 128000,
@@ -384,15 +423,23 @@ public class OpenAIProvider : ILlmProvider
 
     private static bool SupportsFunctionCalling(string? modelId)
     {
-        if (modelId == null) return false;
+        if (modelId == null)
+        {
+            return false;
+        }
+
         return modelId.StartsWith("gpt-") && !modelId.Contains("instruct");
     }
 
     private static bool SupportsVision(string? modelId)
     {
-        if (modelId == null) return false;
-        return modelId.Contains("gpt-4o") || 
-               modelId.Contains("gpt-4-turbo") || 
+        if (modelId == null)
+        {
+            return false;
+        }
+
+        return modelId.Contains("gpt-4o") ||
+               modelId.Contains("gpt-4-turbo") ||
                modelId.Contains("vision");
     }
 
@@ -514,7 +561,8 @@ public class OpenAIProvider : ILlmProvider
                 {
                     Id = toolCall.Id,
                     Name = toolCall.FunctionName ?? "",
-                    Arguments = ParseArguments(toolCall.FunctionArguments?.ToString() ?? "{}")
+                    Arguments = ParseArguments(toolCall.FunctionArguments?.ToString() ?? "{}"),
+                    ArgumentsJson = toolCall.FunctionArguments?.ToString()
                 });
             }
         }
@@ -527,7 +575,9 @@ public class OpenAIProvider : ILlmProvider
         try
         {
             if (string.IsNullOrWhiteSpace(argumentsJson))
+            {
                 return new Dictionary<string, object?>();
+            }
 
             using var doc = JsonDocument.Parse(argumentsJson);
             var dict = new Dictionary<string, object?>();
@@ -565,11 +615,15 @@ public class OpenAIProvider : ILlmProvider
     private static bool IsToolCallComplete(AccumulatedToolCall toolCall)
     {
         if (string.IsNullOrEmpty(toolCall.Name) || string.IsNullOrEmpty(toolCall.Arguments))
+        {
             return false;
+        }
 
         var trimmedArgs = toolCall.Arguments.TrimEnd();
         if (!trimmedArgs.StartsWith('{') || !trimmedArgs.EndsWith('}'))
+        {
             return false;
+        }
 
         try
         {
@@ -600,10 +654,10 @@ public class OpenAIProvider : ILlmProvider
     {
         [JsonPropertyName("id")]
         public string? Id { get; set; }
-        
+
         [JsonPropertyName("created")]
         public long? Created { get; set; }
-        
+
         [JsonPropertyName("owned_by")]
         public string? OwnedBy { get; set; }
     }

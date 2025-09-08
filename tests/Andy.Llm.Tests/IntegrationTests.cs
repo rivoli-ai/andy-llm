@@ -36,7 +36,7 @@ public class IntegrationTests : IClassFixture<IntegrationTestFixture>
         }
 
         var provider = _fixture.GetProvider("openai");
-        
+
         var request = new LlmRequest
         {
             Messages = new List<Message>
@@ -67,7 +67,7 @@ public class IntegrationTests : IClassFixture<IntegrationTestFixture>
         }
 
         var provider = _fixture.GetProvider("cerebras");
-        
+
         var request = new LlmRequest
         {
             Messages = new List<Message>
@@ -98,7 +98,7 @@ public class IntegrationTests : IClassFixture<IntegrationTestFixture>
         }
 
         var provider = _fixture.GetProvider("openai");
-        
+
         var request = new LlmRequest
         {
             Messages = new List<Message>
@@ -133,7 +133,7 @@ public class IntegrationTests : IClassFixture<IntegrationTestFixture>
     public void ConversationContext_ShouldManageMessages()
     {
         var context = new ConversationContext();
-        
+
         context.SystemInstruction = "You are a helpful assistant.";
         context.AddUserMessage("Hello!");
         context.AddAssistantMessage("Hi there! How can I help you?");
@@ -144,7 +144,7 @@ public class IntegrationTests : IClassFixture<IntegrationTestFixture>
         Assert.Equal(MessageRole.System, context.Messages[0].Role);
         Assert.Equal(MessageRole.User, context.Messages[1].Role);
         Assert.Equal(MessageRole.Assistant, context.Messages[2].Role);
-        
+
         var request = context.CreateRequest("gpt-4");
         Assert.Equal("gpt-4", request.Model);
         Assert.Equal(4, request.Messages.Count); // System message is excluded when using SystemPrompt
@@ -198,15 +198,15 @@ public class IntegrationTests : IClassFixture<IntegrationTestFixture>
         context.AddToolResponse("get_weather", "call_123", new { temperature = 72, condition = "sunny" });
 
         Assert.Equal(3, context.Messages.Count); // User + Assistant with tool call + Tool response
-        
+
         var toolMessage = context.Messages.Last();
         Assert.Equal(MessageRole.Tool, toolMessage.Role);
-        
+
         var toolPart = toolMessage.Parts[0] as ToolResponsePart;
         Assert.NotNull(toolPart);
         Assert.Equal("get_weather", toolPart.ToolName);
         Assert.Equal("call_123", toolPart.CallId);
-        
+
         return Task.CompletedTask;
     }
 }

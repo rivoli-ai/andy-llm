@@ -101,7 +101,7 @@ public class LlmClientTests
         var mockProvider = new Mock<ILlmProvider>();
         var mockLogger = new Mock<ILogger<LlmClient>>();
         var expectedResponse = new LlmResponse { Content = "Test response" };
-        
+
         mockProvider.Setup(p => p.CompleteAsync(It.IsAny<LlmRequest>(), default))
             .ReturnsAsync(expectedResponse);
 
@@ -133,7 +133,7 @@ public class LlmClientTests
         // This will throw because the API key is invalid
         // but verifies the method exists for compatibility
         await Assert.ThrowsAsync<System.ClientModel.ClientResultException>(
-            async () => 
+            async () =>
             {
                 var client = new LlmClient("test-api-key");
                 await client.GetResponseAsync("Hello", "gpt-4");
@@ -159,7 +159,7 @@ public class LlmClientTests
     {
         // Arrange
         var mockLogger = new Mock<ILogger<LlmClient>>();
-        
+
         // Act & Assert
         Assert.Throws<ArgumentNullException>(() => new LlmClient((ILlmProviderFactory)null!, mockLogger.Object));
     }
@@ -172,7 +172,7 @@ public class LlmClientTests
     {
         // Arrange
         var mockLogger = new Mock<ILogger<LlmClient>>();
-        
+
         // Act & Assert
         Assert.Throws<ArgumentNullException>(() => new LlmClient((ILlmProvider)null!, mockLogger.Object));
     }

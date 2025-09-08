@@ -17,11 +17,11 @@ using System.Diagnostics.Metrics;
 /// </summary>
 public class TelemetryExample
 {
-    public static async Task Main(string[] args)
+    public static async Task Main()
     {
         // Setup dependency injection with telemetry
         var services = new ServiceCollection();
-        
+
         // Configure logging with clean console output
         services.AddLogging(builder => builder.AddCleanConsole());
 
@@ -31,7 +31,7 @@ public class TelemetryExample
             .AddMeter("Andy.Llm")
             .AddConsoleExporter()
             .Build();
-        
+
         using var traceProvider = Sdk.CreateTracerProviderBuilder()
             .ConfigureResource(resource => resource.AddService("TelemetryExample"))
             .AddSource("Andy.Llm.Telemetry")
@@ -60,9 +60,9 @@ public class TelemetryExample
                 logger.LogError("  export OPENAI_API_KEY=sk-...");
                 return;
             }
-            
+
             logger.LogInformation("=== Telemetry and Monitoring Examples ===\n");
-            
+
             // Example 1: Using TelemetryMiddleware
             await RunWithTelemetryMiddleware(serviceProvider, logger);
 
@@ -86,7 +86,7 @@ public class TelemetryExample
     static async Task RunWithTelemetryMiddleware(IServiceProvider serviceProvider, ILogger logger)
     {
         logger.LogInformation("\n=== Example 1: Using TelemetryMiddleware ===");
-        
+
         var llmClient = serviceProvider.GetRequiredService<LlmClient>();
         var metrics = serviceProvider.GetRequiredService<LlmMetrics>();
         var telemetryLogger = serviceProvider.GetRequiredService<ILogger<TelemetryMiddleware>>();
@@ -115,10 +115,10 @@ public class TelemetryExample
                 CancellationToken.None);
 
             logger.LogInformation("Response: {Response}", response.Content);
-            
+
             if (response.Usage != null)
             {
-                logger.LogInformation("Tokens used - Prompt: {PromptTokens}, Completion: {CompletionTokens}", 
+                logger.LogInformation("Tokens used - Prompt: {PromptTokens}, Completion: {CompletionTokens}",
                     response.Usage.PromptTokens, response.Usage.CompletionTokens);
             }
         }
@@ -131,7 +131,7 @@ public class TelemetryExample
     static async Task RunWithDirectMetrics(IServiceProvider serviceProvider, ILogger logger)
     {
         logger.LogInformation("\n=== Example 2: Direct Metrics Recording ===");
-        
+
         var metrics = serviceProvider.GetRequiredService<LlmMetrics>();
         var llmClient = serviceProvider.GetRequiredService<LlmClient>();
 
@@ -145,10 +145,10 @@ public class TelemetryExample
                 {
                     // Simulate operation
                     await Task.Delay(100);
-                    
+
                     // Record additional metrics
                     metrics.RecordTokens("openai", "gpt-4", promptTokens: 25, completionTokens: 35);
-                    
+
                     return "Operation completed successfully";
                 });
 
@@ -163,14 +163,14 @@ public class TelemetryExample
         metrics.RecordRequest("openai", "gpt-4", "chat");
         metrics.RecordLatency("openai", "gpt-4", 150.5, success: true);
         metrics.RecordRetry("openai", 1);
-        
+
         logger.LogInformation("Metrics recorded successfully");
     }
 
     static async Task RunWithCustomMetricsListener(ILogger logger)
     {
         logger.LogInformation("\n=== Example 3: Custom Metrics Listener ===");
-        
+
         var metrics = new LlmMetrics();
         var metricsCollected = new Dictionary<string, double>();
 
@@ -188,9 +188,9 @@ public class TelemetryExample
         listener.SetMeasurementEventCallback<long>((instrument, measurement, tags, state) =>
         {
             var tagString = string.Join(", ", tags.ToArray().Select(t => $"{t.Key}={t.Value}"));
-            logger.LogInformation("[METRIC] {InstrumentName}: {Measurement} [{Tags}]", 
+            logger.LogInformation("[METRIC] {InstrumentName}: {Measurement} [{Tags}]",
                 instrument.Name, measurement, tagString);
-            
+
             // Store for analysis
             metricsCollected[instrument.Name] = metricsCollected.GetValueOrDefault(instrument.Name) + measurement;
         });
@@ -198,9 +198,9 @@ public class TelemetryExample
         listener.SetMeasurementEventCallback<double>((instrument, measurement, tags, state) =>
         {
             var tagString = string.Join(", ", tags.ToArray().Select(t => $"{t.Key}={t.Value}"));
-            logger.LogInformation("[METRIC] {InstrumentName}: {Measurement:F2} [{Tags}]", 
+            logger.LogInformation("[METRIC] {InstrumentName}: {Measurement:F2} [{Tags}]",
                 instrument.Name, measurement, tagString);
-            
+
             metricsCollected[instrument.Name] = metricsCollected.GetValueOrDefault(instrument.Name) + measurement;
         });
 
@@ -211,7 +211,7 @@ public class TelemetryExample
         metrics.RecordLatency("custom", "model-1", 250.75);
         metrics.RecordTokens("custom", "model-1", 100, 50);
         metrics.RecordError("custom", "model-1", "TestError");
-        
+
         await Task.Delay(100); // Let metrics process
 
         logger.LogInformation("\nCollected metrics summary:");
@@ -226,7 +226,7 @@ public class TelemetryExample
     static async Task RunWithProgressReporting(ILogger logger)
     {
         logger.LogInformation("\n=== Example 4: Progress Reporting ===");
-        
+
         var progressReporter = new ConsoleProgressReporter();
         await ProcessDocumentsWithProgress(progressReporter);
     }
@@ -235,7 +235,7 @@ public class TelemetryExample
     {
         var reporter = new LlmProgressReporter(progress.Report);
         var documents = new[] { "doc1.txt", "doc2.txt", "doc3.txt", "doc4.txt", "doc5.txt" };
-        
+
         reporter.ReportStart("Document Processing");
         await Task.Delay(500);
 
@@ -249,7 +249,7 @@ public class TelemetryExample
 
             // Simulate processing
             await Task.Delay(300);
-            
+
             // Report token progress
             reporter.ReportTokens(
                 tokensProcessed: (i + 1) * 500,
@@ -273,22 +273,22 @@ public class TelemetryExample
         {
             // Clear current line and write progress
             Console.Write("\r" + new string(' ', Console.WindowWidth - 1) + "\r");
-            
+
             if (value.Phase != _lastPhase)
             {
                 Console.Write($"\n[{value.Phase}] {value.Message}");
                 _lastPhase = value.Phase;
             }
-            
+
             if (value.PercentComplete >= 0)
             {
                 var progressBar = GenerateProgressBar(value.PercentComplete);
                 var timeInfo = value.EstimatedTimeRemaining.HasValue
                     ? $" ETA: {value.EstimatedTimeRemaining.Value.TotalSeconds:F1}s"
                     : "";
-                    
+
                 Console.Write($"{progressBar} {value.PercentComplete}%{timeInfo}");
-                
+
                 if (value.TokensProcessed > 0)
                 {
                     Console.Write($" | Tokens: {value.TokensProcessed}");
@@ -312,7 +312,7 @@ public class TelemetryExample
             const int barLength = 30;
             var filled = (int)((percentage / 100.0) * barLength);
             var empty = barLength - filled;
-            
+
             return $"[{new string('=', filled)}{new string('-', empty)}]";
         }
     }

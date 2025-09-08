@@ -5,6 +5,7 @@ using Andy.Llm.Examples.Shared;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
 using System.Text.Json;
+using Andy.Llm.Services;
 
 // Example: Function calling with tool responses
 
@@ -28,7 +29,7 @@ try
 {
     logger.LogInformation("\n=== Function Calling Example ===");
     logger.LogInformation("Provider: {Provider}, Model: {Model}", provider.ToUpper(), model);
-    
+
     var client = serviceProvider.GetRequiredService<LlmClient>();
 
     // Define available tools
@@ -83,19 +84,31 @@ try
     {
         // IMPORTANT: Add the assistant's message with function calls to context
         context.AddAssistantMessageWithToolCalls(response.Content, response.FunctionCalls);
-        
+
         logger.LogInformation("\nModel wants to call functions:");
         foreach (var call in response.FunctionCalls)
         {
             logger.LogInformation("  Function: {Name}", call.Name);
             logger.LogInformation("  Arguments: {Args}", JsonSerializer.Serialize(call.Arguments));
+            if (!string.IsNullOrEmpty(call.ArgumentsJson))
+            {
+                logger.LogInformation("  Raw ArgumentsJson: {ArgsJson}", call.ArgumentsJson);
+            }
+
+            // Optional: suggest minimal corrections based on tool schema
+            var corrected = ParameterCorrectionService.SuggestCorrections(call, context.AvailableTools);
+            if (corrected != null)
+            {
+                logger.LogInformation("  Corrected arguments applied");
+                call.Arguments = corrected;
+            }
 
             // Simulate function execution
             if (call.Name == "get_weather")
             {
                 var location = call.Arguments["location"]?.ToString() ?? "Unknown";
-                var unit = call.Arguments.ContainsKey("unit") 
-                    ? call.Arguments["unit"]?.ToString() 
+                var unit = call.Arguments.ContainsKey("unit")
+                    ? call.Arguments["unit"]?.ToString()
                     : "fahrenheit";
 
                 // Simulated weather data
@@ -142,7 +155,9 @@ try
         var input = Console.ReadLine();
 
         if (string.IsNullOrEmpty(input) || input.ToLower() == "exit")
+        {
             break;
+        }
 
         try
         {
@@ -155,11 +170,22 @@ try
             {
                 // Add assistant's message with function calls to context
                 context.AddAssistantMessageWithToolCalls(response.Content, response.FunctionCalls);
-                
+
                 foreach (var call in response.FunctionCalls)
                 {
                     logger.LogInformation("Calling function: {Name}", call.Name);
-                    
+                    if (!string.IsNullOrEmpty(call.ArgumentsJson))
+                    {
+                        logger.LogInformation("Raw ArgumentsJson: {ArgsJson}", call.ArgumentsJson);
+                    }
+
+                    // Optional: apply parameter correction suggestions
+                    var corrected = ParameterCorrectionService.SuggestCorrections(call, context.AvailableTools);
+                    if (corrected != null)
+                    {
+                        call.Arguments = corrected;
+                    }
+
                     if (call.Name == "get_weather")
                     {
                         var location = call.Arguments["location"]?.ToString() ?? "Unknown";

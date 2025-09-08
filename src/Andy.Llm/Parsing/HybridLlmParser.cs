@@ -44,10 +44,10 @@ public class HybridLlmParser : ILlmResponseParser
         {
             // Try to determine if this is a structured response or raw text
             var structuredResponse = TryParseAsStructuredResponse(input);
-            
+
             if (structuredResponse != null)
             {
-                _logger?.LogDebug("Processing structured response with {ToolCallCount} tool calls", 
+                _logger?.LogDebug("Processing structured response with {ToolCallCount} tool calls",
                     structuredResponse.ToolCalls.Count);
                 return ParseStructuredResponseSync(structuredResponse);
             }
@@ -60,7 +60,7 @@ public class HybridLlmParser : ILlmResponseParser
         catch (Exception ex)
         {
             _logger?.LogError(ex, "Error parsing LLM response, falling back to text parser");
-            
+
             // Always fallback to text parsing if structured parsing fails
             try
             {
@@ -69,7 +69,7 @@ public class HybridLlmParser : ILlmResponseParser
             catch (Exception fallbackEx)
             {
                 _logger?.LogError(fallbackEx, "Fallback text parsing also failed");
-                
+
                 // Return a basic error node if everything fails
                 return CreateErrorResponse(ex, input);
             }
@@ -89,7 +89,7 @@ public class HybridLlmParser : ILlmResponseParser
         var isStructuredFormat = false;
         var structuredDetectionComplete = false;
         var initialChunks = new List<string>();
-        
+
         try
         {
             await foreach (var chunk in chunks.WithCancellation(cancellationToken))
@@ -98,15 +98,15 @@ public class HybridLlmParser : ILlmResponseParser
                 {
                     buffer.Append(chunk);
                     initialChunks.Add(chunk);
-                    
+
                     // Check if we have enough data to determine format
                     var currentBuffer = buffer.ToString();
-                    if (currentBuffer.Length > 50 || currentBuffer.Contains("}") || currentBuffer.Contains("\n\n") || 
+                    if (currentBuffer.Length > 50 || currentBuffer.Contains("}") || currentBuffer.Contains("\n\n") ||
                         (currentBuffer.Length > 20 && !currentBuffer.TrimStart().StartsWith("{") && !currentBuffer.TrimStart().StartsWith("[")))
                     {
                         isStructuredFormat = IsStructuredResponseFormat(currentBuffer);
                         structuredDetectionComplete = true;
-                        
+
                         if (isStructuredFormat)
                         {
                             // Continue buffering for structured response
@@ -116,7 +116,7 @@ public class HybridLlmParser : ILlmResponseParser
                         {
                             // Switch to text streaming
                             _logger?.LogDebug("Detected text format in stream, delegating to text parser");
-                            
+
                             // Create a new enumerable that includes buffered chunks
                             var combinedChunks = CreateCombinedChunks(initialChunks, chunks, cancellationToken);
                             return await _textParser.ParseStreamingAsync(combinedChunks, context, cancellationToken);
@@ -128,27 +128,27 @@ public class HybridLlmParser : ILlmResponseParser
                     buffer.Append(chunk);
                 }
             }
-            
+
             // If we accumulated a structured response, parse it
             if (isStructuredFormat || (structuredDetectionComplete && buffer.Length > 0))
             {
                 var completeResponse = buffer.ToString();
                 return Parse(completeResponse, context);
             }
-            
+
             // Fallback to text parser for any remaining content
             var finalContent = buffer.ToString();
             if (!string.IsNullOrWhiteSpace(finalContent))
             {
                 return _textParser.Parse(finalContent, context);
             }
-            
+
             return CreateEmptyResponse();
         }
         catch (Exception ex)
         {
             _logger?.LogError(ex, "Error in streaming parse");
-            
+
             // Try to parse what we have
             var partialContent = buffer.ToString();
             if (!string.IsNullOrWhiteSpace(partialContent))
@@ -162,11 +162,11 @@ public class HybridLlmParser : ILlmResponseParser
                     return CreateErrorResponse(ex, partialContent);
                 }
             }
-            
+
             return CreateErrorResponse(ex, "");
         }
     }
-    
+
     /// <summary>
     /// Creates a combined async enumerable from buffered chunks and remaining stream
     /// </summary>
@@ -180,7 +180,7 @@ public class HybridLlmParser : ILlmResponseParser
         {
             yield return chunk;
         }
-        
+
         // Then yield remaining chunks
         await foreach (var chunk in remainingChunks.WithCancellation(cancellationToken))
         {
@@ -213,7 +213,7 @@ public class HybridLlmParser : ILlmResponseParser
         // Validate tool results have corresponding tool calls
         var toolResults = ast.Children.OfType<ToolResultNode>().ToList();
         var callIds = new HashSet<string>(toolCalls.Select(tc => tc.CallId));
-        
+
         foreach (var result in toolResults)
         {
             if (!callIds.Contains(result.CallId))
@@ -256,7 +256,7 @@ public class HybridLlmParser : ILlmResponseParser
     {
         // Combine capabilities of structured and text parsing
         var textCapabilities = _textParser.GetCapabilities();
-        
+
         return new ParserCapabilities
         {
             SupportsStreaming = textCapabilities.SupportsStreaming,
@@ -266,9 +266,9 @@ public class HybridLlmParser : ILlmResponseParser
             SupportsFileReferences = textCapabilities.SupportsFileReferences,
             SupportsQuestions = textCapabilities.SupportsQuestions,
             SupportsThoughts = textCapabilities.SupportsThoughts,
-            SupportedFormats = new List<string>(textCapabilities.SupportedFormats) 
-            { 
-                "structured-openai", "structured-anthropic", "structured-generic" 
+            SupportedFormats = new List<string>(textCapabilities.SupportedFormats)
+            {
+                "structured-openai", "structured-anthropic", "structured-generic"
             }
         };
     }
@@ -286,7 +286,7 @@ public class HybridLlmParser : ILlmResponseParser
             {
                 return ParseStructuredJson(input);
             }
-            
+
             return null;
         }
         catch (Exception ex)
@@ -302,62 +302,64 @@ public class HybridLlmParser : ILlmResponseParser
     private static bool IsStructuredResponseFormat(string input)
     {
         if (string.IsNullOrWhiteSpace(input))
+        {
             return false;
-            
+        }
+
         var trimmed = input.Trim();
-        
+
         // Check for JSON object structure
         if (trimmed.StartsWith("{"))
         {
             // OpenAI patterns
-            if (trimmed.Contains("\"tool_calls\"") || 
+            if (trimmed.Contains("\"tool_calls\"") ||
                 trimmed.Contains("\"function_call\"") ||
                 trimmed.Contains("\"choices\"") && trimmed.Contains("\"message\""))
             {
                 return true;
             }
-            
+
             // Anthropic patterns
             if (trimmed.Contains("\"content\"") && trimmed.Contains("\"type\"") &&
                 (trimmed.Contains("\"tool_use\"") || trimmed.Contains("\"text\"")))
             {
                 return true;
             }
-            
+
             // Generic API response patterns
-            if (trimmed.Contains("\"model\"") && 
-                (trimmed.Contains("\"usage\"") || trimmed.Contains("\"finish_reason\"") || 
+            if (trimmed.Contains("\"model\"") &&
+                (trimmed.Contains("\"usage\"") || trimmed.Contains("\"finish_reason\"") ||
                  trimmed.Contains("\"stop_reason\"")))
             {
                 return true;
             }
-            
+
             // Streaming chunk patterns
-            if (trimmed.Contains("\"delta\"") || trimmed.Contains("\"chunk\"") || 
+            if (trimmed.Contains("\"delta\"") || trimmed.Contains("\"chunk\"") ||
                 trimmed.Contains("event:") || trimmed.Contains("data:"))
             {
                 return true;
             }
         }
-        
+
         // Check for SSE (Server-Sent Events) format
         if (trimmed.StartsWith("data:") || trimmed.StartsWith("event:"))
         {
             return true;
         }
-        
+
         // Check for JSONL format with structured objects
         var lines = trimmed.Split('\n', StringSplitOptions.RemoveEmptyEntries);
         if (lines.Length > 0 && lines[0].Trim().StartsWith("{"))
         {
             var firstLine = lines[0].Trim();
-            if (firstLine.Contains("\"tool") || firstLine.Contains("\"function") || 
+            if (firstLine.Contains("\"tool") || firstLine.Contains("\"function") ||
                 firstLine.Contains("\"type\"") || firstLine.Contains("\"role\""))
             {
                 return true;
             }
         }
-        
+
         return false;
     }
 
@@ -368,12 +370,12 @@ public class HybridLlmParser : ILlmResponseParser
     {
         // This is a simplified version - in a real implementation, you'd handle
         // different provider formats (OpenAI, Anthropic, Azure, etc.)
-        
+
         using var doc = System.Text.Json.JsonDocument.Parse(json);
         var root = doc.RootElement;
-        
+
         var response = new StructuredLlmResponse();
-        
+
         // Extract text content
         if (root.TryGetProperty("content", out var contentElement))
         {
@@ -391,7 +393,7 @@ public class HybridLlmParser : ILlmResponseParser
                 }
             }
         }
-        else if (root.TryGetProperty("message", out var messageElement) && 
+        else if (root.TryGetProperty("message", out var messageElement) &&
                  messageElement.TryGetProperty("content", out var msgContentElement))
         {
             if (msgContentElement.ValueKind == System.Text.Json.JsonValueKind.String)
@@ -399,7 +401,7 @@ public class HybridLlmParser : ILlmResponseParser
                 response.TextContent = msgContentElement.GetString();
             }
         }
-        
+
         // Extract tool calls - check multiple locations
         // Direct tool_calls at root
         if (root.TryGetProperty("tool_calls", out var toolCallsElement))
@@ -413,9 +415,9 @@ public class HybridLlmParser : ILlmResponseParser
                 }
             }
         }
-        
+
         // OpenAI format - tool_calls inside choices[0].message
-        if (root.TryGetProperty("choices", out var choicesElement) && 
+        if (root.TryGetProperty("choices", out var choicesElement) &&
             choicesElement.ValueKind == System.Text.Json.JsonValueKind.Array)
         {
             foreach (var choice in choicesElement.EnumerateArray())
@@ -423,7 +425,7 @@ public class HybridLlmParser : ILlmResponseParser
                 if (choice.TryGetProperty("message", out var messageElement))
                 {
                     // Extract content if not already extracted
-                    if (string.IsNullOrEmpty(response.TextContent) && 
+                    if (string.IsNullOrEmpty(response.TextContent) &&
                         messageElement.TryGetProperty("content", out var contentProp))
                     {
                         if (contentProp.ValueKind == System.Text.Json.JsonValueKind.String)
@@ -431,7 +433,7 @@ public class HybridLlmParser : ILlmResponseParser
                             response.TextContent = contentProp.GetString();
                         }
                     }
-                    
+
                     // Extract tool calls from message
                     if (messageElement.TryGetProperty("tool_calls", out var msgToolCallsElement))
                     {
@@ -445,7 +447,7 @@ public class HybridLlmParser : ILlmResponseParser
                         }
                     }
                 }
-                
+
                 // Get finish reason
                 if (choice.TryGetProperty("finish_reason", out var finishReasonProp))
                 {
@@ -453,21 +455,21 @@ public class HybridLlmParser : ILlmResponseParser
                 }
             }
         }
-        
+
         // Extract metadata
         response.Metadata.Provider = "structured";
         response.Metadata.Timestamp = DateTime.UtcNow;
-        
+
         if (root.TryGetProperty("model", out var modelElement))
         {
             response.Metadata.Model = modelElement.GetString() ?? "";
         }
-        
+
         if (root.TryGetProperty("finish_reason", out var finishReasonElement))
         {
             response.Metadata.FinishReason = finishReasonElement.GetString();
         }
-        
+
         return response;
     }
 
@@ -477,10 +479,12 @@ public class HybridLlmParser : ILlmResponseParser
     private void ProcessContentBlock(System.Text.Json.JsonElement block, StructuredLlmResponse response)
     {
         if (!block.TryGetProperty("type", out var typeElement))
+        {
             return;
-            
+        }
+
         var type = typeElement.GetString();
-        
+
         switch (type)
         {
             case "text":
@@ -495,7 +499,7 @@ public class HybridLlmParser : ILlmResponseParser
                     }
                 }
                 break;
-                
+
             case "tool_use":
                 var toolCall = ParseAnthropicToolUse(block);
                 if (toolCall != null)
@@ -505,7 +509,7 @@ public class HybridLlmParser : ILlmResponseParser
                 break;
         }
     }
-    
+
     /// <summary>
     /// Parse Anthropic tool_use block
     /// </summary>
@@ -516,22 +520,22 @@ public class HybridLlmParser : ILlmResponseParser
             var id = element.TryGetProperty("id", out var idProp)
                 ? idProp.GetString() ?? ""
                 : "";
-                
+
             var name = element.TryGetProperty("name", out var nameProp)
                 ? nameProp.GetString() ?? ""
                 : "";
-                
+
             var argumentsJson = "{}";
             if (element.TryGetProperty("input", out var inputProp))
             {
                 argumentsJson = inputProp.GetRawText();
             }
-            
+
             if (!string.IsNullOrEmpty(name))
             {
                 return StructuredArgumentParser.CreateToolCall(id, name, argumentsJson);
             }
-            
+
             return null;
         }
         catch (Exception)
@@ -539,7 +543,7 @@ public class HybridLlmParser : ILlmResponseParser
             return null;
         }
     }
-    
+
     /// <summary>
     /// Parses a single tool call element from JSON
     /// </summary>
@@ -550,19 +554,19 @@ public class HybridLlmParser : ILlmResponseParser
             var id = "";
             var name = "";
             var argumentsJson = "";
-            
+
             if (element.TryGetProperty("id", out var idElement))
             {
                 id = idElement.GetString() ?? "";
             }
-            
+
             if (element.TryGetProperty("function", out var functionElement))
             {
                 if (functionElement.TryGetProperty("name", out var nameElement))
                 {
                     name = nameElement.GetString() ?? "";
                 }
-                
+
                 if (functionElement.TryGetProperty("arguments", out var argsElement))
                 {
                     // Arguments might be a string containing JSON
@@ -576,12 +580,12 @@ public class HybridLlmParser : ILlmResponseParser
                     }
                 }
             }
-            
+
             if (!string.IsNullOrEmpty(name))
             {
                 return StructuredArgumentParser.CreateToolCall(id, name, argumentsJson);
             }
-            
+
             return null;
         }
         catch (Exception)
@@ -602,7 +606,7 @@ public class HybridLlmParser : ILlmResponseParser
             Timestamp = structuredResponse.Metadata.Timestamp,
             ResponseMetadata = new ResponseMetadata
             {
-                IsComplete = string.IsNullOrEmpty(structuredResponse.Metadata.FinishReason) || 
+                IsComplete = string.IsNullOrEmpty(structuredResponse.Metadata.FinishReason) ||
                            structuredResponse.Metadata.FinishReason != "length",
                 FinishReason = structuredResponse.Metadata.FinishReason,
                 TokenCount = structuredResponse.Metadata.Usage?.TotalTokens ?? 0

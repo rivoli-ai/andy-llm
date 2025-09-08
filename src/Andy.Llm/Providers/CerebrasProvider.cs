@@ -42,16 +42,16 @@ public class CerebrasProvider : ILlmProvider
         IHttpClientFactory? httpClientFactory = null)
     {
         _logger = logger ?? throw new ArgumentNullException(nameof(logger));
-        
+
         var llmOptions = options?.Value ?? throw new ArgumentNullException(nameof(options));
-        
+
         if (!llmOptions.Providers.TryGetValue("cerebras", out var config))
         {
             throw new InvalidOperationException("Cerebras provider configuration not found");
         }
 
         _config = config;
-        
+
         if (string.IsNullOrEmpty(_config.ApiKey))
         {
             // Try environment variable
@@ -74,12 +74,12 @@ public class CerebrasProvider : ILlmProvider
         // Use OpenAI SDK with Cerebras endpoint
         var openAiClient = new OpenAIClient(new ApiKeyCredential(_config.ApiKey), cerebrasOptions);
         _chatClient = openAiClient.GetChatClient(_defaultModel);
-        
+
         // Create HTTP client for models endpoint
         _httpClient = httpClientFactory?.CreateClient("Cerebras") ?? new HttpClient();
         _httpClient.BaseAddress = new Uri(_config.ApiBase ?? "https://api.cerebras.ai/v1/");
         _httpClient.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", _config.ApiKey);
-        
+
         _logger.LogInformation("Cerebras provider initialized with model: {Model}", _defaultModel);
     }
 
@@ -94,12 +94,12 @@ public class CerebrasProvider : ILlmProvider
         {
             // Try a simple completion to check availability
             var messages = new List<ChatMessage> { new SystemChatMessage("Test") };
-            var options = new ChatCompletionOptions 
-            { 
+            var options = new ChatCompletionOptions
+            {
                 MaxOutputTokenCount = 1,
-                Temperature = 0 
+                Temperature = 0
             };
-            
+
             var response = await _chatClient.CompleteChatAsync(messages, options, cancellationToken);
             return response?.Value != null;
         }
@@ -203,7 +203,7 @@ public class CerebrasProvider : ILlmProvider
                 foreach (var toolUpdate in update.ToolCallUpdates)
                 {
                     var index = toolUpdate.Index;
-                    
+
                     if (!accumulatedToolCalls.TryGetValue(index, out var accumulated))
                     {
                         accumulated = new AccumulatedToolCall();
@@ -211,13 +211,37 @@ public class CerebrasProvider : ILlmProvider
                     }
 
                     if (!string.IsNullOrEmpty(toolUpdate.ToolCallId))
+                    {
                         accumulated.Id = toolUpdate.ToolCallId;
-                    
+                    }
+
                     if (!string.IsNullOrEmpty(toolUpdate.FunctionName))
+                    {
                         accumulated.Name = toolUpdate.FunctionName;
-                    
+                    }
+
                     if (toolUpdate.FunctionArgumentsUpdate != null)
+                    {
                         accumulated.Arguments += toolUpdate.FunctionArgumentsUpdate.ToString();
+
+                        // Emit partial function call delta
+                        if (!string.IsNullOrEmpty(accumulated.Name))
+                        {
+                            var partialCall = new FunctionCall
+                            {
+                                Id = string.IsNullOrEmpty(accumulated.Id) ? $"partial_{index}" : accumulated.Id,
+                                Name = accumulated.Name,
+                                Arguments = new Dictionary<string, object?>(),
+                                ArgumentsJson = accumulated.Arguments
+                            };
+
+                            yield return new LlmStreamResponse
+                            {
+                                FunctionCall = partialCall,
+                                IsComplete = false
+                            };
+                        }
+                    }
 
                     // Check if tool call is complete
                     if (IsToolCallComplete(accumulated))
@@ -226,7 +250,8 @@ public class CerebrasProvider : ILlmProvider
                         {
                             Id = accumulated.Id ?? $"call_{Guid.NewGuid():N}".Substring(0, 8),
                             Name = accumulated.Name,
-                            Arguments = ParseArguments(accumulated.Arguments)
+                            Arguments = ParseArguments(accumulated.Arguments),
+                            ArgumentsJson = accumulated.Arguments
                         };
 
                         yield return new LlmStreamResponse
@@ -245,7 +270,8 @@ public class CerebrasProvider : ILlmProvider
             {
                 yield return new LlmStreamResponse
                 {
-                    IsComplete = true
+                    IsComplete = true,
+                    FinishReason = update.FinishReason.ToString()
                 };
             }
         }
@@ -263,15 +289,15 @@ public class CerebrasProvider : ILlmProvider
             // Cerebras uses OpenAI-compatible API, try to query models endpoint
             var response = await _httpClient.GetAsync("models", cancellationToken);
             response.EnsureSuccessStatusCode();
-            
+
             var content = await response.Content.ReadAsStringAsync(cancellationToken);
             var modelsResponse = JsonSerializer.Deserialize<CerebrasModelsResponse>(content);
-            
+
             if (modelsResponse?.Data == null)
             {
                 return Enumerable.Empty<ModelInfo>();
             }
-            
+
             return modelsResponse.Data
                 .Select(model => new ModelInfo
                 {
@@ -302,23 +328,31 @@ public class CerebrasProvider : ILlmProvider
 
     private static string? GetModelDescription(string? modelId)
     {
-        if (modelId == null) return null;
-        
+        if (modelId == null)
+        {
+            return null;
+        }
+
         return modelId switch
         {
             "llama-3.3-70b" => "Meta's Llama 3.3 70B model - supports tool calling",
             "llama-3.1-70b" or "llama3.1-70b" => "Meta's Llama 3.1 70B model",
             "llama-3.1-8b" or "llama3.1-8b" => "Meta's Llama 3.1 8B model",
+            var id when id.Contains("qwen", StringComparison.OrdinalIgnoreCase) => "Alibaba's Qwen family",
             _ => "High-performance model"
         };
     }
 
     private static string? GetModelFamily(string? modelId)
     {
-        if (modelId == null) return null;
-        
+        if (modelId == null)
+        {
+            return null;
+        }
+
         return modelId switch
         {
+            var id when id.Contains("qwen", StringComparison.OrdinalIgnoreCase) => "Qwen",
             var id when id.Contains("llama") => "Llama",
             _ => null
         };
@@ -326,8 +360,11 @@ public class CerebrasProvider : ILlmProvider
 
     private static string? GetParameterSize(string? modelId)
     {
-        if (modelId == null) return null;
-        
+        if (modelId == null)
+        {
+            return null;
+        }
+
         return modelId switch
         {
             var id when id.Contains("70b") => "70B",
@@ -338,8 +375,11 @@ public class CerebrasProvider : ILlmProvider
 
     private static int? GetMaxTokens(string? modelId)
     {
-        if (modelId == null) return null;
-        
+        if (modelId == null)
+        {
+            return null;
+        }
+
         return modelId switch
         {
             "llama-3.3-70b" => 8192,
@@ -350,7 +390,10 @@ public class CerebrasProvider : ILlmProvider
 
     private static bool SupportsFunctionCalling(string? modelId)
     {
-        if (modelId == null) return false;
+        if (modelId == null)
+        {
+            return false;
+        }
         // Only llama-3.3-70b supports function calling
         return modelId == "llama-3.3-70b";
     }
@@ -404,7 +447,7 @@ public class CerebrasProvider : ILlmProvider
                             BinaryData.FromString(JsonSerializer.Serialize(toolCall.Arguments))
                         ));
                     }
-                    
+
                     if (toolCalls.Any())
                     {
                         var assistantText = textParts.Any() ? string.Join(" ", textParts.Select(p => p.Text)) : "";
@@ -417,7 +460,7 @@ public class CerebrasProvider : ILlmProvider
                         break;
                     }
                 }
-                
+
                 if (textParts.Any())
                 {
                     yield return new AssistantChatMessage(string.Join(" ", textParts.Select(p => p.Text)));
@@ -472,7 +515,8 @@ public class CerebrasProvider : ILlmProvider
                 {
                     Id = toolCall.Id,
                     Name = toolCall.FunctionName ?? "",
-                    Arguments = ParseArguments(toolCall.FunctionArguments?.ToString() ?? "{}")
+                    Arguments = ParseArguments(toolCall.FunctionArguments?.ToString() ?? "{}"),
+                    ArgumentsJson = toolCall.FunctionArguments?.ToString()
                 });
             }
         }
@@ -485,7 +529,9 @@ public class CerebrasProvider : ILlmProvider
         try
         {
             if (string.IsNullOrWhiteSpace(argumentsJson))
+            {
                 return new Dictionary<string, object?>();
+            }
 
             using var doc = JsonDocument.Parse(argumentsJson);
             var dict = new Dictionary<string, object?>();
@@ -523,11 +569,15 @@ public class CerebrasProvider : ILlmProvider
     private static bool IsToolCallComplete(AccumulatedToolCall toolCall)
     {
         if (string.IsNullOrEmpty(toolCall.Name) || string.IsNullOrEmpty(toolCall.Arguments))
+        {
             return false;
+        }
 
         var trimmedArgs = toolCall.Arguments.TrimEnd();
         if (!trimmedArgs.StartsWith('{') || !trimmedArgs.EndsWith('}'))
+        {
             return false;
+        }
 
         try
         {
@@ -558,10 +608,10 @@ public class CerebrasProvider : ILlmProvider
     {
         [JsonPropertyName("id")]
         public string? Id { get; set; }
-        
+
         [JsonPropertyName("created")]
         public long? Created { get; set; }
-        
+
         [JsonPropertyName("owned_by")]
         public string? OwnedBy { get; set; }
     }

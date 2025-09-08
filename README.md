@@ -42,6 +42,72 @@ var response = await client.GetResponseAsync("Hello, how are you?");
 Console.WriteLine(response);
 ```
 
+### Structured Output with JSON Schema
+
+```csharp
+using Andy.Llm.Models;
+
+// Define a JSON schema for structured output
+var schema = @"{
+    ""type"": ""object"",
+    ""properties"": {
+        ""name"": { ""type"": ""string"" },
+        ""age"": { ""type"": ""integer"" },
+        ""skills"": { ""type"": ""array"", ""items"": { ""type"": ""string"" } }
+    },
+    ""required"": [""name"", ""age""]
+}";
+
+// Request structured output
+var request = new LlmRequest
+{
+    Messages = new List<Message> 
+    { 
+        Message.CreateUser("Generate a person profile") 
+    },
+    ResponseFormat = ResponseFormat.JsonSchema,
+    JsonSchema = schema,
+    StrictMode = true
+};
+
+var response = await client.CompleteAsync(request);
+// Response will be valid JSON matching the schema
+```
+
+### Hybrid Parsing for Any Response Format
+
+```csharp
+using Andy.Llm.Parsing;
+using Andy.Llm.Parsing.Ast;
+
+// Create a hybrid parser that handles both structured and text responses
+var structuredFactory = new StructuredResponseFactory(logger);
+var hybridParser = new HybridLlmParser(textParser, structuredFactory, logger);
+
+// Parse any LLM response - OpenAI, Anthropic, or plain text
+var ast = hybridParser.Parse(llmResponse);
+
+// Work with the semantic AST
+foreach (var node in ast.Children)
+{
+    switch (node)
+    {
+        case ToolCallNode toolCall:
+            // Handle tool/function calls with structured arguments
+            await ExecuteTool(toolCall.ToolName, toolCall.Arguments);
+            break;
+        case TextNode text:
+            // Handle text content
+            Console.WriteLine(text.Content);
+            break;
+        case ErrorNode error:
+            // Handle parsing errors gracefully
+            logger.LogWarning("Parse error: {Message}", error.Message);
+            break;
+    }
+}
+```
+
 ### Advanced Usage with Dependency Injection
 
 ```csharp
@@ -98,9 +164,12 @@ The library supports configuration through environment variables for all major p
 ## Features
 
 ### Core Capabilities
-- **Multi-Provider Support**: OpenAI, Cerebras, Azure OpenAI, Ollama
+- **Multi-Provider Support**: OpenAI, Cerebras, Azure OpenAI, Ollama, Anthropic
 - **Streaming Responses**: Real-time token streaming
-- **Function/Tool Calling**: OpenAI-compatible function calling
+- **Function/Tool Calling**: OpenAI-compatible function calling with structured outputs
+- **Structured Outputs**: JSON Schema validation and type-safe responses
+- **Hybrid Parsing**: Automatic detection and parsing of structured vs text responses
+- **AST Generation**: Semantic Abstract Syntax Tree for all LLM responses
 - **Conversation Management**: Context and token limit management
 - **Dependency Injection**: Full DI container integration
 
@@ -128,6 +197,56 @@ await foreach (var chunk in client.StreamCompleteAsync(request))
     if (!string.IsNullOrEmpty(chunk.TextDelta))
     {
         Console.Write(chunk.TextDelta);
+    }
+}
+```
+
+### Tool Calling with Structured Outputs
+
+```csharp
+// Define tools with JSON schemas
+var tools = new List<ToolDeclaration>
+{
+    new ToolDeclaration
+    {
+        Name = "get_weather",
+        Description = "Get weather for a location",
+        Parameters = new ToolParameters
+        {
+            Type = "object",
+            Properties = new Dictionary<string, ParameterSchema>
+            {
+                ["location"] = new ParameterSchema { Type = "string" },
+                ["units"] = new ParameterSchema 
+                { 
+                    Type = "string", 
+                    Enum = new[] { "celsius", "fahrenheit" } 
+                }
+            },
+            Required = new[] { "location" }
+        }
+    }
+};
+
+// Request with tool calling
+var request = new LlmRequest
+{
+    Messages = messages,
+    Tools = tools,
+    ToolChoice = ToolChoice.Auto // Let model decide when to use tools
+};
+
+// Parse response with automatic tool detection
+var response = await client.CompleteAsync(request);
+var ast = hybridParser.Parse(response.Content);
+
+// Execute tool calls from AST
+foreach (var toolCall in ast.Children.OfType<ToolCallNode>())
+{
+    if (toolCall.ParseError == null)
+    {
+        var result = await ExecuteTool(toolCall.ToolName, toolCall.Arguments);
+        // Send result back to LLM for final response
     }
 }
 ```
@@ -254,12 +373,81 @@ The [examples](examples/) directory contains complete, runnable projects demonst
 - **[Streaming](examples/Streaming/)** - Real-time streaming responses with cancellation and progress tracking
 - **[MultiProvider](examples/MultiProvider/)** - Comparing responses from multiple LLM providers simultaneously
 - **[Telemetry](examples/Telemetry/)** - Metrics collection, distributed tracing, and progress reporting
+- **[StructuredOutput](examples/StructuredOutput/)** - JSON Schema validation and structured responses
+- **[HybridParsing](examples/HybridParsing/)** - Automatic detection and parsing of different response formats
+- **[ToolCallingStructured](examples/ToolCallingStructured/)** - Advanced tool calling with schema validation
 
 Run any example with:
 ```bash
 dotnet run --project examples/SimpleCompletion
 # Set provider with environment variable
 LLM_PROVIDER=cerebras dotnet run --project examples/ConversationChat
+```
+
+## Response Parsing and AST
+
+Andy.Llm includes a sophisticated parsing system that creates a semantic Abstract Syntax Tree (AST) from any LLM response:
+
+### AST Node Types
+
+- **ResponseNode**: Root node with metadata (provider, model, tokens)
+- **TextNode**: Plain or formatted text content
+- **ToolCallNode**: Function/tool invocations with parsed arguments
+- **ToolResultNode**: Results from tool execution
+- **CodeNode**: Code blocks with language detection
+- **ErrorNode**: Parsing or validation errors
+- **FileReferenceNode**: File paths and references
+- **MarkdownNode**: Structured markdown elements
+
+### Visitor Pattern Support
+
+```csharp
+public class CustomVisitor : IAstVisitor<string>
+{
+    public string VisitToolCall(ToolCallNode node)
+    {
+        // Process tool calls
+        return $"Tool: {node.ToolName}";
+    }
+    
+    public string VisitText(TextNode node)
+    {
+        // Process text content
+        return node.Content;
+    }
+    // ... other visit methods
+}
+
+// Apply visitor to AST
+var ast = parser.Parse(response);
+var result = ast.Accept(new CustomVisitor());
+```
+
+### Provider Detection
+
+The hybrid parser automatically detects response formats:
+- OpenAI format (choices, tool_calls)
+- Anthropic format (content blocks, tool_use)
+- Server-Sent Events (SSE)
+- JSON Lines (JSONL)
+- Plain text with embedded JSON
+
+### Error Handling
+
+All parsing errors are captured in the AST:
+
+```csharp
+foreach (var node in ast.Children.OfType<ToolCallNode>())
+{
+    if (node.ParseError != null)
+    {
+        // Handle malformed arguments
+        logger.LogWarning("Tool arguments invalid: {Error}", 
+            node.ParseError.Message);
+        // Access raw JSON for manual processing
+        var raw = node.Metadata["RawArgumentsJson"];
+    }
+}
 ```
 
 ## Contributing

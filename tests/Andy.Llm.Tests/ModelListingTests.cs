@@ -28,13 +28,13 @@ public class ModelListingTests
                 }
             }
         });
-        
+
         var logger = new Mock<ILogger<OllamaProvider>>();
         var provider = new OllamaProvider(options, logger.Object);
-        
+
         // Act
         var models = await provider.ListModelsAsync();
-        
+
         // Assert
         Assert.NotNull(models);
         Assert.Empty(models);
@@ -56,13 +56,13 @@ public class ModelListingTests
                 }
             }
         });
-        
+
         var logger = new Mock<ILogger<CerebrasProvider>>();
         var provider = new CerebrasProvider(options, logger.Object);
-        
+
         // Act
         var models = await provider.ListModelsAsync();
-        
+
         // Assert
         // Since we're now querying the actual API and the test doesn't have a mock endpoint,
         // it should return empty on error
@@ -86,13 +86,13 @@ public class ModelListingTests
                 }
             }
         });
-        
+
         var logger = new Mock<ILogger<OpenAIProvider>>();
         var provider = new OpenAIProvider(options, logger.Object);
-        
+
         // Act
         var models = await provider.ListModelsAsync();
-        
+
         // Assert
         // Since we're now querying the actual API and the test doesn't have a mock endpoint,
         // it should return empty on error
@@ -117,18 +117,18 @@ public class ModelListingTests
                 }
             }
         });
-        
+
         var logger = new Mock<ILogger<AzureOpenAIProvider>>();
         var provider = new AzureOpenAIProvider(options, logger.Object);
-        
+
         // Act
         var models = await provider.ListModelsAsync();
-        
+
         // Assert
         Assert.NotNull(models);
         var modelList = models.ToList();
         Assert.Single(modelList);
-        
+
         var model = modelList.First();
         Assert.Equal(deploymentName, model.Id);
         Assert.Equal(deploymentName, model.Name);
@@ -161,7 +161,7 @@ public class ModelListingTests
                 ["custom_field"] = "custom_value"
             }
         };
-        
+
         // Assert
         Assert.Equal("test-model", model.Id);
         Assert.Equal("Test Model", model.Name);
@@ -192,13 +192,13 @@ public class ModelListingTests
                 }
             }
         });
-        
+
         var logger = new Mock<ILogger<CerebrasProvider>>();
         var provider = new CerebrasProvider(options, logger.Object);
-        
+
         // Act
         var models = await provider.ListModelsAsync();
-        
+
         // Assert
         Assert.NotNull(models);
         foreach (var model in models)

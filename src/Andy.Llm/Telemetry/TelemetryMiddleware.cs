@@ -62,10 +62,10 @@ public class TelemetryMiddleware
         {
             _metrics.RecordRequest(provider, model, operationName);
             var result = await operation(cancellationToken);
-            
+
             var latency = stopwatch.ElapsedMilliseconds;
             _metrics.RecordLatency(provider, model, latency, true);
-            
+
             activity?.SetTag("llm.latency_ms", latency);
             activity?.SetStatus(ActivityStatusCode.Ok);
 
@@ -94,7 +94,7 @@ public class TelemetryMiddleware
             var latency = stopwatch.ElapsedMilliseconds;
             _metrics.RecordTimeout(provider, operationName);
             _metrics.RecordLatency(provider, model, latency, false);
-            
+
             activity?.SetTag("llm.latency_ms", latency);
             activity?.SetStatus(ActivityStatusCode.Error, "Operation cancelled");
 
@@ -108,10 +108,10 @@ public class TelemetryMiddleware
         {
             var latency = stopwatch.ElapsedMilliseconds;
             var errorType = ex.GetType().Name;
-            
+
             _metrics.RecordError(provider, model, errorType);
             _metrics.RecordLatency(provider, model, latency, false);
-            
+
             activity?.SetTag("llm.latency_ms", latency);
             activity?.SetTag("llm.error.type", errorType);
             activity?.SetStatus(ActivityStatusCode.Error, ex.Message);
@@ -180,10 +180,10 @@ public class TelemetryMiddleware
         {
             var latency = stopwatch.ElapsedMilliseconds;
             var errorType = caughtException.GetType().Name;
-            
+
             _metrics.RecordError(provider, model, errorType);
             _metrics.RecordLatency(provider, model, latency, false);
-            
+
             activity?.SetTag("llm.latency_ms", latency);
             activity?.SetTag("llm.item_count", itemCount);
             activity?.SetTag("llm.error.type", errorType);
@@ -200,7 +200,7 @@ public class TelemetryMiddleware
         }
 
         var enumerator = operation(cancellationToken).WithCancellation(cancellationToken).GetAsyncEnumerator();
-        
+
         try
         {
             while (true)
@@ -209,17 +209,20 @@ public class TelemetryMiddleware
                 try
                 {
                     if (!await enumerator.MoveNextAsync())
+                    {
                         break;
+                    }
+
                     item = enumerator.Current;
                 }
                 catch (Exception ex)
                 {
                     var latency = stopwatch.ElapsedMilliseconds;
                     var errorType = ex.GetType().Name;
-                    
+
                     _metrics.RecordError(provider, model, errorType);
                     _metrics.RecordLatency(provider, model, latency, false);
-                    
+
                     activity?.SetTag("llm.latency_ms", latency);
                     activity?.SetTag("llm.item_count", itemCount);
                     activity?.SetTag("llm.error.type", errorType);
@@ -247,7 +250,7 @@ public class TelemetryMiddleware
 
             var totalLatency = stopwatch.ElapsedMilliseconds;
             _metrics.RecordLatency(provider, model, totalLatency, true);
-            
+
             activity?.SetTag("llm.latency_ms", totalLatency);
             activity?.SetTag("llm.item_count", itemCount);
             activity?.SetStatus(ActivityStatusCode.Ok);

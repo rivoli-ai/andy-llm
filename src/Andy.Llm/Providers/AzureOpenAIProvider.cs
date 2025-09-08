@@ -31,21 +31,21 @@ public class AzureOpenAIProvider : ILlmProvider
         ILogger<AzureOpenAIProvider> logger)
     {
         _logger = logger;
-        
+
         // Load configuration
         _config = LoadConfiguration(options.Value);
-        
+
         // Validate required settings
         var endpoint = _config.ApiBase ?? Environment.GetEnvironmentVariable("AZURE_OPENAI_ENDPOINT");
         var apiKey = _config.ApiKey ?? Environment.GetEnvironmentVariable("AZURE_OPENAI_KEY");
         _deploymentName = _config.DeploymentName ?? Environment.GetEnvironmentVariable("AZURE_OPENAI_DEPLOYMENT") ?? "gpt-4";
-        
+
         if (string.IsNullOrEmpty(endpoint))
         {
             throw new InvalidOperationException(
                 "Azure OpenAI endpoint not configured. Set AZURE_OPENAI_ENDPOINT environment variable or configure in options.");
         }
-        
+
         if (string.IsNullOrEmpty(apiKey))
         {
             throw new InvalidOperationException(
@@ -56,11 +56,11 @@ public class AzureOpenAIProvider : ILlmProvider
         _azureClient = new AzureOpenAIClient(
             new Uri(endpoint),
             new AzureKeyCredential(apiKey));
-        
+
         // Get chat client for deployment
         _chatClient = _azureClient.GetChatClient(_deploymentName);
-        
-        _logger.LogInformation("Azure OpenAI provider initialized with endpoint: {Endpoint}, deployment: {Deployment}", 
+
+        _logger.LogInformation("Azure OpenAI provider initialized with endpoint: {Endpoint}, deployment: {Deployment}",
             endpoint, _deploymentName);
     }
 
@@ -83,10 +83,10 @@ public class AzureOpenAIProvider : ILlmProvider
             {
                 new SystemChatMessage("test")
             };
-            
+
             var options = new ChatCompletionOptions();
             options.MaxOutputTokenCount = 1;
-            
+
             await _chatClient.CompleteChatAsync(testRequest, options, cancellationToken);
             return true;
         }
@@ -109,9 +109,9 @@ public class AzureOpenAIProvider : ILlmProvider
         {
             var messages = ConvertMessages(request);
             var options = CreateChatOptions(request);
-            
+
             var response = await _chatClient.CompleteChatAsync(messages, options, cancellationToken);
-            
+
             return ConvertResponse(response.Value, request.Model ?? _deploymentName);
         }
         catch (RequestFailedException ex)
@@ -133,10 +133,10 @@ public class AzureOpenAIProvider : ILlmProvider
     {
         var messages = ConvertMessages(request);
         var options = CreateChatOptions(request);
-        
+
         AsyncCollectionResult<StreamingChatCompletionUpdate>? streamingResponse = null;
         string? errorMessage = null;
-        
+
         try
         {
             streamingResponse = _chatClient.CompleteChatStreamingAsync(messages, options, cancellationToken);
@@ -146,19 +146,21 @@ public class AzureOpenAIProvider : ILlmProvider
             _logger.LogError(ex, "Azure OpenAI streaming request failed");
             errorMessage = ex.Message;
         }
-        
+
         if (errorMessage != null)
         {
             yield return new LlmStreamResponse { Error = errorMessage };
             yield break;
         }
-        
+
         if (streamingResponse == null)
+        {
             yield break;
+        }
 
         await using var enumerator = streamingResponse.GetAsyncEnumerator(cancellationToken);
         bool hasError = false;
-        
+
         while (!hasError)
         {
             bool hasNext = false;
@@ -177,18 +179,20 @@ public class AzureOpenAIProvider : ILlmProvider
                 hasError = true;
                 errorMessage = ex.Message;
             }
-            
+
             if (hasError)
             {
                 yield return new LlmStreamResponse { Error = errorMessage };
                 yield break;
             }
-            
+
             if (!hasNext)
+            {
                 break;
-            
+            }
+
             var update = enumerator.Current;
-            
+
             // Handle content updates
             foreach (var contentPart in update.ContentUpdate)
             {
@@ -201,7 +205,7 @@ public class AzureOpenAIProvider : ILlmProvider
                     };
                 }
             }
-            
+
             // Handle function calls
             if (update.ToolCallUpdates?.Count > 0)
             {
@@ -218,20 +222,22 @@ public class AzureOpenAIProvider : ILlmProvider
                                 Arguments = new Dictionary<string, object?>
                                 {
                                     ["arguments_json"] = toolCall.FunctionArgumentsUpdate?.ToString()
-                                }
+                                },
+                                ArgumentsJson = toolCall.FunctionArgumentsUpdate?.ToString()
                             },
                             IsComplete = false
                         };
                     }
                 }
             }
-            
+
             // Check if complete
             if (update.FinishReason.HasValue)
             {
                 yield return new LlmStreamResponse
                 {
-                    IsComplete = true
+                    IsComplete = true,
+                    FinishReason = update.FinishReason.ToString()
                 };
             }
         }
@@ -312,7 +318,7 @@ public class AzureOpenAIProvider : ILlmProvider
         {
             return config;
         }
-        
+
         // Fall back to environment variables
         return new ProviderConfig
         {
@@ -327,13 +333,13 @@ public class AzureOpenAIProvider : ILlmProvider
     private List<ChatMessage> ConvertMessages(LlmRequest request)
     {
         var messages = new List<ChatMessage>();
-        
+
         // Add system message if provided
         if (!string.IsNullOrEmpty(request.SystemPrompt))
         {
             messages.Add(new SystemChatMessage(request.SystemPrompt));
         }
-        
+
         // Convert messages
         foreach (var message in request.Messages)
         {
@@ -343,27 +349,27 @@ public class AzureOpenAIProvider : ILlmProvider
                     var systemContent = string.Join(" ", message.Parts.OfType<TextPart>().Select(p => p.Text));
                     messages.Add(new SystemChatMessage(systemContent));
                     break;
-                    
+
                 case MessageRole.User:
                     var userContent = string.Join(" ", message.Parts.OfType<TextPart>().Select(p => p.Text));
                     messages.Add(new UserChatMessage(userContent));
                     break;
-                    
+
                 case MessageRole.Assistant:
                     var textParts = message.Parts.OfType<TextPart>().ToList();
                     var toolCalls = message.Parts.OfType<ToolCallPart>().ToList();
-                    
+
                     if (toolCalls.Any())
                     {
                         var assistantMessage = new AssistantChatMessage();
-                        
+
                         // Add text content if any
                         if (textParts.Any())
                         {
                             var text = string.Join(" ", textParts.Select(p => p.Text));
                             assistantMessage.Content.Add(ChatMessageContentPart.CreateTextPart(text));
                         }
-                        
+
                         // Add tool calls
                         foreach (var toolCall in toolCalls)
                         {
@@ -372,7 +378,7 @@ public class AzureOpenAIProvider : ILlmProvider
                                 toolCall.ToolName,
                                 BinaryData.FromObjectAsJson(toolCall.Arguments)));
                         }
-                        
+
                         messages.Add(assistantMessage);
                     }
                     else
@@ -382,7 +388,7 @@ public class AzureOpenAIProvider : ILlmProvider
                         messages.Add(new AssistantChatMessage(text));
                     }
                     break;
-                    
+
                 case MessageRole.Tool:
                     var toolResponses = message.Parts.OfType<ToolResponsePart>().ToList();
                     foreach (var toolResponse in toolResponses)
@@ -395,20 +401,24 @@ public class AzureOpenAIProvider : ILlmProvider
                     break;
             }
         }
-        
+
         return messages;
     }
 
     private ChatCompletionOptions CreateChatOptions(LlmRequest request)
     {
         var options = new ChatCompletionOptions();
-        
+
         if (request.Temperature.HasValue)
+        {
             options.Temperature = (float)request.Temperature.Value;
-            
+        }
+
         if (request.MaxTokens.HasValue)
+        {
             options.MaxOutputTokenCount = request.MaxTokens.Value;
-        
+        }
+
         // Add tools if provided
         if (request.Tools?.Any() == true)
         {
@@ -422,7 +432,7 @@ public class AzureOpenAIProvider : ILlmProvider
                     parameters));
             }
         }
-        
+
         return options;
     }
 
@@ -434,7 +444,7 @@ public class AzureOpenAIProvider : ILlmProvider
             Model = model,
             FunctionCalls = new List<FunctionCall>()
         };
-        
+
         // Extract content and function calls
         foreach (var contentPart in completion.Content)
         {
@@ -443,7 +453,7 @@ public class AzureOpenAIProvider : ILlmProvider
                 response.Content += contentPart.Text;
             }
         }
-        
+
         // Extract function calls
         if (completion.ToolCalls?.Count > 0)
         {
@@ -461,7 +471,7 @@ public class AzureOpenAIProvider : ILlmProvider
                 }
             }
         }
-        
+
         // Add usage information
         if (completion.Usage != null)
         {
@@ -476,9 +486,9 @@ public class AzureOpenAIProvider : ILlmProvider
                 TotalTokens = totalTokens
             };
         }
-        
+
         response.FinishReason = completion.FinishReason.ToString();
-        
+
         return response;
     }
 }

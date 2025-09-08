@@ -14,7 +14,7 @@ var provider = providerEnv.ToLower();
 var model = provider == "cerebras" ? "llama-3.3-70b" : "gpt-4o-mini";
 
 var services = new ServiceCollection();
-        services.AddLogging(builder => builder.AddCleanConsole());
+services.AddLogging(builder => builder.AddCleanConsole());
 services.ConfigureLlmFromEnvironment();
 services.AddLlmServices(options =>
 {
@@ -27,7 +27,7 @@ var logger = serviceProvider.GetRequiredService<ILogger<Program>>();
 try
 {
     logger.LogInformation("Using provider: {Provider}, model: {Model}", provider, model);
-    
+
     var client = serviceProvider.GetRequiredService<LlmClient>();
 
     // Create a conversation context
@@ -46,13 +46,17 @@ try
     {
         Console.Write("You: ");
         var input = Console.ReadLine();
-        
+
         if (string.IsNullOrEmpty(input))
+        {
             continue;
-            
+        }
+
         if (input.ToLower() == "exit")
+        {
             break;
-            
+        }
+
         if (input.ToLower() == "clear")
         {
             conversation.Clear();
@@ -60,7 +64,7 @@ try
             logger.LogInformation("[Conversation cleared]\n");
             continue;
         }
-        
+
         if (input.ToLower() == "summary")
         {
             logger.LogInformation("\n[Conversation Summary]");
@@ -68,29 +72,29 @@ try
             logger.LogInformation("Character count: {CharCount}\n", conversation.GetCharacterCount());
             continue;
         }
-        
+
         try
         {
             // Add user message
             conversation.AddUserMessage(input);
-            
+
             // Create request with conversation context
             var request = conversation.CreateRequest(model);
-            
+
             // Get response
             Console.Write("Assistant: ");
             var response = await client.CompleteAsync(request);
             Console.WriteLine(response.Content);
-            
+
             // Add assistant response to context
             conversation.AddAssistantMessage(response.Content);
-            
+
             // Show token usage if available
             if (response.TokensUsed.HasValue)
             {
                 logger.LogInformation("[Tokens used: {TokensUsed}]", response.TokensUsed);
             }
-            
+
             Console.WriteLine();
         }
         catch (Exception ex)

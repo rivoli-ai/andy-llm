@@ -15,17 +15,17 @@ public class StructuredLlmResponse
     /// Text content from the response
     /// </summary>
     public string? TextContent { get; set; }
-    
+
     /// <summary>
     /// Structured tool calls from the provider
     /// </summary>
     public List<StructuredToolCall> ToolCalls { get; set; } = new();
-    
+
     /// <summary>
     /// Tool results from previous calls (for conversation history)
     /// </summary>
     public List<StructuredToolResult> ToolResults { get; set; } = new();
-    
+
     /// <summary>
     /// Response metadata
     /// </summary>
@@ -41,22 +41,22 @@ public class StructuredToolCall
     /// Unique identifier for the tool call
     /// </summary>
     public string Id { get; set; } = "";
-    
+
     /// <summary>
     /// Name of the tool/function to call
     /// </summary>
     public string Name { get; set; } = "";
-    
+
     /// <summary>
     /// Arguments as a raw JSON string (safer than pre-parsed objects)
     /// </summary>
     public string ArgumentsJson { get; set; } = "";
-    
+
     /// <summary>
     /// Arguments as a parsed dictionary (may be null if parsing failed)
     /// </summary>
     public Dictionary<string, object?>? Arguments { get; set; }
-    
+
     /// <summary>
     /// Error that occurred during argument parsing, if any
     /// </summary>
@@ -72,27 +72,27 @@ public class StructuredToolResult
     /// ID of the tool call this is a result for
     /// </summary>
     public string CallId { get; set; } = "";
-    
+
     /// <summary>
     /// Name of the tool that was called
     /// </summary>
     public string ToolName { get; set; } = "";
-    
+
     /// <summary>
     /// Result of the tool execution
     /// </summary>
     public object? Result { get; set; }
-    
+
     /// <summary>
     /// Whether the tool execution was successful
     /// </summary>
     public bool IsSuccess { get; set; }
-    
+
     /// <summary>
     /// Error message if the tool execution failed
     /// </summary>
     public string? ErrorMessage { get; set; }
-    
+
     /// <summary>
     /// Exception that occurred during tool execution, if any
     /// </summary>
@@ -108,32 +108,32 @@ public class StructuredResponseMetadata
     /// Provider that generated the response (OpenAI, Anthropic, etc.)
     /// </summary>
     public string Provider { get; set; } = "";
-    
+
     /// <summary>
     /// Model name that generated the response
     /// </summary>
     public string Model { get; set; } = "";
-    
+
     /// <summary>
     /// Timestamp when the response was generated
     /// </summary>
     public DateTime Timestamp { get; set; } = DateTime.UtcNow;
-    
+
     /// <summary>
     /// Reason why the response finished (completed, tool_calls, length, etc.)
     /// </summary>
     public string? FinishReason { get; set; }
-    
+
     /// <summary>
     /// Token usage information
     /// </summary>
     public TokenUsage? Usage { get; set; }
-    
+
     /// <summary>
     /// Whether this response contains tool calls that need to be executed
     /// </summary>
     public bool HasPendingToolCalls => ToolCalls?.Any() == true;
-    
+
     /// <summary>
     /// List of tool calls that need to be executed
     /// </summary>
@@ -159,12 +159,12 @@ public interface IStructuredResponseFactory
     /// Creates a structured response from OpenAI-style tool calls
     /// </summary>
     StructuredLlmResponse CreateFromOpenAI(object openAIResponse);
-    
+
     /// <summary>
     /// Creates a structured response from Anthropic-style tool calls
     /// </summary>
     StructuredLlmResponse CreateFromAnthropic(object anthropicResponse);
-    
+
     /// <summary>
     /// Creates a structured response from a generic provider response
     /// </summary>
@@ -185,7 +185,7 @@ public static class StructuredArgumentParser
         {
             return (new Dictionary<string, object?>(), null);
         }
-        
+
         try
         {
             var arguments = System.Text.Json.JsonSerializer.Deserialize<Dictionary<string, object?>>(json);
@@ -196,14 +196,14 @@ public static class StructuredArgumentParser
             return (null, new InvalidOperationException($"Error parsing tool call arguments: {ex.Message}", ex));
         }
     }
-    
+
     /// <summary>
     /// Creates a StructuredToolCall with safe argument parsing
     /// </summary>
     public static StructuredToolCall CreateToolCall(string id, string name, string argumentsJson)
     {
         var (arguments, error) = SafeParseArguments(argumentsJson);
-        
+
         return new StructuredToolCall
         {
             Id = id,

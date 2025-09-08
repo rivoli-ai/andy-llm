@@ -27,14 +27,14 @@ public static class LoggingExtensions
 
         // Set default log levels
         builder.SetMinimumLevel(LogLevel.Information);
-        
+
         // Hide verbose logs from framework components
         builder.AddFilter("System", LogLevel.Warning);
         builder.AddFilter("Microsoft", LogLevel.Warning);
         builder.AddFilter("System.Net.Http", LogLevel.Warning);
         builder.AddFilter("Andy.Llm.Providers", LogLevel.Warning);
         builder.AddFilter("Andy.Llm.Services", LogLevel.Warning);
-        
+
         return builder;
     }
 
@@ -57,14 +57,14 @@ public static class LoggingExtensions
 
         // Set default log levels
         builder.SetMinimumLevel(LogLevel.Information);
-        
+
         // Hide verbose logs from framework components
         builder.AddFilter("System", LogLevel.Warning);
         builder.AddFilter("Microsoft", LogLevel.Warning);
         builder.AddFilter("System.Net.Http", LogLevel.Warning);
         builder.AddFilter("Andy.Llm.Providers", LogLevel.Warning);
         builder.AddFilter("Andy.Llm.Services", LogLevel.Warning);
-        
+
         return builder;
     }
 }

@@ -132,7 +132,7 @@ public class LlmProgressReporter : ILlmProgressReporter
     {
         _currentOperation = operationType;
         _stopwatch.Restart();
-        
+
         Report(new LlmOperationProgress
         {
             OperationType = operationType,
@@ -197,7 +197,7 @@ public class LlmProgressReporter : ILlmProgressReporter
     public void ReportCompletion(string? message = null)
     {
         _stopwatch.Stop();
-        
+
         Report(new LlmOperationProgress
         {
             OperationType = _currentOperation,
@@ -214,7 +214,7 @@ public class LlmProgressReporter : ILlmProgressReporter
     public void ReportError(string error)
     {
         _stopwatch.Stop();
-        
+
         Report(new LlmOperationProgress
         {
             OperationType = _currentOperation,
