@@ -5,6 +5,8 @@ using System.Threading;
 using System.Threading.Tasks;
 using Microsoft.Extensions.Logging;
 using Andy.Llm.Parsing.Ast;
+// Suppress XML documentation warnings for internal parser
+#pragma warning disable CS1591
 
 namespace Andy.Llm.Parsing;
 

@@ -32,10 +32,11 @@ public class OpenAIProvider : ILlmProvider
     public string Name => "OpenAI";
 
     /// <summary>
-    /// Initializes a new instance of the <see cref="OpenAIProvider"/> class.
+    /// Initializes a new instance of the OpenAI provider
     /// </summary>
-    /// <param name="options">The LLM options.</param>
-    /// <param name="logger">The logger.</param>
+    /// <param name="options">Llm options</param>
+    /// <param name="logger">Logger</param>
+    /// <param name="httpClientFactory">Optional HTTP client factory (for models endpoint)</param>
     public OpenAIProvider(
         IOptions<LlmOptions> options,
         ILogger<OpenAIProvider> logger,

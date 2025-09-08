@@ -1,6 +1,8 @@
 using System.Collections.Generic;
 using System.Threading;
 using System.Threading.Tasks;
+// Suppress XML documentation warnings for public contracts in internal docs context
+#pragma warning disable CS1591
 using Andy.Llm.Parsing.Ast;
 
 namespace Andy.Llm.Parsing;

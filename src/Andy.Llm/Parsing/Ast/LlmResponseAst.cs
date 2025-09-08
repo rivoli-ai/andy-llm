@@ -1,6 +1,8 @@
 using System;
 using System.Collections.Generic;
 using System.Linq;
+// Suppress XML documentation warnings for internal AST surface
+#pragma warning disable CS1591
 
 namespace Andy.Llm.Parsing.Ast;
 

@@ -32,10 +32,11 @@ public class CerebrasProvider : ILlmProvider
     public string Name => "Cerebras";
 
     /// <summary>
-    /// Initializes a new instance of the <see cref="CerebrasProvider"/> class.
+    /// Initializes a new instance of the Cerebras provider
     /// </summary>
-    /// <param name="options">The LLM options.</param>
-    /// <param name="logger">The logger.</param>
+    /// <param name="options">Llm options</param>
+    /// <param name="logger">Logger</param>
+    /// <param name="httpClientFactory">Optional HTTP client factory (for models endpoint)</param>
     public CerebrasProvider(
         IOptions<LlmOptions> options,
         ILogger<CerebrasProvider> logger,

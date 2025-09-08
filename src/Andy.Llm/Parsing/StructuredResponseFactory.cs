@@ -3,6 +3,8 @@ using System.Collections.Generic;
 using System.Linq;
 using System.Text.Json;
 using Microsoft.Extensions.Logging;
+// Suppress XML documentation warnings; this is an internal factory
+#pragma warning disable CS1591
 
 namespace Andy.Llm.Parsing;
 

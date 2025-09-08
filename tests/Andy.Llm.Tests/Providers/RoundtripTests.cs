@@ -75,8 +75,8 @@ public class RoundtripTests
         await foreach (var c in provider.StreamCompleteAsync(req))
             chunks.Add(c);
 
-        Assert.True(chunks.Any(c => c.TextDelta != null));
-        Assert.True(chunks.Any(c => c.FunctionCall != null));
+        Assert.Contains(chunks, c => c.TextDelta != null);
+        Assert.Contains(chunks, c => c.FunctionCall != null);
         Assert.True(chunks.Last().IsComplete);
         Assert.Equal("stop", chunks.Last().FinishReason);
     }

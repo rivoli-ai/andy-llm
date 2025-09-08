@@ -18,7 +18,7 @@ internal class StubStreamProvider : ILlmProvider
     {
         yield return new LlmStreamResponse
         {
-            FunctionCall = new FunctionCall { Id = "partial_0", Name = "tool", Arguments = new(), ArgumentsJson = "{\"x\":1" },
+            FunctionCall = new FunctionCall { Id = "partial_0", Name = "tool", Arguments = new(), ArgumentsJson = "{\"x\":1}" },
             IsComplete = false
         };
         await Task.Delay(1, cancellationToken);

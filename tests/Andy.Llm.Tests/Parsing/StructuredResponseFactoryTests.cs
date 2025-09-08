@@ -147,7 +147,7 @@ public class StructuredResponseFactoryTests
         Assert.Equal("search_knowledge", result.ToolCalls[0].Name);
         Assert.NotNull(result.ToolCalls[0].Arguments);
         // Arguments are JsonElements
-        var queryArg = result.ToolCalls[0].Arguments["query"] as JsonElement?;
+        var queryArg = result.ToolCalls[0].Arguments!["query"] as JsonElement?;
         Assert.Equal("quantum computing basics", queryArg?.GetString());
 
         Assert.NotNull(result.Metadata.Usage);
