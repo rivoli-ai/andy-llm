@@ -132,12 +132,12 @@ public class ProviderTests
     {
         // Arrange
         var context = new ConversationContext();
-        
+
         // Act
         context.SystemInstruction = "You are a helpful assistant";
         context.AddUserMessage("Hello");
         context.AddAssistantMessage("Hi there!");
-        
+
         var functionCalls = new List<FunctionCall>
         {
             new FunctionCall
@@ -165,5 +165,6 @@ public class ProviderTests
         Assert.NotNull(toolCallPart);
         Assert.Equal("get_weather", toolCallPart.ToolName);
         Assert.Equal("call_123", toolCallPart.CallId);
+        Assert.NotNull(toolCallPart.Arguments);
     }
 }

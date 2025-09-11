@@ -47,7 +47,7 @@ public sealed class CleanConsoleFormatter : ConsoleFormatter, IDisposable
 
         // Write log level with color
         WriteLogLevel(textWriter, logEntry.LogLevel);
-        
+
         // Write the message
         textWriter.WriteLine(message);
 
@@ -72,7 +72,7 @@ public sealed class CleanConsoleFormatter : ConsoleFormatter, IDisposable
         string text;
         ConsoleColor? foreground;
         ConsoleColor? background;
-        
+
         switch (logLevel)
         {
             case LogLevel.Trace:
@@ -130,9 +130,14 @@ public sealed class CleanConsoleFormatter : ConsoleFormatter, IDisposable
             var originalBackground = Console.BackgroundColor;
 
             if (foreground.HasValue)
+            {
                 Console.ForegroundColor = foreground.Value;
+            }
+
             if (background.HasValue)
+            {
                 Console.BackgroundColor = background.Value;
+            }
 
             textWriter.Write(message);
 

@@ -67,6 +67,11 @@ public class LlmStreamResponse
     public bool IsComplete { get; set; }
 
     /// <summary>
+    /// Reason the stream completed (e.g., stop, length, content_filter)
+    /// </summary>
+    public string? FinishReason { get; set; }
+
+    /// <summary>
     /// Error information if any
     /// </summary>
     public string? Error { get; set; }
@@ -91,6 +96,11 @@ public class FunctionCall
     /// Arguments to pass to the function
     /// </summary>
     public Dictionary<string, object?> Arguments { get; set; } = new();
+
+    /// <summary>
+    /// Raw JSON string for arguments when provider returns string; preserved for fidelity
+    /// </summary>
+    public string? ArgumentsJson { get; set; }
 }
 
 /// <summary>

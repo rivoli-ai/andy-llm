@@ -27,7 +27,9 @@ public static class SensitiveDataSanitizer
     public static string Sanitize(string? input)
     {
         if (string.IsNullOrEmpty(input))
+        {
             return input ?? string.Empty;
+        }
 
         var result = input;
 
@@ -60,10 +62,14 @@ public static class SensitiveDataSanitizer
     public static string MaskApiKey(string? apiKey, int visibleChars = 4)
     {
         if (string.IsNullOrEmpty(apiKey))
+        {
             return "***EMPTY***";
+        }
 
         if (apiKey.Length <= visibleChars * 2)
+        {
             return "***REDACTED***";
+        }
 
         var start = apiKey.Substring(0, visibleChars);
         var end = apiKey.Substring(apiKey.Length - visibleChars);
@@ -81,7 +87,9 @@ public static class SensitiveDataSanitizer
     public static bool ContainsSensitiveData(string? input)
     {
         if (string.IsNullOrEmpty(input))
+        {
             return false;
+        }
 
         return ApiKeyPattern.IsMatch(input) ||
                GenericKeyPattern.IsMatch(input) ||
@@ -96,13 +104,15 @@ public static class SensitiveDataSanitizer
     public static string SanitizeException(Exception? exception)
     {
         if (exception == null)
+        {
             return string.Empty;
+        }
 
         var message = Sanitize(exception.Message);
         var stackTrace = exception.StackTrace != null ? Sanitize(exception.StackTrace) : string.Empty;
 
         var result = $"{exception.GetType().Name}: {message}";
-        
+
         if (!string.IsNullOrEmpty(stackTrace))
         {
             result += $"\n{stackTrace}";

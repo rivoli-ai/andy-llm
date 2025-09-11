@@ -19,10 +19,14 @@ public class SecureApiKeyProvider : IDisposable
     public void SetApiKey(string provider, string apiKey)
     {
         if (string.IsNullOrEmpty(provider))
+        {
             throw new ArgumentNullException(nameof(provider));
+        }
 
         if (string.IsNullOrEmpty(apiKey))
+        {
             throw new ArgumentNullException(nameof(apiKey));
+        }
 
         // Remove existing key if present
         if (_secureKeys.TryGetValue(provider, out var existingKey))
@@ -49,10 +53,14 @@ public class SecureApiKeyProvider : IDisposable
     public string? GetApiKey(string provider)
     {
         if (string.IsNullOrEmpty(provider))
+        {
             return null;
+        }
 
         if (!_secureKeys.TryGetValue(provider, out var secureKey))
+        {
             return null;
+        }
 
         return ConvertToUnsecureString(secureKey);
     }
@@ -74,7 +82,9 @@ public class SecureApiKeyProvider : IDisposable
     public void RemoveApiKey(string provider)
     {
         if (string.IsNullOrEmpty(provider))
+        {
             return;
+        }
 
         if (_secureKeys.TryGetValue(provider, out var secureKey))
         {
@@ -98,7 +108,9 @@ public class SecureApiKeyProvider : IDisposable
     private static string ConvertToUnsecureString(SecureString secureString)
     {
         if (secureString == null)
+        {
             return string.Empty;
+        }
 
         IntPtr unmanagedString = IntPtr.Zero;
         try

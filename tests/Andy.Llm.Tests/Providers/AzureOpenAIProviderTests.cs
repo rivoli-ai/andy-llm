@@ -46,7 +46,7 @@ public class AzureOpenAIProviderTests
 
         // Act & Assert - should not throw
         var provider = new AzureOpenAIProvider(options, _mockLogger.Object);
-        
+
         Assert.NotNull(provider);
         Assert.Equal("azure", provider.Name);
     }
@@ -61,7 +61,7 @@ public class AzureOpenAIProviderTests
         // Act & Assert
         var exception = Assert.Throws<InvalidOperationException>(
             () => new AzureOpenAIProvider(options, _mockLogger.Object));
-        
+
         Assert.Contains("endpoint", exception.Message, StringComparison.OrdinalIgnoreCase);
     }
 
@@ -75,7 +75,7 @@ public class AzureOpenAIProviderTests
         // Act & Assert
         var exception = Assert.Throws<InvalidOperationException>(
             () => new AzureOpenAIProvider(options, _mockLogger.Object));
-        
+
         Assert.Contains("API key", exception.Message, StringComparison.OrdinalIgnoreCase);
     }
 
@@ -86,7 +86,7 @@ public class AzureOpenAIProviderTests
         Environment.SetEnvironmentVariable("AZURE_OPENAI_ENDPOINT", "https://env-test.openai.azure.com");
         Environment.SetEnvironmentVariable("AZURE_OPENAI_KEY", "env-test-key");
         Environment.SetEnvironmentVariable("AZURE_OPENAI_DEPLOYMENT", "env-test-deployment");
-        
+
         try
         {
             var emptyOptions = new LlmOptions { Providers = new Dictionary<string, ProviderConfig>() };
@@ -113,7 +113,7 @@ public class AzureOpenAIProviderTests
     {
         // This test would require mocking the Azure OpenAI client or using a real connection
         // For now, we'll skip the actual implementation
-        
+
         // Arrange
         var options = Options.Create(_options);
         var provider = new AzureOpenAIProvider(options, _mockLogger.Object);
@@ -130,11 +130,11 @@ public class AzureOpenAIProviderTests
     {
         // This test requires real Azure OpenAI credentials to run
         // It's marked as Skip for CI/CD environments
-        
+
         // Arrange
         var options = Options.Create(_options);
         var provider = new AzureOpenAIProvider(options, _mockLogger.Object);
-        
+
         var request = new LlmRequest
         {
             Messages = new List<Message>
@@ -164,11 +164,11 @@ public class AzureOpenAIProviderTests
     public async Task StreamCompleteAsync_WithValidRequest_ShouldStreamResponse()
     {
         // This test requires real Azure OpenAI credentials to run
-        
+
         // Arrange
         var options = Options.Create(_options);
         var provider = new AzureOpenAIProvider(options, _mockLogger.Object);
-        
+
         var request = new LlmRequest
         {
             Messages = new List<Message>
@@ -195,6 +195,7 @@ public class AzureOpenAIProviderTests
         // Assert
         Assert.NotEmpty(responses);
         Assert.Contains(responses, r => r.IsComplete);
+        Assert.Contains(responses, r => r.IsComplete && r.FinishReason != null);
         Assert.Contains(responses, r => !string.IsNullOrEmpty(r.TextDelta));
     }
 
@@ -204,7 +205,7 @@ public class AzureOpenAIProviderTests
         // Arrange
         Environment.SetEnvironmentVariable("AZURE_OPENAI_ENDPOINT", "https://env.openai.azure.com");
         Environment.SetEnvironmentVariable("AZURE_OPENAI_KEY", "env-key");
-        
+
         try
         {
             var options = Options.Create(_options);

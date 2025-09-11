@@ -88,7 +88,9 @@ public class LlmProviderFactory : ILlmProviderFactory
         foreach (var (name, config) in _options.Value.Providers)
         {
             if (!config.Enabled || name.Equals(_options.Value.DefaultProvider, StringComparison.OrdinalIgnoreCase))
+            {
                 continue;
+            }
 
             try
             {

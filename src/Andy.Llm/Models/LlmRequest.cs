@@ -16,6 +16,16 @@ public class LlmRequest
     public List<ToolDeclaration>? Tools { get; set; }
 
     /// <summary>
+    /// Alias for <see cref="Tools"/> to align with common terminology (Functions/Tools).
+    /// Reading or setting this maps directly to <see cref="Tools"/>.
+    /// </summary>
+    public List<ToolDeclaration>? Functions
+    {
+        get => Tools;
+        set => Tools = value;
+    }
+
+    /// <summary>
     /// The model to use (provider-specific)
     /// </summary>
     public string? Model { get; set; }
@@ -69,28 +79,28 @@ public class LlmRequest
 /// <summary>
 /// Specifies the format of the response
 /// </summary>
- public enum ResponseFormat
+public enum ResponseFormat
 {
     /// <summary>
     /// Standard text response
     /// </summary>
     Text,
-    
+
     /// <summary>
     /// JSON-only response
     /// </summary>
     JsonObject,
-    
+
     /// <summary>
     /// JSON response conforming to provided schema
     /// </summary>
     JsonSchema,
-    
+
     /// <summary>
     /// XML response
     /// </summary>
     Xml,
-    
+
     /// <summary>
     /// Tool/function calls only
     /// </summary>
@@ -106,27 +116,27 @@ public class ToolChoice
     /// Strategy type: auto, none, required, or specific
     /// </summary>
     public string Type { get; set; } = "auto";
-    
+
     /// <summary>
     /// Specific tool name if Type is "specific"
     /// </summary>
     public string? ToolName { get; set; }
-    
+
     /// <summary>
     /// Creates a tool choice that lets the model decide
     /// </summary>
     public static ToolChoice Auto => new() { Type = "auto" };
-    
+
     /// <summary>
     /// Creates a tool choice that prevents tool use
     /// </summary>
     public static ToolChoice None => new() { Type = "none" };
-    
+
     /// <summary>
     /// Creates a tool choice that requires tool use
     /// </summary>
     public static ToolChoice Required => new() { Type = "required" };
-    
+
     /// <summary>
     /// Creates a tool choice for a specific tool
     /// </summary>

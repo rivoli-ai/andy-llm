@@ -88,7 +88,7 @@ public class SecurityTests : IDisposable
     public void SecureApiKeyProvider_SetApiKey_WithNullProvider_ShouldThrow()
     {
         // Act & Assert
-        Assert.Throws<ArgumentNullException>(() => 
+        Assert.Throws<ArgumentNullException>(() =>
             _keyProvider.SetApiKey(null!, "key"));
     }
 
@@ -96,7 +96,7 @@ public class SecurityTests : IDisposable
     public void SecureApiKeyProvider_SetApiKey_WithNullKey_ShouldThrow()
     {
         // Act & Assert
-        Assert.Throws<ArgumentNullException>(() => 
+        Assert.Throws<ArgumentNullException>(() =>
             _keyProvider.SetApiKey("provider", null!));
     }
 
@@ -105,10 +105,10 @@ public class SecurityTests : IDisposable
     {
         // Arrange
         var input = "Using API_KEY=sk-abc123def456 for authentication";
-        
+
         // Act
         var result = SensitiveDataSanitizer.Sanitize(input);
-        
+
         // Assert
         Assert.Contains("***REDACTED***", result);
         Assert.DoesNotContain("sk-abc123def456", result);
@@ -124,10 +124,10 @@ public class SecurityTests : IDisposable
             auth_token=mytoken123
             https://user:password@example.com/api
         ";
-        
+
         // Act
         var result = SensitiveDataSanitizer.Sanitize(input);
-        
+
         // Assert
         Assert.DoesNotContain("sk-test123456789", result);
         Assert.DoesNotContain("eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9", result);
@@ -142,7 +142,7 @@ public class SecurityTests : IDisposable
     {
         // Act
         var result = SensitiveDataSanitizer.Sanitize(null);
-        
+
         // Assert
         Assert.Equal(string.Empty, result);
     }
@@ -152,10 +152,10 @@ public class SecurityTests : IDisposable
     {
         // Arrange
         var apiKey = "sk-abc123def456ghi789jkl";
-        
+
         // Act
         var masked = SensitiveDataSanitizer.MaskApiKey(apiKey);
-        
+
         // Assert
         Assert.StartsWith("sk-a", masked);
         Assert.EndsWith("9jkl", masked);
@@ -168,10 +168,10 @@ public class SecurityTests : IDisposable
     {
         // Arrange
         var shortKey = "abc";
-        
+
         // Act
         var masked = SensitiveDataSanitizer.MaskApiKey(shortKey);
-        
+
         // Assert
         Assert.Equal("***REDACTED***", masked);
     }
@@ -181,7 +181,7 @@ public class SecurityTests : IDisposable
     {
         // Act
         var masked = SensitiveDataSanitizer.MaskApiKey(null);
-        
+
         // Assert
         Assert.Equal("***EMPTY***", masked);
     }
@@ -204,10 +204,10 @@ public class SecurityTests : IDisposable
         // Arrange
         var innerEx = new InvalidOperationException("Inner error with api_key=secret");
         var ex = new ApplicationException("Error with token=abc123", innerEx);
-        
+
         // Act
         var sanitized = SensitiveDataSanitizer.SanitizeException(ex);
-        
+
         // Assert
         Assert.Contains("ApplicationException", sanitized);
         Assert.Contains("***REDACTED***", sanitized);
@@ -221,7 +221,7 @@ public class SecurityTests : IDisposable
     {
         // Act
         var result = SensitiveDataSanitizer.SanitizeException(null);
-        
+
         // Assert
         Assert.Equal(string.Empty, result);
     }

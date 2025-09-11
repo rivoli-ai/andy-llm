@@ -328,7 +328,7 @@ public class TelemetryTests : IDisposable
         Assert.False(linkedCts.Token.IsCancellationRequested);
         Thread.Sleep(100);
         Assert.True(linkedCts.Token.IsCancellationRequested);
-        
+
         originalCts.Cancel();
     }
 

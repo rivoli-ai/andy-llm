@@ -13,18 +13,18 @@ using Microsoft.Extensions.Logging;
 /// </summary>
 public class MultiProvider
 {
-    public static async Task Main(string[] args)
+    public static async Task Main()
     {
         // Setup dependency injection
         var services = new ServiceCollection();
-        
+
         services.AddLogging(builder => builder.AddCleanConsole());
 
         // Configure multiple providers
         services.AddLlmServices(options =>
         {
             options.DefaultProvider = "openai";
-            
+
             // OpenAI configuration
             options.Providers["openai"] = new ProviderConfig
             {
@@ -32,7 +32,7 @@ public class MultiProvider
                 Model = Environment.GetEnvironmentVariable("OPENAI_MODEL") ?? "gpt-4o",
                 Enabled = !string.IsNullOrEmpty(Environment.GetEnvironmentVariable("OPENAI_API_KEY"))
             };
-            
+
             // Cerebras configuration
             options.Providers["cerebras"] = new ProviderConfig
             {
@@ -40,7 +40,7 @@ public class MultiProvider
                 Model = Environment.GetEnvironmentVariable("CEREBRAS_MODEL") ?? "llama-3.3-70b",
                 Enabled = !string.IsNullOrEmpty(Environment.GetEnvironmentVariable("CEREBRAS_API_KEY"))
             };
-            
+
             // Azure OpenAI configuration
             options.Providers["azure"] = new ProviderConfig
             {
@@ -49,7 +49,7 @@ public class MultiProvider
                 DeploymentName = Environment.GetEnvironmentVariable("AZURE_OPENAI_DEPLOYMENT"),
                 Enabled = !string.IsNullOrEmpty(Environment.GetEnvironmentVariable("AZURE_OPENAI_KEY"))
             };
-            
+
             // Ollama configuration
             options.Providers["ollama"] = new ProviderConfig
             {
@@ -61,7 +61,7 @@ public class MultiProvider
 
         var serviceProvider = services.BuildServiceProvider();
         var logger = serviceProvider.GetRequiredService<ILogger<MultiProvider>>();
-        
+
         try
         {
             var factory = serviceProvider.GetRequiredService<ILlmProviderFactory>();
@@ -94,7 +94,7 @@ public class MultiProvider
     static async Task UseDefaultProvider(ILlmProviderFactory factory, ILogger logger)
     {
         logger.LogInformation("\n=== Example 1: Using Default Provider ===");
-        
+
         try
         {
             var provider = factory.CreateProvider(); // Uses default (OpenAI)
@@ -124,13 +124,13 @@ public class MultiProvider
         logger.LogInformation("Note: Cerebras runs open-source models like Llama (Meta) at high speed");
 
         var providers = new[] { "openai", "cerebras", "azure", "ollama" };
-        
+
         foreach (var providerName in providers)
         {
             try
             {
                 var provider = factory.CreateProvider(providerName);
-                
+
                 if (!await provider.IsAvailableAsync())
                 {
                     logger.LogWarning("{Provider} is not available", providerName);
@@ -138,12 +138,12 @@ public class MultiProvider
                 }
 
                 logger.LogInformation("\nUsing {Provider}:", providerName);
-                
+
                 var request = new LlmRequest
                 {
                     Messages = new List<Message>
                     {
-                        Message.CreateText(MessageRole.User, 
+                        Message.CreateText(MessageRole.User,
                             $"Complete this: 'The sky is' (3 words)")
                     },
                     MaxTokens = 50,
@@ -156,7 +156,7 @@ public class MultiProvider
                     logger.LogWarning("  Response is empty! Model: {Model}", request.Model ?? "default");
                 }
                 logger.LogInformation("  Response: {Response}", response.Content);
-                
+
                 if (response.TokensUsed.HasValue)
                 {
                     logger.LogInformation("  Tokens used: {Tokens}", response.TokensUsed);
@@ -172,7 +172,7 @@ public class MultiProvider
     static async Task DemonstrateProviderFallback(ILlmProviderFactory factory, ILogger logger)
     {
         logger.LogInformation("\n=== Example 3: Provider Fallback ===");
-        
+
         try
         {
             // This will automatically find the first available provider
@@ -209,7 +209,7 @@ public class MultiProvider
             try
             {
                 var provider = factory.CreateProvider(providerName);
-                
+
                 if (!await provider.IsAvailableAsync())
                 {
                     logger.LogWarning("{Provider} not available for comparison", providerName);
@@ -234,7 +234,7 @@ public class MultiProvider
 
                 logger.LogInformation("  Response: {Response}", response.Content);
                 logger.LogInformation("  Time: {ElapsedMs}ms", stopwatch.ElapsedMilliseconds);
-                
+
                 if (response.TokensUsed.HasValue)
                 {
                     logger.LogInformation("  Tokens: {Tokens}", response.TokensUsed);
@@ -244,7 +244,7 @@ public class MultiProvider
             }
             catch (Exception ex)
             {
-                logger.LogError("Provider {Provider} comparison failed: {Message}", 
+                logger.LogError("Provider {Provider} comparison failed: {Message}",
                     providerName, ex.Message);
             }
         }
@@ -259,13 +259,13 @@ public class MultiProvider
         {
             logger.LogInformation("\nOpenAI - Function Calling:");
             var openai = factory.CreateProvider("openai");
-            
+
             if (await openai.IsAvailableAsync())
             {
                 var context = new ConversationContext
                 {
                     SystemInstruction = "You are a helpful assistant.",
-                    AvailableTools = 
+                    AvailableTools =
                     {
                         new ToolDeclaration
                         {
@@ -285,10 +285,10 @@ public class MultiProvider
                 var request = context.CreateRequest(model);
 
                 var response = await openai.CompleteAsync(request);
-                
+
                 if (response.FunctionCalls.Any())
                 {
-                    logger.LogInformation("  Function call requested: {Function}", 
+                    logger.LogInformation("  Function call requested: {Function}",
                         response.FunctionCalls.First().Name);
                 }
                 else
@@ -311,14 +311,14 @@ public class MultiProvider
         {
             logger.LogInformation("\nCerebras - Fast Inference (using Llama models):");
             var cerebras = factory.CreateProvider("cerebras");
-            
+
             if (await cerebras.IsAvailableAsync())
             {
                 var request = new LlmRequest
                 {
                     Messages = new List<Message>
                     {
-                        Message.CreateText(MessageRole.User, 
+                        Message.CreateText(MessageRole.User,
                             "Generate a list of 10 random numbers between 1 and 100.")
                     },
                     MaxTokens = 200,
@@ -348,14 +348,14 @@ public class MultiProvider
         {
             logger.LogInformation("\nOllama - Local Models:");
             var ollama = factory.CreateProvider("ollama");
-            
+
             if (await ollama.IsAvailableAsync())
             {
                 var request = new LlmRequest
                 {
                     Messages = new List<Message>
                     {
-                        Message.CreateText(MessageRole.User, 
+                        Message.CreateText(MessageRole.User,
                             "What are the benefits of running models locally?")
                     },
                     MaxTokens = 100,
@@ -365,7 +365,7 @@ public class MultiProvider
                 var response = await ollama.CompleteAsync(request);
                 if (!string.IsNullOrEmpty(response.Content))
                 {
-                    var truncated = response.Content.Length > 100 
+                    var truncated = response.Content.Length > 100
                         ? response.Content.Substring(0, 100) + "..."
                         : response.Content;
                     logger.LogInformation("  Response: {Response}", truncated);

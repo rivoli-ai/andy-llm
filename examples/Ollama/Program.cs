@@ -12,7 +12,7 @@ using Andy.Llm.Examples.Shared;
 /// </summary>
 class Program
 {
-    static async Task Main(string[] args)
+    static async Task Main()
     {
         Console.WriteLine("=== Ollama Local LLM Example ===\n");
 
@@ -25,7 +25,7 @@ class Program
 
         // Configure services
         var services = new ServiceCollection();
-        
+
         // Add logging with clean console output
         services.AddLogging(builder => builder.AddCleanConsole());
 
@@ -47,14 +47,14 @@ class Program
         {
             // Show available models and get the first one if no model specified
             var firstAvailableModel = await ShowAvailableModels(ollamaBase, logger);
-            
+
             if (string.IsNullOrEmpty(ollamaModel) && !string.IsNullOrEmpty(firstAvailableModel))
             {
                 ollamaModel = firstAvailableModel;
                 logger.LogInformation("No OLLAMA_MODEL environment variable set, using first available: {Model}", ollamaModel);
                 Environment.SetEnvironmentVariable("OLLAMA_MODEL", ollamaModel);
             }
-            
+
             if (string.IsNullOrEmpty(ollamaModel))
             {
                 logger.LogError("No Ollama models found and OLLAMA_MODEL not set!");
@@ -65,9 +65,9 @@ class Program
                 logger.LogError("3. List installed models: ollama list");
                 return;
             }
-            
+
             logger.LogInformation("Using model: {Model}", ollamaModel);
-            
+
             var factory = serviceProvider.GetRequiredService<ILlmProviderFactory>();
             var ollamaProvider = factory.CreateProvider("ollama");
 
@@ -120,11 +120,11 @@ class Program
             {
                 var json = await response.Content.ReadAsStringAsync();
                 logger.LogInformation("\nAvailable Ollama models:");
-                
+
                 // Parse JSON to extract model names
                 using var doc = System.Text.Json.JsonDocument.Parse(json);
                 var models = new List<string>();
-                
+
                 if (doc.RootElement.TryGetProperty("models", out var modelsArray))
                 {
                     foreach (var modelElement in modelsArray.EnumerateArray())
@@ -140,7 +140,7 @@ class Program
                         }
                     }
                 }
-                
+
                 // Return the first available model
                 return models.FirstOrDefault();
             }
@@ -149,14 +149,14 @@ class Program
         {
             logger.LogDebug("Failed to get available models: {Message}", ex.Message);
         }
-        
+
         return null;
     }
 
     static async Task RunSimpleCompletion(ILlmProvider provider, ILogger logger)
     {
         logger.LogInformation("\n--- Example 1: Simple Completion ---");
-        
+
         var request = new LlmRequest
         {
             Messages = new List<Message>
@@ -182,7 +182,7 @@ class Program
     static async Task RunConversationExample(ILlmProvider provider, ILogger logger)
     {
         logger.LogInformation("\n--- Example 2: Conversation with Context ---");
-        
+
         var context = new ConversationContext
         {
             SystemInstruction = "You are a helpful AI assistant running locally. Be concise and technical."
@@ -203,7 +203,7 @@ class Program
     {
         logger.LogInformation("\n--- Example 3: Streaming Response ---");
         Console.WriteLine("\nGenerating a haiku about local AI (streaming):\n");
-        
+
         var request = new LlmRequest
         {
             Messages = new List<Message>
@@ -237,7 +237,7 @@ class Program
     static async Task RunCodeGenerationExample(ILlmProvider provider, ILogger logger)
     {
         logger.LogInformation("\n--- Example 4: Code Generation ---");
-        
+
         var request = new LlmRequest
         {
             Messages = new List<Message>
@@ -270,7 +270,7 @@ class Program
     static async Task RunPerformanceExample(ILlmProvider provider, ILogger logger)
     {
         logger.LogInformation("\n--- Example 5: Performance Metrics ---");
-        
+
         var request = new LlmRequest
         {
             Messages = new List<Message>
@@ -295,7 +295,7 @@ class Program
         Console.WriteLine($"\nPerformance Metrics:");
         Console.WriteLine($"  Response time: {stopwatch.ElapsedMilliseconds}ms");
         Console.WriteLine($"  Tokens generated: {response.TokensUsed}");
-        
+
         if (response.TokensUsed > 0 && stopwatch.ElapsedMilliseconds > 0)
         {
             var tokensPerSecond = (response.TokensUsed * 1000.0) / stopwatch.ElapsedMilliseconds;
@@ -325,7 +325,7 @@ class Program
     {
         logger.LogInformation("\n--- Example 6: Model Comparison ---");
         logger.LogInformation("This example compares different models if you have multiple installed.");
-        
+
         // Get list of actually available models
         var availableModels = new List<string>();
         try
@@ -357,16 +357,16 @@ class Program
             // Fall back to trying common models
             availableModels = new List<string> { "llama2", "mistral", "codellama" };
         }
-        
+
         if (availableModels.Count == 0)
         {
             logger.LogWarning("No models found for comparison");
             return;
         }
-        
+
         var models = availableModels.Take(3).ToArray(); // Compare up to 3 models
         var prompt = "Explain quantum computing in one sentence.";
-        
+
         foreach (var model in models)
         {
             try
@@ -374,9 +374,9 @@ class Program
                 // Try to use different models by setting environment variable
                 Environment.SetEnvironmentVariable("OLLAMA_MODEL", model);
                 var provider = factory.CreateProvider("ollama");
-                
+
                 logger.LogInformation("\nTrying model: {Model}", model);
-                
+
                 var request = new LlmRequest
                 {
                     Model = model,
@@ -398,7 +398,7 @@ class Program
                 var stopwatch = System.Diagnostics.Stopwatch.StartNew();
                 var response = await provider.CompleteAsync(request);
                 stopwatch.Stop();
-                
+
                 Console.WriteLine($"\n{model} response ({stopwatch.ElapsedMilliseconds}ms):");
                 Console.WriteLine(response.Content);
             }
@@ -407,7 +407,7 @@ class Program
                 logger.LogDebug($"Model {model} not available: {ex.Message}");
             }
         }
-        
+
         // Reset environment variable to the original or first available
         var originalModel = Environment.GetEnvironmentVariable("OLLAMA_MODEL") ?? availableModels.FirstOrDefault();
         if (!string.IsNullOrEmpty(originalModel))

@@ -59,7 +59,7 @@ public class HybridLlmParserTests
         // Assert
         Assert.NotNull(result);
         Assert.Equal("structured", result.ModelProvider);
-        
+
         var toolCalls = result.Children.OfType<ToolCallNode>().ToList();
         Assert.Single(toolCalls);
         Assert.Equal("calculate", toolCalls[0].ToolName);
@@ -101,11 +101,11 @@ public class HybridLlmParserTests
 
         // Assert
         Assert.NotNull(result);
-        
+
         var textNodes = result.Children.OfType<TextNode>().ToList();
         Assert.Single(textNodes);
         Assert.Contains("search for that information", textNodes[0].Content);
-        
+
         var toolCalls = result.Children.OfType<ToolCallNode>().ToList();
         Assert.Single(toolCalls);
         Assert.Equal("search", toolCalls[0].ToolName);
@@ -119,7 +119,7 @@ public class HybridLlmParserTests
         var malformedJson = @"{ ""broken"": ""json"", ""tool_calls"": [{ incomplete }";
         var expectedTextNode = new ResponseNode();
         expectedTextNode.Children.Add(new TextNode { Content = malformedJson });
-        
+
         _mockTextParser
             .Setup(p => p.Parse(It.IsAny<string>(), It.IsAny<ParserContext>()))
             .Returns(expectedTextNode);
@@ -144,7 +144,7 @@ The search has been completed.";
         expectedNode.Children.Add(new TextNode { Content = "I'll search for that information." });
         expectedNode.Children.Add(new ToolCallNode { ToolName = "search" });
         expectedNode.Children.Add(new TextNode { Content = "The search has been completed." });
-        
+
         _mockTextParser
             .Setup(p => p.Parse(textResponse, It.IsAny<ParserContext>()))
             .Returns(expectedNode);
@@ -247,7 +247,7 @@ The search has been completed.";
         _mockTextParser
             .Setup(p => p.ParseStreamingAsync(It.IsAny<IAsyncEnumerable<string>>(), It.IsAny<ParserContext?>(), It.IsAny<CancellationToken>()))
             .ReturnsAsync(expectedNode);
-        
+
         // Also setup the Parse method in case it gets called as fallback
         _mockTextParser
             .Setup(p => p.Parse(It.IsAny<string>(), It.IsAny<ParserContext?>()))
@@ -298,9 +298,9 @@ The search has been completed.";
     {
         // Arrange
         var ast = new ResponseNode();
-        ast.Children.Add(new ToolCallNode 
-        { 
-            CallId = "123", 
+        ast.Children.Add(new ToolCallNode
+        {
+            CallId = "123",
             ToolName = "tool1",
             ParseError = new InvalidOperationException("Invalid JSON")
         });
@@ -374,7 +374,7 @@ data: [DONE]";
 
         var expectedNode = new ResponseNode();
         expectedNode.Children.Add(new TextNode { Content = sseResponse });
-        
+
         _mockTextParser
             .Setup(p => p.Parse(It.IsAny<string>(), It.IsAny<ParserContext?>()))
             .Returns(expectedNode);

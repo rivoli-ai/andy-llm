@@ -3,6 +3,8 @@ using System.Collections.Generic;
 using System.Linq;
 using System.Text.Json;
 using Microsoft.Extensions.Logging;
+// Suppress XML documentation warnings; this is an internal factory
+#pragma warning disable CS1591
 
 namespace Andy.Llm.Parsing;
 
@@ -24,7 +26,9 @@ public class StructuredResponseFactory : IStructuredResponseFactory
     public StructuredLlmResponse CreateFromOpenAI(object openAIResponse)
     {
         if (openAIResponse == null)
+        {
             throw new ArgumentNullException(nameof(openAIResponse));
+        }
 
         var response = new StructuredLlmResponse();
 
@@ -38,7 +42,7 @@ public class StructuredResponseFactory : IStructuredResponseFactory
 
             // Handle OpenAI ChatCompletion object from SDK
             var responseType = openAIResponse.GetType();
-            
+
             // Check if it's an OpenAI ChatCompletion type
             if (responseType.Name == "ChatCompletion")
             {
@@ -71,7 +75,9 @@ public class StructuredResponseFactory : IStructuredResponseFactory
     public StructuredLlmResponse CreateFromAnthropic(object anthropicResponse)
     {
         if (anthropicResponse == null)
+        {
             throw new ArgumentNullException(nameof(anthropicResponse));
+        }
 
         var response = new StructuredLlmResponse();
 
@@ -84,7 +90,7 @@ public class StructuredResponseFactory : IStructuredResponseFactory
 
             // Handle Anthropic message object
             var responseType = anthropicResponse.GetType();
-            
+
             if (responseType.Name.Contains("Message") || responseType.Name.Contains("Claude"))
             {
                 response = ExtractFromAnthropicMessage(anthropicResponse);
@@ -127,7 +133,7 @@ public class StructuredResponseFactory : IStructuredResponseFactory
             {
                 var json = JsonSerializer.Serialize(toolCallsData);
                 using var doc = JsonDocument.Parse(json);
-                
+
                 if (doc.RootElement.ValueKind == JsonValueKind.Array)
                 {
                     foreach (var element in doc.RootElement.EnumerateArray())
@@ -174,7 +180,7 @@ public class StructuredResponseFactory : IStructuredResponseFactory
                     {
                         ExtractOpenAIMessage(message, response);
                     }
-                    
+
                     if (choice.TryGetProperty("finish_reason", out var finishReason))
                     {
                         response.Metadata.FinishReason = finishReason.GetString();
@@ -222,7 +228,7 @@ public class StructuredResponseFactory : IStructuredResponseFactory
         }
 
         // Extract tool calls
-        if (message.TryGetProperty("tool_calls", out var toolCalls) && 
+        if (message.TryGetProperty("tool_calls", out var toolCalls) &&
             toolCalls.ValueKind == JsonValueKind.Array)
         {
             foreach (var toolCallElement in toolCalls.EnumerateArray())
@@ -250,12 +256,12 @@ public class StructuredResponseFactory : IStructuredResponseFactory
     {
         try
         {
-            var id = element.TryGetProperty("id", out var idProp) 
-                ? idProp.GetString() ?? "" 
+            var id = element.TryGetProperty("id", out var idProp)
+                ? idProp.GetString() ?? ""
                 : Guid.NewGuid().ToString();
-                
-            var type = element.TryGetProperty("type", out var typeProp) 
-                ? typeProp.GetString() ?? "function" 
+
+            var type = element.TryGetProperty("type", out var typeProp)
+                ? typeProp.GetString() ?? "function"
                 : "function";
 
             if (type != "function")
@@ -269,12 +275,12 @@ public class StructuredResponseFactory : IStructuredResponseFactory
                 return null;
             }
 
-            var name = function.TryGetProperty("name", out var nameProp) 
-                ? nameProp.GetString() ?? "" 
+            var name = function.TryGetProperty("name", out var nameProp)
+                ? nameProp.GetString() ?? ""
                 : "";
-                
-            var argumentsJson = function.TryGetProperty("arguments", out var argsProp) 
-                ? argsProp.GetString() ?? "{}" 
+
+            var argumentsJson = function.TryGetProperty("arguments", out var argsProp)
+                ? argsProp.GetString() ?? "{}"
                 : "{}";
 
             return StructuredArgumentParser.CreateToolCall(id, name, argumentsJson);
@@ -290,12 +296,12 @@ public class StructuredResponseFactory : IStructuredResponseFactory
     {
         try
         {
-            var name = element.TryGetProperty("name", out var nameProp) 
-                ? nameProp.GetString() ?? "" 
+            var name = element.TryGetProperty("name", out var nameProp)
+                ? nameProp.GetString() ?? ""
                 : "";
-                
-            var argumentsJson = element.TryGetProperty("arguments", out var argsProp) 
-                ? argsProp.GetString() ?? "{}" 
+
+            var argumentsJson = element.TryGetProperty("arguments", out var argsProp)
+                ? argsProp.GetString() ?? "{}"
                 : "{}";
 
             var id = $"func_{Guid.NewGuid():N}";
@@ -370,10 +376,12 @@ public class StructuredResponseFactory : IStructuredResponseFactory
     private void ProcessAnthropicContentItem(JsonElement item, StructuredLlmResponse response)
     {
         if (!item.TryGetProperty("type", out var type))
+        {
             return;
+        }
 
         var typeStr = type.GetString();
-        
+
         switch (typeStr)
         {
             case "text":
@@ -382,13 +390,13 @@ public class StructuredResponseFactory : IStructuredResponseFactory
                     var textContent = text.GetString();
                     if (!string.IsNullOrEmpty(textContent))
                     {
-                        response.TextContent = string.IsNullOrEmpty(response.TextContent) 
-                            ? textContent 
+                        response.TextContent = string.IsNullOrEmpty(response.TextContent)
+                            ? textContent
                             : response.TextContent + "\n" + textContent;
                     }
                 }
                 break;
-                
+
             case "tool_use":
                 var toolCall = ParseAnthropicToolUse(item);
                 if (toolCall != null)
@@ -396,7 +404,7 @@ public class StructuredResponseFactory : IStructuredResponseFactory
                     response.ToolCalls.Add(toolCall);
                 }
                 break;
-                
+
             case "tool_result":
                 var toolResult = ParseAnthropicToolResult(item);
                 if (toolResult != null)
@@ -411,14 +419,14 @@ public class StructuredResponseFactory : IStructuredResponseFactory
     {
         try
         {
-            var id = element.TryGetProperty("id", out var idProp) 
-                ? idProp.GetString() ?? Guid.NewGuid().ToString() 
+            var id = element.TryGetProperty("id", out var idProp)
+                ? idProp.GetString() ?? Guid.NewGuid().ToString()
                 : Guid.NewGuid().ToString();
-                
-            var name = element.TryGetProperty("name", out var nameProp) 
-                ? nameProp.GetString() ?? "" 
+
+            var name = element.TryGetProperty("name", out var nameProp)
+                ? nameProp.GetString() ?? ""
                 : "";
-                
+
             var argumentsJson = "{}";
             if (element.TryGetProperty("input", out var input))
             {
@@ -440,10 +448,10 @@ public class StructuredResponseFactory : IStructuredResponseFactory
         {
             var result = new StructuredToolResult
             {
-                CallId = element.TryGetProperty("tool_use_id", out var idProp) 
-                    ? idProp.GetString() ?? "" 
+                CallId = element.TryGetProperty("tool_use_id", out var idProp)
+                    ? idProp.GetString() ?? ""
                     : "",
-                IsSuccess = !element.TryGetProperty("is_error", out var errorProp) || 
+                IsSuccess = !element.TryGetProperty("is_error", out var errorProp) ||
                            !errorProp.GetBoolean()
             };
 
@@ -466,42 +474,44 @@ public class StructuredResponseFactory : IStructuredResponseFactory
         try
         {
             // Try common patterns
-            var id = element.TryGetProperty("id", out var idProp) 
-                ? idProp.GetString() ?? Guid.NewGuid().ToString() 
-                : element.TryGetProperty("call_id", out var callIdProp) 
+            var id = element.TryGetProperty("id", out var idProp)
+                ? idProp.GetString() ?? Guid.NewGuid().ToString()
+                : element.TryGetProperty("call_id", out var callIdProp)
                     ? callIdProp.GetString() ?? Guid.NewGuid().ToString()
                     : Guid.NewGuid().ToString();
 
-            var name = element.TryGetProperty("name", out var nameProp) 
+            var name = element.TryGetProperty("name", out var nameProp)
                 ? nameProp.GetString() ?? ""
-                : element.TryGetProperty("function", out var funcProp) 
+                : element.TryGetProperty("function", out var funcProp)
                     ? funcProp.GetString() ?? ""
-                    : element.TryGetProperty("tool", out var toolProp) 
+                    : element.TryGetProperty("tool", out var toolProp)
                         ? toolProp.GetString() ?? ""
                         : "";
 
             var argumentsJson = "{}";
             if (element.TryGetProperty("arguments", out var args))
             {
-                argumentsJson = args.ValueKind == JsonValueKind.String 
-                    ? args.GetString() ?? "{}" 
+                argumentsJson = args.ValueKind == JsonValueKind.String
+                    ? args.GetString() ?? "{}"
                     : args.GetRawText();
             }
             else if (element.TryGetProperty("parameters", out var parameters))
             {
-                argumentsJson = parameters.ValueKind == JsonValueKind.String 
-                    ? parameters.GetString() ?? "{}" 
+                argumentsJson = parameters.ValueKind == JsonValueKind.String
+                    ? parameters.GetString() ?? "{}"
                     : parameters.GetRawText();
             }
             else if (element.TryGetProperty("input", out var input))
             {
-                argumentsJson = input.ValueKind == JsonValueKind.String 
-                    ? input.GetString() ?? "{}" 
+                argumentsJson = input.ValueKind == JsonValueKind.String
+                    ? input.GetString() ?? "{}"
                     : input.GetRawText();
             }
 
             if (string.IsNullOrEmpty(name))
+            {
                 return null;
+            }
 
             return StructuredArgumentParser.CreateToolCall(id, name, argumentsJson);
         }
@@ -518,18 +528,18 @@ public class StructuredResponseFactory : IStructuredResponseFactory
         {
             return new TokenUsage
             {
-                InputTokens = usage.TryGetProperty("prompt_tokens", out var promptTokens) 
-                    ? promptTokens.GetInt32() 
-                    : usage.TryGetProperty("input_tokens", out var inputTokens) 
-                        ? inputTokens.GetInt32() 
+                InputTokens = usage.TryGetProperty("prompt_tokens", out var promptTokens)
+                    ? promptTokens.GetInt32()
+                    : usage.TryGetProperty("input_tokens", out var inputTokens)
+                        ? inputTokens.GetInt32()
                         : 0,
-                OutputTokens = usage.TryGetProperty("completion_tokens", out var completionTokens) 
-                    ? completionTokens.GetInt32() 
-                    : usage.TryGetProperty("output_tokens", out var outputTokens) 
-                        ? outputTokens.GetInt32() 
+                OutputTokens = usage.TryGetProperty("completion_tokens", out var completionTokens)
+                    ? completionTokens.GetInt32()
+                    : usage.TryGetProperty("output_tokens", out var outputTokens)
+                        ? outputTokens.GetInt32()
                         : 0,
-                TotalTokens = usage.TryGetProperty("total_tokens", out var totalTokens) 
-                    ? totalTokens.GetInt32() 
+                TotalTokens = usage.TryGetProperty("total_tokens", out var totalTokens)
+                    ? totalTokens.GetInt32()
                     : 0
             };
         }
@@ -555,7 +565,7 @@ public class StructuredResponseFactory : IStructuredResponseFactory
         {
             // Use reflection to extract data from OpenAI SDK types
             var type = chatCompletion.GetType();
-            
+
             // Get Content
             var contentProp = type.GetProperty("Content");
             if (contentProp != null)
@@ -574,8 +584,8 @@ public class StructuredResponseFactory : IStructuredResponseFactory
                                 var text = textProp.GetValue(item) as string;
                                 if (!string.IsNullOrEmpty(text))
                                 {
-                                    response.TextContent = string.IsNullOrEmpty(response.TextContent) 
-                                        ? text 
+                                    response.TextContent = string.IsNullOrEmpty(response.TextContent)
+                                        ? text
                                         : response.TextContent + text;
                                 }
                             }
@@ -610,7 +620,7 @@ public class StructuredResponseFactory : IStructuredResponseFactory
                         var tcType = toolCall.GetType();
                         var id = tcType.GetProperty("Id")?.GetValue(toolCall)?.ToString() ?? "";
                         var functionProp = tcType.GetProperty("Function");
-                        
+
                         if (functionProp != null)
                         {
                             var function = functionProp.GetValue(toolCall);
@@ -619,7 +629,7 @@ public class StructuredResponseFactory : IStructuredResponseFactory
                                 var funcType = function.GetType();
                                 var name = funcType.GetProperty("Name")?.GetValue(function)?.ToString() ?? "";
                                 var args = funcType.GetProperty("Arguments")?.GetValue(function)?.ToString() ?? "{}";
-                                
+
                                 response.ToolCalls.Add(StructuredArgumentParser.CreateToolCall(id, name, args));
                             }
                         }
@@ -666,7 +676,7 @@ public class StructuredResponseFactory : IStructuredResponseFactory
         try
         {
             var type = streamingUpdate.GetType();
-            
+
             // Get Content Update
             var contentUpdateProp = type.GetProperty("ContentUpdate");
             if (contentUpdateProp != null)
@@ -712,7 +722,7 @@ public class StructuredResponseFactory : IStructuredResponseFactory
         {
             // Use reflection for Anthropic SDK types
             var type = message.GetType();
-            
+
             // Extract content
             var contentProp = type.GetProperty("Content");
             if (contentProp != null)
@@ -772,8 +782,8 @@ public class StructuredResponseFactory : IStructuredResponseFactory
                     var text = textProp.GetValue(block)?.ToString();
                     if (!string.IsNullOrEmpty(text))
                     {
-                        response.TextContent = string.IsNullOrEmpty(response.TextContent) 
-                            ? text 
+                        response.TextContent = string.IsNullOrEmpty(response.TextContent)
+                            ? text
                             : response.TextContent + "\n" + text;
                     }
                 }
@@ -783,7 +793,7 @@ public class StructuredResponseFactory : IStructuredResponseFactory
                 var id = type.GetProperty("Id")?.GetValue(block)?.ToString() ?? Guid.NewGuid().ToString();
                 var name = type.GetProperty("Name")?.GetValue(block)?.ToString() ?? "";
                 var input = type.GetProperty("Input")?.GetValue(block);
-                
+
                 var argumentsJson = input != null ? JsonSerializer.Serialize(input) : "{}";
                 response.ToolCalls.Add(StructuredArgumentParser.CreateToolCall(id, name, argumentsJson));
             }
@@ -795,13 +805,13 @@ public class StructuredResponseFactory : IStructuredResponseFactory
                     Result = type.GetProperty("Content")?.GetValue(block),
                     IsSuccess = true
                 };
-                
+
                 var isErrorProp = type.GetProperty("IsError");
                 if (isErrorProp != null)
                 {
                     result.IsSuccess = !(bool)(isErrorProp.GetValue(block) ?? false);
                 }
-                
+
                 response.ToolResults.Add(result);
             }
         }

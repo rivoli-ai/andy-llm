@@ -33,19 +33,19 @@ public class OllamaProvider : ILlmProvider
         IHttpClientFactory? httpClientFactory = null)
     {
         _logger = logger;
-        
+
         // Load configuration
         var config = LoadConfiguration(options.Value);
-        
+
         _apiBase = config.ApiBase ?? Environment.GetEnvironmentVariable("OLLAMA_API_BASE") ?? "http://localhost:11434";
         _defaultModel = config.Model ?? Environment.GetEnvironmentVariable("OLLAMA_MODEL") ?? "gpt-oss:20b";
-        
+
         // Create HTTP client
         _httpClient = httpClientFactory?.CreateClient("Ollama") ?? new HttpClient();
         _httpClient.BaseAddress = new Uri(_apiBase);
         _httpClient.Timeout = TimeSpan.FromMinutes(5); // Longer timeout for local models
-        
-        _logger.LogInformation("Ollama provider initialized with endpoint: {Endpoint}, default model: {Model}", 
+
+        _logger.LogInformation("Ollama provider initialized with endpoint: {Endpoint}, default model: {Model}",
             _apiBase, _defaultModel);
     }
 
@@ -82,34 +82,34 @@ public class OllamaProvider : ILlmProvider
     public async Task<LlmResponse> CompleteAsync(LlmRequest request, CancellationToken cancellationToken = default)
     {
         var ollamaRequest = CreateOllamaRequest(request, stream: false);
-        
+
         try
         {
             var response = await _httpClient.PostAsJsonAsync(
                 "/api/chat",
                 ollamaRequest,
                 cancellationToken);
-            
+
             response.EnsureSuccessStatusCode();
-            
+
             var responseContent = await response.Content.ReadAsStringAsync(cancellationToken);
             _logger.LogDebug("Ollama raw response: {Response}", responseContent);
-            
+
             var ollamaResponse = System.Text.Json.JsonSerializer.Deserialize<OllamaChatResponse>(responseContent);
-            
+
             if (ollamaResponse == null)
             {
                 throw new InvalidOperationException("Received null response from Ollama");
             }
-            
+
             _logger.LogDebug("Ollama parsed message content: {Content}", ollamaResponse.Message?.Content ?? "(null)");
-            
+
             return ConvertResponse(ollamaResponse, request.Model ?? _defaultModel);
         }
         catch (HttpRequestException ex)
         {
             _logger.LogError("Ollama request failed: {Message}", ex.Message);
-            
+
             // Check if it's a 404 error (model not found)
             if (ex.StatusCode == System.Net.HttpStatusCode.NotFound)
             {
@@ -119,7 +119,7 @@ public class OllamaProvider : ILlmProvider
                     $"Please ensure the model is installed with 'ollama pull {modelName}' " +
                     $"or set OLLAMA_MODEL environment variable to an installed model (e.g., gpt-oss:20b, phi4:latest).", ex);
             }
-            
+
             throw new InvalidOperationException($"Ollama request failed: {ex.Message}", ex);
         }
     }
@@ -135,15 +135,15 @@ public class OllamaProvider : ILlmProvider
         {
             var response = await _httpClient.GetAsync("/api/tags", cancellationToken);
             response.EnsureSuccessStatusCode();
-            
+
             var content = await response.Content.ReadAsStringAsync(cancellationToken);
             var tagsResponse = JsonSerializer.Deserialize<OllamaTagsResponse>(content);
-            
+
             if (tagsResponse?.Models == null)
             {
                 return Enumerable.Empty<ModelInfo>();
             }
-            
+
             return tagsResponse.Models.Select(model => new ModelInfo
             {
                 Id = model.Name ?? string.Empty,
@@ -171,11 +171,15 @@ public class OllamaProvider : ILlmProvider
     private static DateTime? ParseDateTime(string? dateStr)
     {
         if (string.IsNullOrEmpty(dateStr))
+        {
             return null;
-            
+        }
+
         if (DateTime.TryParse(dateStr, out var date))
+        {
             return date;
-            
+        }
+
         return null;
     }
 
@@ -203,29 +207,29 @@ public class OllamaProvider : ILlmProvider
         [EnumeratorCancellation] CancellationToken cancellationToken = default)
     {
         var ollamaRequest = CreateOllamaRequest(request, stream: true);
-        
+
         HttpResponseMessage? response = null;
         Stream? stream = null;
         StreamReader? reader = null;
         string? errorMessage = null;
-        
+
         try
         {
             var content = new StringContent(
                 JsonSerializer.Serialize(ollamaRequest),
                 Encoding.UTF8,
                 "application/json");
-            
+
             response = await _httpClient.PostAsync("/api/chat", content, cancellationToken);
             response.EnsureSuccessStatusCode();
-            
+
             stream = await response.Content.ReadAsStreamAsync(cancellationToken);
             reader = new StreamReader(stream);
         }
         catch (HttpRequestException ex)
         {
             _logger.LogError(ex, "Ollama streaming request failed");
-            
+
             // Check if it's a 404 error (model not found)
             if (ex.StatusCode == System.Net.HttpStatusCode.NotFound)
             {
@@ -243,16 +247,18 @@ public class OllamaProvider : ILlmProvider
         {
             _logger.LogDebug("Ollama streaming cancelled");
         }
-        
+
         if (errorMessage != null)
         {
             yield return new LlmStreamResponse { Error = errorMessage };
             yield break;
         }
-        
+
         if (reader == null)
+        {
             yield break;
-        
+        }
+
         try
         {
             while (!reader.EndOfStream && !cancellationToken.IsCancellationRequested)
@@ -267,10 +273,12 @@ public class OllamaProvider : ILlmProvider
                     _logger.LogDebug("Ollama streaming cancelled during read");
                     break;
                 }
-                
+
                 if (string.IsNullOrWhiteSpace(line))
+                {
                     continue;
-                
+                }
+
                 OllamaStreamResponse? streamResponse;
                 try
                 {
@@ -281,10 +289,12 @@ public class OllamaProvider : ILlmProvider
                     _logger.LogWarning(ex, "Failed to parse Ollama stream response: {Line}", line);
                     continue;
                 }
-                
+
                 if (streamResponse == null)
+                {
                     continue;
-                
+                }
+
                 // Yield content
                 if (!string.IsNullOrEmpty(streamResponse.Message?.Content))
                 {
@@ -294,7 +304,7 @@ public class OllamaProvider : ILlmProvider
                         IsComplete = false
                     };
                 }
-                
+
                 // Check if complete
                 if (streamResponse.Done)
                 {
@@ -320,7 +330,7 @@ public class OllamaProvider : ILlmProvider
         {
             return config;
         }
-        
+
         // Fall back to environment variables
         return new ProviderConfig
         {
@@ -337,7 +347,7 @@ public class OllamaProvider : ILlmProvider
             Messages = new List<OllamaMessage>(),
             Stream = stream
         };
-        
+
         // Add system message if provided
         if (!string.IsNullOrEmpty(request.SystemPrompt))
         {
@@ -347,12 +357,12 @@ public class OllamaProvider : ILlmProvider
                 Content = request.SystemPrompt
             });
         }
-        
+
         // Convert messages
         foreach (var message in request.Messages)
         {
             var content = string.Join(" ", message.Parts.OfType<TextPart>().Select(p => p.Text));
-            
+
             ollamaRequest.Messages.Add(new OllamaMessage
             {
                 Role = message.Role switch
@@ -366,19 +376,23 @@ public class OllamaProvider : ILlmProvider
                 Content = content
             });
         }
-        
+
         // Set options
         if (request.Temperature.HasValue || request.MaxTokens.HasValue)
         {
             ollamaRequest.Options = new OllamaOptions();
-            
+
             if (request.Temperature.HasValue)
+            {
                 ollamaRequest.Options.Temperature = request.Temperature.Value;
-                
+            }
+
             if (request.MaxTokens.HasValue)
+            {
                 ollamaRequest.Options.NumPredict = request.MaxTokens.Value;
+            }
         }
-        
+
         return ollamaRequest;
     }
 
@@ -391,7 +405,7 @@ public class OllamaProvider : ILlmProvider
             content = ollamaResponse.Message.Thinking;
             _logger.LogDebug("Using 'thinking' field as content for model {Model}", model);
         }
-        
+
         return new LlmResponse
         {
             Content = content ?? string.Empty,
@@ -420,13 +434,13 @@ internal class OllamaChatRequest
 {
     [JsonPropertyName("model")]
     public required string Model { get; set; }
-    
+
     [JsonPropertyName("messages")]
     public required List<OllamaMessage> Messages { get; set; }
-    
+
     [JsonPropertyName("stream")]
     public bool Stream { get; set; }
-    
+
     [JsonPropertyName("options")]
     public OllamaOptions? Options { get; set; }
 }
@@ -435,10 +449,10 @@ internal class OllamaMessage
 {
     [JsonPropertyName("role")]
     public required string Role { get; set; }
-    
+
     [JsonPropertyName("content")]
     public required string Content { get; set; }
-    
+
     [JsonPropertyName("thinking")]
     public string? Thinking { get; set; }  // Some models like gpt-oss use this field
 }
@@ -447,13 +461,13 @@ internal class OllamaOptions
 {
     [JsonPropertyName("temperature")]
     public double? Temperature { get; set; }
-    
+
     [JsonPropertyName("num_predict")]
     public int? NumPredict { get; set; }
-    
+
     [JsonPropertyName("top_k")]
     public int? TopK { get; set; }
-    
+
     [JsonPropertyName("top_p")]
     public double? TopP { get; set; }
 }
@@ -462,31 +476,31 @@ internal class OllamaChatResponse
 {
     [JsonPropertyName("model")]
     public string? Model { get; set; }
-    
+
     [JsonPropertyName("created_at")]
     public string? CreatedAt { get; set; }
-    
+
     [JsonPropertyName("message")]
     public OllamaMessage? Message { get; set; }
-    
+
     [JsonPropertyName("done")]
     public bool Done { get; set; }
-    
+
     [JsonPropertyName("total_duration")]
     public long? TotalDuration { get; set; }
-    
+
     [JsonPropertyName("load_duration")]
     public long? LoadDuration { get; set; }
-    
+
     [JsonPropertyName("prompt_eval_count")]
     public int? PromptEvalCount { get; set; }
-    
+
     [JsonPropertyName("prompt_eval_duration")]
     public long? PromptEvalDuration { get; set; }
-    
+
     [JsonPropertyName("eval_count")]
     public int? EvalCount { get; set; }
-    
+
     [JsonPropertyName("eval_duration")]
     public long? EvalDuration { get; set; }
 }
@@ -506,16 +520,16 @@ internal class OllamaModelInfo
 {
     [JsonPropertyName("name")]
     public string? Name { get; set; }
-    
+
     [JsonPropertyName("modified_at")]
     public string? ModifiedAt { get; set; }
-    
+
     [JsonPropertyName("size")]
     public long? Size { get; set; }
-    
+
     [JsonPropertyName("digest")]
     public string? Digest { get; set; }
-    
+
     [JsonPropertyName("details")]
     public OllamaModelDetails? Details { get; set; }
 }
@@ -524,16 +538,16 @@ internal class OllamaModelDetails
 {
     [JsonPropertyName("format")]
     public string? Format { get; set; }
-    
+
     [JsonPropertyName("family")]
     public string? Family { get; set; }
-    
+
     [JsonPropertyName("families")]
     public List<string>? Families { get; set; }
-    
+
     [JsonPropertyName("parameter_size")]
     public string? ParameterSize { get; set; }
-    
+
     [JsonPropertyName("quantization_level")]
     public string? QuantizationLevel { get; set; }
 }

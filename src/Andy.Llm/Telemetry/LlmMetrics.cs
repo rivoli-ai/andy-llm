@@ -262,7 +262,7 @@ public static class LlmMetricsExtensions
     {
         var stopwatch = Stopwatch.StartNew();
         metrics.IncrementActiveRequests(provider);
-        
+
         try
         {
             metrics.RecordRequest(provider, model);

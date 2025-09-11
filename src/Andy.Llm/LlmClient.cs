@@ -196,10 +196,14 @@ public class LlmClient
     private async Task<ILlmProvider> GetProviderAsync(CancellationToken cancellationToken)
     {
         if (_provider != null)
+        {
             return _provider;
+        }
 
         if (_providerFactory != null)
+        {
             return await _providerFactory.CreateAvailableProviderAsync(cancellationToken);
+        }
 
         // Legacy compatibility - create a provider from the OpenAI client
         if (_openAiClient != null)

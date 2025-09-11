@@ -168,10 +168,10 @@ public class ConversationContext
     public LlmRequest CreateRequest(string? model = null)
     {
         // Filter out system messages if SystemPrompt is being used
-        var messagesToInclude = !string.IsNullOrEmpty(SystemInstruction) 
+        var messagesToInclude = !string.IsNullOrEmpty(SystemInstruction)
             ? _messages.Where(m => m.Role != MessageRole.System).ToList()
             : new List<Message>(_messages);
-            
+
         return new LlmRequest
         {
             Messages = messagesToInclude,
@@ -188,8 +188,8 @@ public class ConversationContext
     {
         // Keep system message if present
         var systemMessage = _messages.FirstOrDefault(m => m.Role == MessageRole.System);
-        var messagesToTrim = systemMessage != null 
-            ? _messages.Skip(1).ToList() 
+        var messagesToTrim = systemMessage != null
+            ? _messages.Skip(1).ToList()
             : _messages.ToList();
 
         // Trim by message count
@@ -213,18 +213,18 @@ public class ConversationContext
     public string GetSummary()
     {
         var lines = new List<string>();
-        
+
         foreach (var message in _messages)
         {
             var role = message.Role.ToString();
             var content = string.Join(" ", message.Parts.OfType<TextPart>().Select(p => p.Text));
-            
+
             if (!string.IsNullOrEmpty(content))
             {
                 lines.Add($"{role}: {content}");
             }
         }
-        
+
         return string.Join("\n", lines);
     }
 }
