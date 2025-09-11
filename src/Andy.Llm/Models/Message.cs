@@ -8,7 +8,7 @@ public class Message
     /// <summary>
     /// The role of the message sender
     /// </summary>
-    public required MessageRole Role { get; set; }
+    public MessageRole Role { get; set; }
 
     /// <summary>
     /// The message parts (text, tool calls, etc.)
@@ -70,10 +70,10 @@ public class TextPart : MessagePart
     /// <summary>
     /// The text content
     /// </summary>
-    public required string Text { get; set; }
+    public string Text { get; set; } = string.Empty;
 
     /// <inheritdoc />
-    public override int GetCharacterCount() => Text.Length;
+    public override int GetCharacterCount() => Text?.Length ?? 0;
 }
 
 /// <summary>
@@ -84,12 +84,12 @@ public class ToolCallPart : MessagePart
     /// <summary>
     /// Name of the tool to call
     /// </summary>
-    public required string ToolName { get; set; }
+    public string ToolName { get; set; } = string.Empty;
 
     /// <summary>
     /// Unique identifier for this call
     /// </summary>
-    public required string CallId { get; set; }
+    public string CallId { get; set; } = string.Empty;
 
     /// <summary>
     /// Arguments to pass to the tool
@@ -112,12 +112,12 @@ public class ToolResponsePart : MessagePart
     /// <summary>
     /// Name of the tool that was called
     /// </summary>
-    public required string ToolName { get; set; }
+    public string ToolName { get; set; } = string.Empty;
 
     /// <summary>
     /// The call ID this is responding to
     /// </summary>
-    public required string CallId { get; set; }
+    public string CallId { get; set; } = string.Empty;
 
     /// <summary>
     /// The response from the tool
