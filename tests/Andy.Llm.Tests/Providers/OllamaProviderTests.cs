@@ -3,6 +3,7 @@ using System.Text;
 using Andy.Llm.Configuration;
 using Andy.Llm.Models;
 using Andy.Llm.Providers;
+using Andy.Context.Model;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
 using Moq;
@@ -160,14 +161,7 @@ public class OllamaProviderTests
         {
             Messages = new List<Message>
             {
-                new Message
-                {
-                    Role = MessageRole.User,
-                    Parts = new List<MessagePart>
-                    {
-                        new TextPart { Text = "Hello" }
-                    }
-                }
+                new Message { Role = Role.User, Content = "Hello" }
             },
             MaxTokens = 10
         };
@@ -227,14 +221,7 @@ public class OllamaProviderTests
         {
             Messages = new List<Message>
             {
-                new Message
-                {
-                    Role = MessageRole.User,
-                    Parts = new List<MessagePart>
-                    {
-                        new TextPart { Text = "Hello" }
-                    }
-                }
+                new Message { Role = Role.User, Content = "Hello" }
             }
         };
 
@@ -266,14 +253,7 @@ public class OllamaProviderTests
         {
             Messages = new List<Message>
             {
-                new Message
-                {
-                    Role = MessageRole.User,
-                    Parts = new List<MessagePart>
-                    {
-                        new TextPart { Text = "Hello" }
-                    }
-                }
+                new Message { Role = Role.User, Content = "Hello" }
             }
         };
 
@@ -325,14 +305,7 @@ public class OllamaProviderTests
         {
             Messages = new List<Message>
             {
-                new Message
-                {
-                    Role = MessageRole.User,
-                    Parts = new List<MessagePart>
-                    {
-                        new TextPart { Text = "Hello" }
-                    }
-                }
+                new Message { Role = Role.User, Content = "Hello" }
             }
         };
 
@@ -370,14 +343,7 @@ public class OllamaProviderTests
             SystemPrompt = "You are a helpful assistant",
             Messages = new List<Message>
             {
-                new Message
-                {
-                    Role = MessageRole.User,
-                    Parts = new List<MessagePart>
-                    {
-                        new TextPart { Text = "Hello" }
-                    }
-                }
+                new Message { Role = Role.User, Content = "Hello" }
             },
             Temperature = 0.7,
             MaxTokens = 100

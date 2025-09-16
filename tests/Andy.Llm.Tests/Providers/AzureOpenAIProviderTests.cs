@@ -3,6 +3,7 @@ using System.Text;
 using Andy.Llm.Configuration;
 using Andy.Llm.Models;
 using Andy.Llm.Providers;
+using Andy.Context.Model;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
 using Moq;
@@ -139,14 +140,7 @@ public class AzureOpenAIProviderTests
         {
             Messages = new List<Message>
             {
-                new Message
-                {
-                    Role = MessageRole.User,
-                    Parts = new List<MessagePart>
-                    {
-                        new TextPart { Text = "Say hello" }
-                    }
-                }
+                new Message { Role = Role.User, Content = "Say hello" }
             },
             MaxTokens = 10
         };
@@ -173,14 +167,7 @@ public class AzureOpenAIProviderTests
         {
             Messages = new List<Message>
             {
-                new Message
-                {
-                    Role = MessageRole.User,
-                    Parts = new List<MessagePart>
-                    {
-                        new TextPart { Text = "Count to 5" }
-                    }
-                }
+                new Message { Role = Role.User, Content = "Count to 5" }
             },
             MaxTokens = 50
         };

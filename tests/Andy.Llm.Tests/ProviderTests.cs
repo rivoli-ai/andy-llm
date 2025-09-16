@@ -6,6 +6,7 @@ using Andy.Llm.Configuration;
 using Andy.Llm.Extensions;
 using Andy.Llm.Services;
 using Andy.Llm.Providers;
+using Andy.Context.Model;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.Logging;
@@ -152,19 +153,18 @@ public class ProviderTests
 
         // Assert
         Assert.Equal(5, context.Messages.Count);
-        Assert.Equal(MessageRole.System, context.Messages[0].Role);
-        Assert.Equal(MessageRole.User, context.Messages[1].Role);
-        Assert.Equal(MessageRole.Assistant, context.Messages[2].Role);
-        Assert.Equal(MessageRole.Assistant, context.Messages[3].Role);
-        Assert.Equal(MessageRole.Tool, context.Messages[4].Role);
+        Assert.Equal(Role.System, context.Messages[0].Role);
+        Assert.Equal(Role.User, context.Messages[1].Role);
+        Assert.Equal(Role.Assistant, context.Messages[2].Role);
+        Assert.Equal(Role.Assistant, context.Messages[3].Role);
+        Assert.Equal(Role.Tool, context.Messages[4].Role);
 
-        // Check tool call part
+        // Check tool call in assistant message
         var toolCallMessage = context.Messages[3];
-        Assert.Single(toolCallMessage.Parts);
-        var toolCallPart = toolCallMessage.Parts[0] as ToolCallPart;
-        Assert.NotNull(toolCallPart);
-        Assert.Equal("get_weather", toolCallPart.ToolName);
-        Assert.Equal("call_123", toolCallPart.CallId);
-        Assert.NotNull(toolCallPart.Arguments);
+        Assert.NotNull(toolCallMessage.ToolCalls);
+        Assert.Single(toolCallMessage.ToolCalls);
+        Assert.Equal("get_weather", toolCallMessage.ToolCalls[0].Name);
+        Assert.Equal("call_123", toolCallMessage.ToolCalls[0].Id);
+        Assert.NotNull(toolCallMessage.ToolCalls[0].ArgumentsJson);
     }
 }

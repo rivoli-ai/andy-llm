@@ -2,6 +2,7 @@ using Xunit;
 using Andy.Llm;
 using Andy.Llm.Models;
 using Andy.Llm.Abstractions;
+using Andy.Context.Model;
 using Moq;
 using Microsoft.Extensions.Logging;
 
@@ -32,7 +33,7 @@ public class FunctionCallingTests
         {
             Messages = new List<Message>
             {
-                Message.CreateText(MessageRole.User, "What's the weather in New York?")
+                new Message { Role = Role.User, Content = "What's the weather in New York?" }
             },
             Tools = new List<ToolDeclaration>
             {
@@ -117,14 +118,12 @@ public class FunctionCallingTests
         // Assert
         Assert.Single(context.Messages);
         var message = context.Messages[0];
-        Assert.Equal(MessageRole.Tool, message.Role);
-        Assert.Single(message.Parts);
-
-        var toolPart = message.Parts[0] as ToolResponsePart;
-        Assert.NotNull(toolPart);
-        Assert.Equal("get_weather", toolPart.ToolName);
-        Assert.Equal("call_123", toolPart.CallId);
-        Assert.NotNull(toolPart.Response);
+        Assert.Equal(Role.Tool, message.Role);
+        Assert.NotNull(message.ToolResults);
+        Assert.Single(message.ToolResults);
+        Assert.Equal("get_weather", message.ToolResults[0].Name);
+        Assert.Equal("call_123", message.ToolResults[0].CallId);
+        Assert.NotNull(message.ToolResults[0].ResultJson);
     }
 
     [Fact]
@@ -148,17 +147,12 @@ public class FunctionCallingTests
         // Assert
         Assert.Single(context.Messages);
         var message = context.Messages[0];
-        Assert.Equal(MessageRole.Assistant, message.Role);
-        Assert.Equal(2, message.Parts.Count); // Text + tool call
-
-        var textPart = message.Parts[0] as TextPart;
-        Assert.NotNull(textPart);
-        Assert.Equal("Let me check the weather", textPart.Text);
-
-        var toolCallPart = message.Parts[1] as ToolCallPart;
-        Assert.NotNull(toolCallPart);
-        Assert.Equal("get_weather", toolCallPart.ToolName);
-        Assert.Equal("call_1", toolCallPart.CallId);
+        Assert.Equal(Role.Assistant, message.Role);
+        Assert.Equal("Let me check the weather", message.Content);
+        Assert.NotNull(message.ToolCalls);
+        Assert.Single(message.ToolCalls);
+        Assert.Equal("get_weather", message.ToolCalls[0].Name);
+        Assert.Equal("call_1", message.ToolCalls[0].Id);
     }
 
     [Fact]
@@ -169,7 +163,7 @@ public class FunctionCallingTests
         {
             Messages = new List<Message>
             {
-                Message.CreateText(MessageRole.User, "Calculate 34*12")
+                new Message { Role = Role.User, Content = "Calculate 34*12" }
             }
         };
 

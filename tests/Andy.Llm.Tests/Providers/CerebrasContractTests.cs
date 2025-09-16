@@ -1,6 +1,7 @@
 using Xunit;
 using Andy.Llm.Models;
 using Andy.Llm.Abstractions;
+using Andy.Context.Model;
 using Microsoft.Extensions.Logging;
 
 namespace Andy.Llm.Tests.Providers;
@@ -43,7 +44,7 @@ public class CerebrasContractTests
         var logger = new Microsoft.Extensions.Logging.Abstractions.NullLogger<Andy.Llm.LlmClient>();
         var client = new Andy.Llm.LlmClient(provider, logger);
 
-        var req = new LlmRequest { Messages = new List<Message> { Message.CreateText(MessageRole.User, "hi") } };
+        var req = new LlmRequest { Messages = new List<Message> { new Message { Role = Role.User, Content = "hi" } } };
 
         var chunks = new List<LlmStreamResponse>();
         await foreach (var chunk in provider.StreamCompleteAsync(req))

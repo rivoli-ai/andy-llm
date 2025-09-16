@@ -4,6 +4,7 @@ using Andy.Llm.Abstractions;
 using Andy.Llm.Configuration;
 using Andy.Llm.Models;
 using Andy.Llm.Services;
+using Andy.Context.Model;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
 using Moq;
@@ -110,7 +111,7 @@ public class LlmClientTests
         {
             Messages = new List<Message>
             {
-                Message.CreateText(MessageRole.User, "Hello")
+                new Message { Role = Role.User, Content = "Hello" }
             }
         };
 

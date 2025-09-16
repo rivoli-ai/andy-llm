@@ -1,6 +1,7 @@
 using Xunit;
 using Andy.Llm.Models;
 using Andy.Llm.Abstractions;
+using Andy.Context.Model;
 using Microsoft.Extensions.Logging;
 using Moq;
 
@@ -38,7 +39,7 @@ public class OpenAIContractTests
 
         var req = new LlmRequest
         {
-            Messages = new List<Message> { Message.CreateText(MessageRole.User, "weather?") },
+            Messages = new List<Message> { new Message { Role = Role.User, Content = "weather?" } },
             Functions = new List<ToolDeclaration> // alias should work
             {
                 new ToolDeclaration { Name = "get_weather", Description = "Get weather", Parameters = new Dictionary<string, object>() }

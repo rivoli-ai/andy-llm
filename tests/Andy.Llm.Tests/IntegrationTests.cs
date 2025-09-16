@@ -5,6 +5,7 @@ using Andy.Llm.Models;
 using Andy.Llm.Configuration;
 using Andy.Llm.Extensions;
 using Andy.Llm.Services;
+using Andy.Context.Model;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.Logging;
@@ -41,7 +42,7 @@ public class IntegrationTests : IClassFixture<IntegrationTestFixture>
         {
             Messages = new List<Message>
             {
-                Message.CreateText(MessageRole.User, "Say 'Hello, World!' and nothing else.")
+                new Message { Role = Role.User, Content = "Say 'Hello, World!' and nothing else." }
             },
             Model = "gpt-4o-mini",
             MaxTokens = 50,
@@ -72,7 +73,7 @@ public class IntegrationTests : IClassFixture<IntegrationTestFixture>
         {
             Messages = new List<Message>
             {
-                Message.CreateText(MessageRole.User, "Say 'Hello, World!' and nothing else.")
+                new Message { Role = Role.User, Content = "Say 'Hello, World!' and nothing else." }
             },
             Model = "llama3.1-8b",
             MaxTokens = 50,
@@ -103,7 +104,7 @@ public class IntegrationTests : IClassFixture<IntegrationTestFixture>
         {
             Messages = new List<Message>
             {
-                Message.CreateText(MessageRole.User, "Count from 1 to 5.")
+                new Message { Role = Role.User, Content = "Count from 1 to 5." }
             },
             Model = "gpt-4o-mini",
             MaxTokens = 100,
@@ -141,9 +142,9 @@ public class IntegrationTests : IClassFixture<IntegrationTestFixture>
         context.AddAssistantMessage("2+2 equals 4.");
 
         Assert.Equal(5, context.Messages.Count); // System + 4 messages
-        Assert.Equal(MessageRole.System, context.Messages[0].Role);
-        Assert.Equal(MessageRole.User, context.Messages[1].Role);
-        Assert.Equal(MessageRole.Assistant, context.Messages[2].Role);
+        Assert.Equal(Role.System, context.Messages[0].Role);
+        Assert.Equal(Role.User, context.Messages[1].Role);
+        Assert.Equal(Role.Assistant, context.Messages[2].Role);
 
         var request = context.CreateRequest("gpt-4");
         Assert.Equal("gpt-4", request.Model);
@@ -200,12 +201,11 @@ public class IntegrationTests : IClassFixture<IntegrationTestFixture>
         Assert.Equal(3, context.Messages.Count); // User + Assistant with tool call + Tool response
 
         var toolMessage = context.Messages.Last();
-        Assert.Equal(MessageRole.Tool, toolMessage.Role);
-
-        var toolPart = toolMessage.Parts[0] as ToolResponsePart;
-        Assert.NotNull(toolPart);
-        Assert.Equal("get_weather", toolPart.ToolName);
-        Assert.Equal("call_123", toolPart.CallId);
+        Assert.Equal(Role.Tool, toolMessage.Role);
+        Assert.NotNull(toolMessage.ToolResults);
+        Assert.Single(toolMessage.ToolResults);
+        Assert.Equal("get_weather", toolMessage.ToolResults[0].Name);
+        Assert.Equal("call_123", toolMessage.ToolResults[0].CallId);
 
         return Task.CompletedTask;
     }

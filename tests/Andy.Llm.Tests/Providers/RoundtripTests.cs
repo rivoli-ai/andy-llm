@@ -1,6 +1,7 @@
 using Xunit;
 using Andy.Llm.Models;
 using Andy.Llm.Abstractions;
+using Andy.Context.Model;
 using Microsoft.Extensions.Logging;
 
 namespace Andy.Llm.Tests.Providers;
@@ -55,7 +56,7 @@ public class RoundtripTests
         var logger = new Microsoft.Extensions.Logging.Abstractions.NullLogger<Andy.Llm.LlmClient>();
         var client = new Andy.Llm.LlmClient(provider, logger);
 
-        var req = new LlmRequest { Messages = new List<Message> { Message.CreateText(MessageRole.User, "test") } };
+        var req = new LlmRequest { Messages = new List<Message> { new Message { Role = Role.User, Content = "test" } } };
         var res = await client.CompleteAsync(req);
 
         Assert.Equal("I'll call two tools.", res.Content);
@@ -69,7 +70,7 @@ public class RoundtripTests
     public async Task StreamCompleteAsync_ShouldReturnTextDeltas_ToolCalls_AndFinishReason()
     {
         var provider = new StubRoundtripProvider();
-        var req = new LlmRequest { Messages = new List<Message> { Message.CreateText(MessageRole.User, "stream") } };
+        var req = new LlmRequest { Messages = new List<Message> { new Message { Role = Role.User, Content = "stream" } } };
 
         var chunks = new List<LlmStreamResponse>();
         await foreach (var c in provider.StreamCompleteAsync(req))

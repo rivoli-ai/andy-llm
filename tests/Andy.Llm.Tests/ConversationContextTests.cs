@@ -1,5 +1,6 @@
 using Xunit;
 using Andy.Llm.Models;
+using Andy.Context.Model;
 
 namespace Andy.Llm.Tests;
 
@@ -35,12 +36,8 @@ public class ConversationContextTests
         // Assert
         Assert.Single(context.Messages);
         var message = context.Messages[0];
-        Assert.Equal(MessageRole.User, message.Role);
-        Assert.Single(message.Parts);
-
-        var textPart = message.Parts[0] as TextPart;
-        Assert.NotNull(textPart);
-        Assert.Equal("Hello, world!", textPart.Text);
+        Assert.Equal(Role.User, message.Role);
+        Assert.Equal("Hello, world!", message.Content);
     }
 
     [Fact]
@@ -57,8 +54,8 @@ public class ConversationContextTests
 
         // Assert
         Assert.Equal(2, context.Messages.Count);
-        Assert.Equal(MessageRole.System, context.Messages[0].Role);
-        Assert.Equal(MessageRole.User, context.Messages[1].Role);
+        Assert.Equal(Role.System, context.Messages[0].Role);
+        Assert.Equal(Role.User, context.Messages[1].Role);
     }
 
     [Fact]
@@ -157,13 +154,12 @@ public class ConversationContextTests
         // Assert
         Assert.Single(context.Messages);
         var message = context.Messages[0];
-        Assert.Equal(MessageRole.Tool, message.Role);
-
-        var toolPart = message.Parts[0] as ToolResponsePart;
-        Assert.NotNull(toolPart);
-        Assert.Equal("weather", toolPart.ToolName);
-        Assert.Equal("call_123", toolPart.CallId);
-        Assert.NotNull(toolPart.Response);
+        Assert.Equal(Role.Tool, message.Role);
+        Assert.NotNull(message.ToolResults);
+        Assert.Single(message.ToolResults);
+        Assert.Equal("weather", message.ToolResults[0].Name);
+        Assert.Equal("call_123", message.ToolResults[0].CallId);
+        Assert.NotNull(message.ToolResults[0].ResultJson);
     }
 
     [Fact]
@@ -193,20 +189,16 @@ public class ConversationContextTests
         // Assert
         Assert.Single(context.Messages);
         var message = context.Messages[0];
-        Assert.Equal(MessageRole.Assistant, message.Role);
-        Assert.Equal(3, message.Parts.Count); // 1 text + 2 tool calls
+        Assert.Equal(Role.Assistant, message.Role);
+        Assert.Equal("I'll check that", message.Content);
+        Assert.NotNull(message.ToolCalls);
+        Assert.Equal(2, message.ToolCalls.Count);
 
-        var textPart = message.Parts[0] as TextPart;
-        Assert.NotNull(textPart);
-        Assert.Equal("I'll check that", textPart.Text);
+        Assert.Equal("get_weather", message.ToolCalls[0].Name);
+        Assert.Equal("call_1", message.ToolCalls[0].Id);
 
-        var toolCall1 = message.Parts[1] as ToolCallPart;
-        Assert.NotNull(toolCall1);
-        Assert.Equal("get_weather", toolCall1.ToolName);
-
-        var toolCall2 = message.Parts[2] as ToolCallPart;
-        Assert.NotNull(toolCall2);
-        Assert.Equal("get_time", toolCall2.ToolName);
+        Assert.Equal("get_time", message.ToolCalls[1].Name);
+        Assert.Equal("call_2", message.ToolCalls[1].Id);
     }
 
     [Fact]
