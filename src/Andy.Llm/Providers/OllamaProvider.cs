@@ -3,9 +3,11 @@ using System.Runtime.CompilerServices;
 using System.Text;
 using System.Text.Json;
 using System.Text.Json.Serialization;
-using Andy.Llm.Abstractions;
+using Andy.Llm.Providers;
 using Andy.Llm.Configuration;
-using Andy.Llm.Models;
+using Andy.Model.Llm;
+using Andy.Model.Model;
+using Andy.Model.Tooling;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
 
@@ -150,7 +152,7 @@ public class OllamaProvider : ILlmProvider
                 Name = model.Name ?? string.Empty,
                 Provider = "ollama",
                 Description = model.Details?.Format ?? "Local model",
-                Created = ParseDateTime(model.ModifiedAt),
+                UpdatedAt = ParseDateTime(model.ModifiedAt) is DateTime dt ? new DateTimeOffset(dt) : null,
                 Family = model.Details?.Family,
                 ParameterSize = model.Details?.ParameterSize,
                 Metadata = new Dictionary<string, object>
@@ -300,7 +302,7 @@ public class OllamaProvider : ILlmProvider
                 {
                     yield return new LlmStreamResponse
                     {
-                        TextDelta = streamResponse.Message.Content,
+                        Delta = new Message { Role = Role.Assistant, Content = streamResponse.Message.Content },
                         IsComplete = false
                     };
                 }
@@ -378,20 +380,9 @@ public class OllamaProvider : ILlmProvider
         }
 
         // Set options
-        if (request.Temperature.HasValue || request.MaxTokens.HasValue)
-        {
-            ollamaRequest.Options = new OllamaOptions();
-
-            if (request.Temperature.HasValue)
-            {
-                ollamaRequest.Options.Temperature = request.Temperature.Value;
-            }
-
-            if (request.MaxTokens.HasValue)
-            {
-                ollamaRequest.Options.NumPredict = request.MaxTokens.Value;
-            }
-        }
+        ollamaRequest.Options = new OllamaOptions();
+        ollamaRequest.Options.Temperature = (double)request.Temperature;
+        ollamaRequest.Options.NumPredict = request.MaxTokens;
 
         return ollamaRequest;
     }
@@ -408,11 +399,13 @@ public class OllamaProvider : ILlmProvider
 
         return new LlmResponse
         {
-            Content = content ?? string.Empty,
+            AssistantMessage = new Message
+            {
+                Role = Role.Assistant,
+                Content = content ?? string.Empty
+            },
             Model = model,
-            FunctionCalls = new List<FunctionCall>(), // Ollama doesn't support function calling yet
-            TokensUsed = ollamaResponse.PromptEvalCount + ollamaResponse.EvalCount,
-            Usage = new TokenUsage
+            Usage = new LlmUsage
             {
                 PromptTokens = ollamaResponse.PromptEvalCount ?? 0,
                 CompletionTokens = ollamaResponse.EvalCount ?? 0,

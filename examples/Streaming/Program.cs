@@ -1,6 +1,7 @@
-using Andy.Llm;
+using Andy.Model.Llm;
+using Andy.Model.Model;
 using Andy.Llm.Extensions;
-using Andy.Llm.Models;
+using Andy.Llm.Providers;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
 using Andy.Llm.Examples.Shared;
@@ -39,22 +40,23 @@ public class StreamingExample
                 return;
             }
 
-            var llmClient = serviceProvider.GetRequiredService<LlmClient>();
+            var factory = serviceProvider.GetRequiredService<ILlmProviderFactory>();
+            var llmProvider = await factory.CreateAvailableProviderAsync();
 
             // Example 1: Basic streaming
-            await BasicStreaming(llmClient, logger);
+            await BasicStreaming(llmProvider, logger);
 
             // Example 2: Streaming with cancellation
-            await StreamingWithCancellation(llmClient, logger);
+            await StreamingWithCancellation(llmProvider, logger);
 
             // Example 3: Streaming with progress display
-            await StreamingWithProgress(llmClient, logger);
+            await StreamingWithProgress(llmProvider, logger);
 
             // Example 4: Streaming with error handling
-            await StreamingWithErrorHandling(llmClient, logger);
+            await StreamingWithErrorHandling(llmProvider, logger);
 
             // Example 5: Streaming function calls
-            await StreamingWithFunctionCalls(llmClient, logger);
+            await StreamingWithFunctionCalls(llmProvider, logger);
 
             logger.LogInformation("\nStreaming examples completed!");
         }
@@ -64,7 +66,7 @@ public class StreamingExample
         }
     }
 
-    static async Task BasicStreaming(LlmClient client, ILogger logger)
+    static async Task BasicStreaming(Andy.Llm.Providers.ILlmProvider provider, ILogger logger)
     {
         logger.LogInformation("\n=== Example 1: Basic Streaming ===");
 
@@ -72,16 +74,16 @@ public class StreamingExample
         {
             Messages = new List<Message>
             {
-                Message.CreateText(MessageRole.User, "Write a short poem about programming.")
+                new Message { Role = Role.User, Content = "Write a short poem about programming." }
             },
-            Model = "gpt-4o-mini",
-            Stream = true
+            Config = new LlmClientConfig { Model = "gpt-4o-mini",
+            MaxTokens = 1000 }
         };
 
         logger.LogInformation("Streaming response:");
         try
         {
-            await foreach (var chunk in client.StreamCompleteAsync(request))
+            await foreach (var chunk in provider.StreamCompleteAsync(request))
             {
                 if (!string.IsNullOrEmpty(chunk.TextDelta))
                 {
@@ -106,7 +108,7 @@ public class StreamingExample
         }
     }
 
-    static async Task StreamingWithCancellation(LlmClient client, ILogger logger)
+    static async Task StreamingWithCancellation(Andy.Llm.Providers.ILlmProvider provider, ILogger logger)
     {
         logger.LogInformation("\n=== Example 2: Streaming with Cancellation ===");
 
@@ -115,10 +117,10 @@ public class StreamingExample
         {
             Messages = new List<Message>
             {
-                Message.CreateText(MessageRole.User, "Count from 1 to 100 slowly, one number at a time.")
+                new Message { Role = Role.User, Content = "Count from 1 to 100 slowly, one number at a time." }
             },
-            Model = "gpt-4o-mini",
-            Stream = true
+            Config = new LlmClientConfig { Model = "gpt-4o-mini",
+            MaxTokens = 1000 }
         };
 
         logger.LogInformation("Streaming (will cancel after 2 seconds):");
@@ -128,7 +130,7 @@ public class StreamingExample
 
         try
         {
-            await foreach (var chunk in client.StreamCompleteAsync(request, cts.Token))
+            await foreach (var chunk in provider.StreamCompleteAsync(request, cts.Token))
             {
                 if (!string.IsNullOrEmpty(chunk.TextDelta))
                 {
@@ -146,7 +148,7 @@ public class StreamingExample
         }
     }
 
-    static async Task StreamingWithProgress(LlmClient client, ILogger logger)
+    static async Task StreamingWithProgress(Andy.Llm.Providers.ILlmProvider provider, ILogger logger)
     {
         logger.LogInformation("\n=== Example 3: Streaming with Progress ===");
 
@@ -154,10 +156,10 @@ public class StreamingExample
         {
             Messages = new List<Message>
             {
-                Message.CreateText(MessageRole.User, "List 5 programming languages with brief descriptions.")
+                new Message { Role = Role.User, Content = "List 5 programming languages with brief descriptions." }
             },
-            Model = "gpt-4o-mini",
-            Stream = true
+            Config = new LlmClientConfig { Model = "gpt-4o-mini",
+            MaxTokens = 1000 }
         };
 
         logger.LogInformation("Streaming response with character count:");
@@ -167,7 +169,7 @@ public class StreamingExample
 
         try
         {
-            await foreach (var chunk in client.StreamCompleteAsync(request))
+            await foreach (var chunk in provider.StreamCompleteAsync(request))
             {
                 if (!string.IsNullOrEmpty(chunk.TextDelta))
                 {
@@ -189,7 +191,7 @@ public class StreamingExample
         }
     }
 
-    static async Task StreamingWithErrorHandling(LlmClient client, ILogger logger)
+    static async Task StreamingWithErrorHandling(Andy.Llm.Providers.ILlmProvider provider, ILogger logger)
     {
         logger.LogInformation("\n=== Example 4: Streaming with Error Handling ===");
 
@@ -198,18 +200,16 @@ public class StreamingExample
         {
             Messages = new List<Message>
             {
-                Message.CreateText(MessageRole.User, "Generate a simple greeting.")
+                new Message { Role = Role.User, Content = "Generate a simple greeting." }
             },
-            Model = "gpt-4o-mini",
-            Stream = true,
-            MaxTokens = 10  // Very low token limit to demonstrate handling
+            Config = new LlmClientConfig { Model = "gpt-4o-mini", MaxTokens = 10 }  // Very low token limit to demonstrate handling
         };
 
         logger.LogInformation("Streaming with error handling:");
 
         try
         {
-            await foreach (var chunk in client.StreamCompleteAsync(request))
+            await foreach (var chunk in provider.StreamCompleteAsync(request))
             {
                 if (!string.IsNullOrEmpty(chunk.TextDelta))
                 {
@@ -238,7 +238,7 @@ public class StreamingExample
         }
     }
 
-    static async Task StreamingWithFunctionCalls(LlmClient client, ILogger logger)
+    static async Task StreamingWithFunctionCalls(Andy.Llm.Providers.ILlmProvider provider, ILogger logger)
     {
         logger.LogInformation("\n=== Example 5: Streaming with Complex Content ===");
         logger.LogInformation("Demonstrating streaming with a more complex request\n");
@@ -249,12 +249,10 @@ public class StreamingExample
         {
             Messages = new List<Message>
             {
-                Message.CreateText(MessageRole.System, "You are a helpful assistant that explains things step by step."),
-                Message.CreateText(MessageRole.User, "Calculate 15% of 240 and show your work.")
+                new Message { Role = Role.System, Content = "You are a helpful assistant that explains things step by step." },
+                new Message { Role = Role.User, Content = "Calculate 15% of 240 and show your work." }
             },
-            Model = "gpt-4o-mini",
-            Stream = true,
-            MaxTokens = 200
+            Config = new LlmClientConfig { Model = "gpt-4o-mini", MaxTokens = 200 }
         };
 
         logger.LogInformation("Streaming response with step-by-step calculation:");
@@ -263,7 +261,7 @@ public class StreamingExample
         {
             int chunkCount = 0;
 
-            await foreach (var chunk in client.StreamCompleteAsync(request))
+            await foreach (var chunk in provider.StreamCompleteAsync(request))
             {
                 if (!string.IsNullOrEmpty(chunk.TextDelta))
                 {

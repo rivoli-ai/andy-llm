@@ -4,9 +4,11 @@ using System.Net.Http.Headers;
 using System.Runtime.CompilerServices;
 using System.Text.Json;
 using System.Text.Json.Serialization;
-using Andy.Llm.Abstractions;
+using Andy.Llm.Providers;
 using Andy.Llm.Configuration;
-using Andy.Llm.Models;
+using Andy.Model.Llm;
+using Andy.Model.Model;
+using Andy.Model.Tooling;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
 using OpenAI;
@@ -137,7 +139,7 @@ public class OpenAIProvider : ILlmProvider
             {
                 return new LlmResponse
                 {
-                    Content = "",
+                    AssistantMessage = new Message { Role = Role.Assistant, Content = "" },
                     FinishReason = "error"
                 };
             }
@@ -147,10 +149,19 @@ public class OpenAIProvider : ILlmProvider
 
             return new LlmResponse
             {
-                Content = completion.Content?.Count > 0 ? completion.Content[0]?.Text ?? "" : "",
-                FunctionCalls = functionCalls,
+                AssistantMessage = new Message
+                {
+                    Role = Role.Assistant,
+                    Content = completion.Content?.Count > 0 ? completion.Content[0]?.Text ?? "" : "",
+                    ToolCalls = functionCalls
+                },
                 FinishReason = completion.FinishReason.ToString(),
-                TokensUsed = completion.Usage?.TotalTokenCount,
+                Usage = completion.Usage != null ? new LlmUsage
+                {
+                    PromptTokens = completion.Usage.InputTokenCount,
+                    CompletionTokens = completion.Usage.OutputTokenCount,
+                    TotalTokens = completion.Usage.TotalTokenCount
+                } : null,
                 Model = completion.Model
             };
         }
@@ -159,7 +170,7 @@ public class OpenAIProvider : ILlmProvider
             _logger.LogError(ex, "Error during OpenAI completion");
             return new LlmResponse
             {
-                Content = "",
+                AssistantMessage = new Message { Role = Role.Assistant, Content = "" },
                 FinishReason = "error"
             };
         }
@@ -190,7 +201,7 @@ public class OpenAIProvider : ILlmProvider
                 {
                     yield return new LlmStreamResponse
                     {
-                        TextDelta = text,
+                        Delta = new Message { Role = Role.Assistant, Content = text },
                         IsComplete = false
                     };
                 }
@@ -226,17 +237,20 @@ public class OpenAIProvider : ILlmProvider
                         // Emit partial function call delta
                         if (!string.IsNullOrEmpty(accumulated.Name))
                         {
-                            var partialCall = new FunctionCall
+                            var partialCall = new ToolCall
                             {
                                 Id = string.IsNullOrEmpty(accumulated.Id) ? $"partial_{index}" : accumulated.Id,
                                 Name = accumulated.Name,
-                                Arguments = new Dictionary<string, object?>(),
-                                ArgumentsJson = accumulated.Arguments
+                                ArgumentsJson = accumulated.Arguments ?? "{}"
                             };
 
                             yield return new LlmStreamResponse
                             {
-                                FunctionCall = partialCall,
+                                Delta = new Message
+                                {
+                                    Role = Role.Assistant,
+                                    ToolCalls = new List<ToolCall> { partialCall }
+                                },
                                 IsComplete = false
                             };
                         }
@@ -245,17 +259,20 @@ public class OpenAIProvider : ILlmProvider
                     // Check if tool call is complete
                     if (IsToolCallComplete(accumulated))
                     {
-                        var functionCall = new FunctionCall
+                        var functionCall = new ToolCall
                         {
                             Id = accumulated.Id ?? $"call_{Guid.NewGuid():N}".Substring(0, 8),
                             Name = accumulated.Name,
-                            Arguments = ParseArguments(accumulated.Arguments),
-                            ArgumentsJson = accumulated.Arguments
+                            ArgumentsJson = accumulated.Arguments ?? "{}"
                         };
 
                         yield return new LlmStreamResponse
                         {
-                            FunctionCall = functionCall,
+                            Delta = new Message
+                            {
+                                Role = Role.Assistant,
+                                ToolCalls = new List<ToolCall> { functionCall }
+                            },
                             IsComplete = false
                         };
 
@@ -272,17 +289,20 @@ public class OpenAIProvider : ILlmProvider
                 {
                     if (IsToolCallComplete(accumulated))
                     {
-                        var functionCall = new FunctionCall
+                        var functionCall = new ToolCall
                         {
                             Id = accumulated.Id ?? $"call_{Guid.NewGuid():N}".Substring(0, 8),
                             Name = accumulated.Name,
-                            Arguments = ParseArguments(accumulated.Arguments),
-                            ArgumentsJson = accumulated.Arguments
+                            ArgumentsJson = accumulated.Arguments ?? "{}"
                         };
 
                         yield return new LlmStreamResponse
                         {
-                            FunctionCall = functionCall,
+                            Delta = new Message
+                            {
+                                Role = Role.Assistant,
+                                ToolCalls = new List<ToolCall> { functionCall }
+                            },
                             IsComplete = false
                         };
                     }
@@ -323,7 +343,7 @@ public class OpenAIProvider : ILlmProvider
                     Id = model.Id ?? string.Empty,
                     Name = model.Id ?? string.Empty,
                     Provider = "openai",
-                    Created = model.Created.HasValue ? DateTimeOffset.FromUnixTimeSeconds(model.Created.Value).DateTime : null,
+                    UpdatedAt = model.Created.HasValue ? DateTimeOffset.FromUnixTimeSeconds(model.Created.Value) : null,
                     Description = GetModelDescription(model.Id),
                     Family = GetModelFamily(model.Id),
                     ParameterSize = GetParameterSize(model.Id),
@@ -485,9 +505,9 @@ public class OpenAIProvider : ILlmProvider
                 if (toolCallParts.Any())
                 {
                     var toolCalls = toolCallParts.Select(tcp => ChatToolCall.CreateFunctionToolCall(
-                        tcp.CallId,
-                        tcp.ToolName,
-                        BinaryData.FromString(JsonSerializer.Serialize(tcp.Arguments))
+                        tcp.ToolCall.Id,
+                        tcp.ToolCall.Name,
+                        BinaryData.FromString(tcp.ToolCall.ArgumentsJson)
                     )).ToList();
 
                     if (textParts.Any())
@@ -518,8 +538,7 @@ public class OpenAIProvider : ILlmProvider
             case MessageRole.Tool:
                 foreach (var part in message.Parts.OfType<ToolResponsePart>())
                 {
-                    var responseJson = JsonSerializer.Serialize(part.Response);
-                    yield return new ToolChatMessage(part.CallId, responseJson);
+                    yield return new ToolChatMessage(part.ToolResult.CallId, part.ToolResult.ResultJson);
                 }
                 break;
         }
@@ -550,20 +569,19 @@ public class OpenAIProvider : ILlmProvider
         return options;
     }
 
-    private List<FunctionCall> ExtractFunctionCalls(ChatCompletion completion)
+    private List<ToolCall> ExtractFunctionCalls(ChatCompletion completion)
     {
-        var functionCalls = new List<FunctionCall>();
+        var functionCalls = new List<ToolCall>();
 
         if (completion.ToolCalls?.Count > 0)
         {
             foreach (var toolCall in completion.ToolCalls)
             {
-                functionCalls.Add(new FunctionCall
+                functionCalls.Add(new ToolCall
                 {
                     Id = toolCall.Id,
                     Name = toolCall.FunctionName ?? "",
-                    Arguments = ParseArguments(toolCall.FunctionArguments?.ToString() ?? "{}"),
-                    ArgumentsJson = toolCall.FunctionArguments?.ToString()
+                    ArgumentsJson = toolCall.FunctionArguments?.ToString() ?? "{}"
                 });
             }
         }

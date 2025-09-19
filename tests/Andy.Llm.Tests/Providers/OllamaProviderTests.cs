@@ -1,9 +1,10 @@
+using Andy.Model.Llm;
+using Andy.Model.Model;
+using Andy.Model.Tooling;
 using System.Net;
 using System.Text;
 using Andy.Llm.Configuration;
-using Andy.Llm.Models;
 using Andy.Llm.Providers;
-using Andy.Context.Model;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
 using Moq;
@@ -163,7 +164,7 @@ public class OllamaProviderTests
             {
                 new Message { Role = Role.User, Content = "Hello" }
             },
-            MaxTokens = 10
+            Config = new LlmClientConfig { MaxTokens = 10 }
         };
 
         var responseJson = @"{
@@ -202,8 +203,8 @@ public class OllamaProviderTests
         // Assert
         Assert.NotNull(response);
         Assert.Equal("Hello! How can I help you?", response.Content);
-        Assert.Equal("llama2", response.Model);
-        Assert.Equal(15, response.TokensUsed);
+        // Model info is in Metadata
+        Assert.Equal(15, response.Usage?.TotalTokens);
         Assert.NotNull(response.Usage);
         Assert.Equal(5, response.Usage.PromptTokens);
         Assert.Equal(10, response.Usage.CompletionTokens);
@@ -345,8 +346,7 @@ public class OllamaProviderTests
             {
                 new Message { Role = Role.User, Content = "Hello" }
             },
-            Temperature = 0.7,
-            MaxTokens = 100
+            Config = new LlmClientConfig { Temperature = 0.7m, MaxTokens = 100 }
         };
 
         // This test validates the request creation logic
@@ -354,7 +354,7 @@ public class OllamaProviderTests
 
         // Act & Assert - Should not throw and should process system prompt
         Assert.NotNull(request.SystemPrompt);
-        Assert.Equal(0.7, request.Temperature);
-        Assert.Equal(100, request.MaxTokens);
+        Assert.Equal(0.7m, request.Config?.Temperature);
+        Assert.Equal(100, request.Config?.MaxTokens);
     }
 }

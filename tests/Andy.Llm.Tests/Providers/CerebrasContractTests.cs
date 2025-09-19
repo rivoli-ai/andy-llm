@@ -1,12 +1,12 @@
+using Andy.Model.Llm;
+using Andy.Model.Model;
+using Andy.Model.Tooling;
 using Xunit;
-using Andy.Llm.Models;
-using Andy.Llm.Abstractions;
-using Andy.Context.Model;
-using Microsoft.Extensions.Logging;
+using Andy.Llm.Providers;
 
 namespace Andy.Llm.Tests.Providers;
 
-internal class StubStreamProvider : ILlmProvider
+internal class StubStreamProvider : Andy.Llm.Providers.ILlmProvider
 {
     public string Name => "Stub";
 
@@ -19,13 +19,27 @@ internal class StubStreamProvider : ILlmProvider
     {
         yield return new LlmStreamResponse
         {
-            FunctionCall = new FunctionCall { Id = "partial_0", Name = "tool", Arguments = new(), ArgumentsJson = "{\"x\":1}" },
+            Delta = new Message
+            {
+                Role = Role.Assistant,
+                ToolCalls = new List<ToolCall>
+                {
+                    new ToolCall { Id = "partial_0", Name = "tool", ArgumentsJson = "{\"x\":1}" }
+                }
+            },
             IsComplete = false
         };
         await Task.Delay(1, cancellationToken);
         yield return new LlmStreamResponse
         {
-            FunctionCall = new FunctionCall { Id = "call_1", Name = "tool", Arguments = new(), ArgumentsJson = "{\"x\":1}" },
+            Delta = new Message
+            {
+                Role = Role.Assistant,
+                ToolCalls = new List<ToolCall>
+                {
+                    new ToolCall { Id = "call_1", Name = "tool", ArgumentsJson = "{\"x\":1}" }
+                }
+            },
             IsComplete = false
         };
         yield return new LlmStreamResponse { IsComplete = true, FinishReason = "stop" };
@@ -41,8 +55,7 @@ public class CerebrasContractTests
     public async Task StreamCompleteAsync_ShouldEmitPartialAndFinal_WithFinishReason()
     {
         var provider = new StubStreamProvider();
-        var logger = new Microsoft.Extensions.Logging.Abstractions.NullLogger<Andy.Llm.LlmClient>();
-        var client = new Andy.Llm.LlmClient(provider, logger);
+        // Use provider directly - LlmClient has been removed
 
         var req = new LlmRequest { Messages = new List<Message> { new Message { Role = Role.User, Content = "hi" } } };
 
@@ -54,7 +67,7 @@ public class CerebrasContractTests
 
         Assert.Equal(3, chunks.Count);
         Assert.False(chunks[0].IsComplete);
-        Assert.NotNull(chunks[0].FunctionCall?.ArgumentsJson);
+        Assert.NotNull(chunks[0].FunctionCall?.Arguments);
         Assert.Equal("stop", chunks[2].FinishReason);
         Assert.True(chunks[2].IsComplete);
     }

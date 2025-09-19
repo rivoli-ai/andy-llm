@@ -1,7 +1,8 @@
-using System.Runtime.CompilerServices;
-using Andy.Llm.Models;
+using Andy.Model.Llm;
+using Andy.Model.Model;
+using Andy.Model.Tooling;
 
-namespace Andy.Llm.Abstractions;
+namespace Andy.Llm.Providers;
 
 /// <summary>
 /// Interface for LLM providers supporting OpenAI-compatible APIs

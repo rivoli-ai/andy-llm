@@ -1,10 +1,10 @@
-using Andy.Llm;
-using Andy.Llm.Models;
-using Andy.Llm.Abstractions;
-using Andy.Llm.Services;
+using Andy.Model.Llm;
+using Andy.Model.Model;
+using Andy.Model.Tooling;
 using Andy.Llm.Configuration;
 using Andy.Llm.Extensions;
 using Andy.Llm.Examples.Shared;
+using Andy.Llm.Providers;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
 
@@ -104,9 +104,9 @@ public class MultiProvider
             {
                 Messages = new List<Message>
                 {
-                    Message.CreateText(MessageRole.User, "Say hello in one word.")
+                    new Message { Role = Role.User, Content = "Say hello in one word." }
                 },
-                MaxTokens = 10
+                Config = new LlmClientConfig { MaxTokens = 10 }
             };
 
             var response = await provider.CompleteAsync(request);
@@ -143,11 +143,13 @@ public class MultiProvider
                 {
                     Messages = new List<Message>
                     {
-                        Message.CreateText(MessageRole.User,
-                            $"Complete this: 'The sky is' (3 words)")
+                        new Message { Role = Role.User, Content = $"Complete this: 'The sky is' (3 words)" }
                     },
-                    MaxTokens = 50,
-                    Model = providerName == "ollama" ? "gpt-oss:20b" : null
+                    Config = new LlmClientConfig
+                    {
+                        MaxTokens = 50,
+                        Model = providerName == "ollama" ? "gpt-oss:20b" : null
+                    }
                 };
 
                 var response = await provider.CompleteAsync(request);
@@ -157,9 +159,9 @@ public class MultiProvider
                 }
                 logger.LogInformation("  Response: {Response}", response.Content);
 
-                if (response.TokensUsed.HasValue)
+                if (response.Usage != null)
                 {
-                    logger.LogInformation("  Tokens used: {Tokens}", response.TokensUsed);
+                    logger.LogInformation("  Tokens used: {Tokens}", response.Usage.TotalTokens);
                 }
             }
             catch (Exception ex)
@@ -183,9 +185,9 @@ public class MultiProvider
             {
                 Messages = new List<Message>
                 {
-                    Message.CreateText(MessageRole.User, "What's 2+2?")
+                    new Message { Role = Role.User, Content = "What's 2+2?" }
                 },
-                MaxTokens = 10
+                Config = new LlmClientConfig { MaxTokens = 10 }
             };
 
             var response = await provider.CompleteAsync(request);
@@ -222,10 +224,13 @@ public class MultiProvider
                 {
                     Messages = new List<Message>
                     {
-                        Message.CreateText(MessageRole.User, prompt)
+                        new Message { Role = Role.User, Content = prompt }
                     },
-                    MaxTokens = 100,
-                    Temperature = 0.7
+                    Config = new LlmClientConfig
+                    {
+                        MaxTokens = 100,
+                        Temperature = 0.7m
+                    }
                 };
 
                 var stopwatch = System.Diagnostics.Stopwatch.StartNew();
@@ -235,10 +240,10 @@ public class MultiProvider
                 logger.LogInformation("  Response: {Response}", response.Content);
                 logger.LogInformation("  Time: {ElapsedMs}ms", stopwatch.ElapsedMilliseconds);
 
-                if (response.TokensUsed.HasValue)
+                if (response.Usage != null)
                 {
-                    logger.LogInformation("  Tokens: {Tokens}", response.TokensUsed);
-                    var tokensPerSecond = response.TokensUsed.Value * 1000.0 / stopwatch.ElapsedMilliseconds;
+                    logger.LogInformation("  Tokens: {Tokens}", response.Usage.TotalTokens);
+                    var tokensPerSecond = response.Usage.TotalTokens * 1000.0 / stopwatch.ElapsedMilliseconds;
                     logger.LogInformation("  Speed: {TokensPerSecond:F1} tokens/sec", tokensPerSecond);
                 }
             }
@@ -262,34 +267,45 @@ public class MultiProvider
 
             if (await openai.IsAvailableAsync())
             {
-                var context = new ConversationContext
+                // var conversation = new Conversation();
+                // var contextManager = new ContextManager(conversation);
+                var systemInstruction = "You are a helpful assistant.";
+                var availableTools = new List<ToolDeclaration>
                 {
-                    SystemInstruction = "You are a helpful assistant.",
-                    AvailableTools =
+                    new ToolDeclaration
                     {
-                        new ToolDeclaration
+                        Name = "get_time",
+                        Description = "Get the current time",
+                        Parameters = new Dictionary<string, object>
                         {
-                            Name = "get_time",
-                            Description = "Get the current time",
-                            Parameters = new Dictionary<string, object>
-                            {
-                                ["type"] = "object",
-                                ["properties"] = new Dictionary<string, object>()
-                            }
+                            ["type"] = "object",
+                            ["properties"] = new Dictionary<string, object>()
                         }
                     }
                 };
 
-                context.AddUserMessage("What time is it?");
+                // Simplified without non-existent classes
+                var messages = new List<Message>
+                {
+                    new Message { Role = Role.System, Content = systemInstruction },
+                    new Message { Role = Role.User, Content = "What time is it?" }
+                };
+
                 var model = Environment.GetEnvironmentVariable("OPENAI_MODEL") ?? "gpt-4o";
-                var request = context.CreateRequest(model);
+                var request = new LlmRequest
+                {
+                    Messages = messages,
+                    Config = new LlmClientConfig { Model = model },
+                    SystemPrompt = systemInstruction,
+                    Tools = availableTools
+                };
 
                 var response = await openai.CompleteAsync(request);
 
-                if (response.FunctionCalls.Any())
+                if (response.ToolCalls != null && response.ToolCalls.Any())
                 {
                     logger.LogInformation("  Function call requested: {Function}",
-                        response.FunctionCalls.First().Name);
+                        response.ToolCalls.First().Name);
                 }
                 else
                 {
@@ -318,11 +334,9 @@ public class MultiProvider
                 {
                     Messages = new List<Message>
                     {
-                        Message.CreateText(MessageRole.User,
-                            "Generate a list of 10 random numbers between 1 and 100.")
+                        new Message { Role = Role.User, Content = "Generate a list of 10 random numbers between 1 and 100." }
                     },
-                    MaxTokens = 200,
-                    Temperature = 0.9
+                    Config = new LlmClientConfig { MaxTokens = 200, Temperature = 0.9m }
                 };
 
                 var stopwatch = System.Diagnostics.Stopwatch.StartNew();
@@ -355,11 +369,9 @@ public class MultiProvider
                 {
                     Messages = new List<Message>
                     {
-                        Message.CreateText(MessageRole.User,
-                            "What are the benefits of running models locally?")
+                        new Message { Role = Role.User, Content = "What are the benefits of running models locally?" }
                     },
-                    MaxTokens = 100,
-                    Model = "gpt-oss:20b"  // Explicitly specify Ollama model
+                    Config = new LlmClientConfig { MaxTokens = 100, Model = "gpt-oss:20b" }  // Explicitly specify Ollama model
                 };
 
                 var response = await ollama.CompleteAsync(request);

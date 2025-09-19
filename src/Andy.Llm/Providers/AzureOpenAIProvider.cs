@@ -1,7 +1,9 @@
 using System.ClientModel;
-using Andy.Llm.Abstractions;
+using Andy.Llm.Providers;
 using Andy.Llm.Configuration;
-using Andy.Llm.Models;
+using Andy.Model.Llm;
+using Andy.Model.Model;
+using Andy.Model.Tooling;
 using Azure;
 using Azure.AI.OpenAI;
 using Microsoft.Extensions.Logging;
@@ -200,7 +202,7 @@ public class AzureOpenAIProvider : ILlmProvider
                 {
                     yield return new LlmStreamResponse
                     {
-                        TextDelta = contentPart.Text,
+                        Delta = new Message { Role = Role.Assistant, Content = contentPart.Text },
                         IsComplete = false
                     };
                 }
@@ -215,15 +217,18 @@ public class AzureOpenAIProvider : ILlmProvider
                     {
                         yield return new LlmStreamResponse
                         {
-                            FunctionCall = new FunctionCall
+                            Delta = new Message
                             {
-                                Name = toolCall.FunctionName ?? string.Empty,
-                                Id = toolCall.ToolCallId ?? string.Empty,
-                                Arguments = new Dictionary<string, object?>
+                                Role = Role.Assistant,
+                                ToolCalls = new List<ToolCall>
                                 {
-                                    ["arguments_json"] = toolCall.FunctionArgumentsUpdate?.ToString()
-                                },
-                                ArgumentsJson = toolCall.FunctionArgumentsUpdate?.ToString()
+                                    new ToolCall
+                                    {
+                                        Name = toolCall.FunctionName ?? string.Empty,
+                                        Id = toolCall.ToolCallId ?? string.Empty,
+                                        ArgumentsJson = toolCall.FunctionArgumentsUpdate?.ToString() ?? "{}"
+                                    }
+                                }
                             },
                             IsComplete = false
                         };
@@ -371,12 +376,12 @@ public class AzureOpenAIProvider : ILlmProvider
                         }
 
                         // Add tool calls
-                        foreach (var toolCall in toolCalls)
+                        foreach (var toolCallPart in toolCalls)
                         {
                             assistantMessage.ToolCalls.Add(ChatToolCall.CreateFunctionToolCall(
-                                toolCall.CallId,
-                                toolCall.ToolName,
-                                BinaryData.FromObjectAsJson(toolCall.Arguments)));
+                                toolCallPart.ToolCall.Id,
+                                toolCallPart.ToolCall.Name,
+                                BinaryData.FromString(toolCallPart.ToolCall.ArgumentsJson)));
                         }
 
                         messages.Add(assistantMessage);
@@ -393,10 +398,9 @@ public class AzureOpenAIProvider : ILlmProvider
                     var toolResponses = message.Parts.OfType<ToolResponsePart>().ToList();
                     foreach (var toolResponse in toolResponses)
                     {
-                        var toolContent = System.Text.Json.JsonSerializer.Serialize(toolResponse.Response);
                         messages.Add(new ToolChatMessage(
-                            toolResponse.CallId,
-                            toolContent));
+                            toolResponse.ToolResult.CallId,
+                            toolResponse.ToolResult.ResultJson));
                     }
                     break;
             }
@@ -409,15 +413,8 @@ public class AzureOpenAIProvider : ILlmProvider
     {
         var options = new ChatCompletionOptions();
 
-        if (request.Temperature.HasValue)
-        {
-            options.Temperature = (float)request.Temperature.Value;
-        }
-
-        if (request.MaxTokens.HasValue)
-        {
-            options.MaxOutputTokenCount = request.MaxTokens.Value;
-        }
+        options.Temperature = (float)request.Temperature;
+        options.MaxOutputTokenCount = request.MaxTokens;
 
         // Add tools if provided
         if (request.Tools?.Any() == true)
@@ -438,57 +435,51 @@ public class AzureOpenAIProvider : ILlmProvider
 
     private LlmResponse ConvertResponse(ChatCompletion completion, string model)
     {
-        var response = new LlmResponse
-        {
-            Content = string.Empty,
-            Model = model,
-            FunctionCalls = new List<FunctionCall>()
-        };
+        var content = string.Empty;
+        var toolCalls = new List<ToolCall>();
 
-        // Extract content and function calls
+        // Extract content
         foreach (var contentPart in completion.Content)
         {
             if (!string.IsNullOrEmpty(contentPart.Text))
             {
-                response.Content += contentPart.Text;
+                content += contentPart.Text;
             }
         }
 
-        // Extract function calls
+        // Extract tool calls
         if (completion.ToolCalls?.Count > 0)
         {
             foreach (var toolCall in completion.ToolCalls)
             {
                 if (toolCall.Kind == ChatToolCallKind.Function)
                 {
-                    response.FunctionCalls.Add(new FunctionCall
+                    toolCalls.Add(new ToolCall
                     {
-                        Name = toolCall.FunctionName,
+                        Name = toolCall.FunctionName ?? "",
                         Id = toolCall.Id,
-                        Arguments = System.Text.Json.JsonSerializer.Deserialize<Dictionary<string, object?>>(
-                            toolCall.FunctionArguments?.ToString() ?? "{}") ?? new Dictionary<string, object?>()
+                        ArgumentsJson = toolCall.FunctionArguments?.ToString() ?? "{}"
                     });
                 }
             }
         }
 
-        // Add usage information
-        if (completion.Usage != null)
+        return new LlmResponse
         {
-            var inputTokens = completion.Usage.InputTokenCount;
-            var outputTokens = completion.Usage.OutputTokenCount;
-            var totalTokens = inputTokens + outputTokens;
-            response.TokensUsed = totalTokens;
-            response.Usage = new TokenUsage
+            AssistantMessage = new Message
             {
-                PromptTokens = inputTokens,
-                CompletionTokens = outputTokens,
-                TotalTokens = totalTokens
-            };
-        }
-
-        response.FinishReason = completion.FinishReason.ToString();
-
-        return response;
+                Role = Role.Assistant,
+                Content = content,
+                ToolCalls = toolCalls
+            },
+            FinishReason = completion.FinishReason.ToString(),
+            Usage = completion.Usage != null ? new LlmUsage
+            {
+                PromptTokens = completion.Usage.InputTokenCount,
+                CompletionTokens = completion.Usage.OutputTokenCount,
+                TotalTokens = completion.Usage.InputTokenCount + completion.Usage.OutputTokenCount
+            } : null,
+            Model = model
+        };
     }
 }

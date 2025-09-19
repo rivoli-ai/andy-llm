@@ -1,8 +1,9 @@
+using Andy.Model.Llm;
+using Andy.Model.Model;
+using Andy.Model.Tooling;
 using System.Linq;
 using System.Threading.Tasks;
-using Andy.Llm.Abstractions;
 using Andy.Llm.Configuration;
-using Andy.Llm.Models;
 using Andy.Llm.Providers;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
@@ -149,7 +150,7 @@ public class ModelListingTests
             Name = "Test Model",
             Provider = "test-provider",
             Description = "A test model",
-            Created = new DateTime(2024, 1, 1),
+            // Created = new DateTime(2024, 1, 1), // Read-only in published package
             Family = "TestFamily",
             ParameterSize = "7B",
             MaxTokens = 4096,
@@ -167,7 +168,8 @@ public class ModelListingTests
         Assert.Equal("Test Model", model.Name);
         Assert.Equal("test-provider", model.Provider);
         Assert.Equal("A test model", model.Description);
-        Assert.Equal(new DateTime(2024, 1, 1), model.Created);
+        // Created is read-only in the published package, so it will be default/null
+        // Assert.Equal(new DateTime(2024, 1, 1), model.Created);
         Assert.Equal("TestFamily", model.Family);
         Assert.Equal("7B", model.ParameterSize);
         Assert.Equal(4096, model.MaxTokens);

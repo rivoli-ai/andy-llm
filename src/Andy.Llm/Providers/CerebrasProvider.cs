@@ -5,9 +5,11 @@ using System.Net.Http.Headers;
 using System.Runtime.CompilerServices;
 using System.Text.Json;
 using System.Text.Json.Serialization;
-using Andy.Llm.Abstractions;
+using Andy.Llm.Providers;
 using Andy.Llm.Configuration;
-using Andy.Llm.Models;
+using Andy.Model.Llm;
+using Andy.Model.Model;
+using Andy.Model.Tooling;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
 using OpenAI;
@@ -130,7 +132,7 @@ public class CerebrasProvider : ILlmProvider
             {
                 return new LlmResponse
                 {
-                    Content = "",
+                    AssistantMessage = new Message { Role = Role.Assistant, Content = "" },
                     FinishReason = "error"
                 };
             }
@@ -140,10 +142,19 @@ public class CerebrasProvider : ILlmProvider
 
             return new LlmResponse
             {
-                Content = completion.Content?.Count > 0 ? completion.Content[0]?.Text ?? "" : "",
-                FunctionCalls = functionCalls,
+                AssistantMessage = new Message
+                {
+                    Role = Role.Assistant,
+                    Content = completion.Content?.Count > 0 ? completion.Content[0]?.Text ?? "" : "",
+                    ToolCalls = functionCalls
+                },
                 FinishReason = completion.FinishReason.ToString(),
-                TokensUsed = completion.Usage?.TotalTokenCount,
+                Usage = completion.Usage != null ? new LlmUsage
+                {
+                    PromptTokens = completion.Usage.InputTokenCount,
+                    CompletionTokens = completion.Usage.OutputTokenCount,
+                    TotalTokens = completion.Usage.TotalTokenCount
+                } : null,
                 Model = completion.Model
             };
         }
@@ -152,7 +163,7 @@ public class CerebrasProvider : ILlmProvider
             _logger.LogError(ex, "Cerebras API error: Status={Status}, Message={Message}", ex.Status, ex.Message);
             return new LlmResponse
             {
-                Content = $"Cerebras API error: {ex.Message}",
+                AssistantMessage = new Message { Role = Role.Assistant, Content = $"Cerebras API error: {ex.Message}" },
                 FinishReason = "error"
             };
         }
@@ -161,7 +172,7 @@ public class CerebrasProvider : ILlmProvider
             _logger.LogError(ex, "Error during Cerebras completion");
             return new LlmResponse
             {
-                Content = "",
+                AssistantMessage = new Message { Role = Role.Assistant, Content = "" },
                 FinishReason = "error"
             };
         }
@@ -192,7 +203,7 @@ public class CerebrasProvider : ILlmProvider
                 {
                     yield return new LlmStreamResponse
                     {
-                        TextDelta = text,
+                        Delta = new Message { Role = Role.Assistant, Content = text },
                         IsComplete = false
                     };
                 }
@@ -228,17 +239,20 @@ public class CerebrasProvider : ILlmProvider
                         // Emit partial function call delta
                         if (!string.IsNullOrEmpty(accumulated.Name))
                         {
-                            var partialCall = new FunctionCall
+                            var partialCall = new ToolCall
                             {
                                 Id = string.IsNullOrEmpty(accumulated.Id) ? $"partial_{index}" : accumulated.Id,
                                 Name = accumulated.Name,
-                                Arguments = new Dictionary<string, object?>(),
-                                ArgumentsJson = accumulated.Arguments
+                                ArgumentsJson = accumulated.Arguments ?? "{}"
                             };
 
                             yield return new LlmStreamResponse
                             {
-                                FunctionCall = partialCall,
+                                Delta = new Message
+                                {
+                                    Role = Role.Assistant,
+                                    ToolCalls = new List<ToolCall> { partialCall }
+                                },
                                 IsComplete = false
                             };
                         }
@@ -247,17 +261,20 @@ public class CerebrasProvider : ILlmProvider
                     // Check if tool call is complete
                     if (IsToolCallComplete(accumulated))
                     {
-                        var functionCall = new FunctionCall
+                        var functionCall = new ToolCall
                         {
                             Id = accumulated.Id ?? $"call_{Guid.NewGuid():N}".Substring(0, 8),
                             Name = accumulated.Name,
-                            Arguments = ParseArguments(accumulated.Arguments),
-                            ArgumentsJson = accumulated.Arguments
+                            ArgumentsJson = accumulated.Arguments ?? "{}"
                         };
 
                         yield return new LlmStreamResponse
                         {
-                            FunctionCall = functionCall,
+                            Delta = new Message
+                            {
+                                Role = Role.Assistant,
+                                ToolCalls = new List<ToolCall> { functionCall }
+                            },
                             IsComplete = false
                         };
 
@@ -305,7 +322,7 @@ public class CerebrasProvider : ILlmProvider
                     Id = model.Id ?? string.Empty,
                     Name = model.Id ?? string.Empty,
                     Provider = "cerebras",
-                    Created = model.Created.HasValue ? DateTimeOffset.FromUnixTimeSeconds(model.Created.Value).DateTime : null,
+                    UpdatedAt = model.Created.HasValue ? DateTimeOffset.FromUnixTimeSeconds(model.Created.Value) : null,
                     Description = GetModelDescription(model.Id),
                     Family = GetModelFamily(model.Id),
                     ParameterSize = GetParameterSize(model.Id),
@@ -440,12 +457,12 @@ public class CerebrasProvider : ILlmProvider
                 {
                     // Tool calls are supported by llama-3.3-70b
                     var toolCalls = new List<ChatToolCall>();
-                    foreach (var toolCall in toolCallParts)
+                    foreach (var toolCallPart in toolCallParts)
                     {
                         toolCalls.Add(ChatToolCall.CreateFunctionToolCall(
-                            toolCall.CallId,
-                            toolCall.ToolName,
-                            BinaryData.FromString(JsonSerializer.Serialize(toolCall.Arguments))
+                            toolCallPart.ToolCall.Id,
+                            toolCallPart.ToolCall.Name,
+                            BinaryData.FromString(toolCallPart.ToolCall.ArgumentsJson)
                         ));
                     }
 
@@ -472,8 +489,7 @@ public class CerebrasProvider : ILlmProvider
                 // Tool responses are supported by llama-3.3-70b
                 foreach (var part in message.Parts.OfType<ToolResponsePart>())
                 {
-                    var responseJson = JsonSerializer.Serialize(part.Response);
-                    yield return new ToolChatMessage(part.CallId, responseJson);
+                    yield return new ToolChatMessage(part.ToolResult.CallId, part.ToolResult.ResultJson);
                 }
                 break;
         }
@@ -504,20 +520,19 @@ public class CerebrasProvider : ILlmProvider
         return options;
     }
 
-    private List<FunctionCall> ExtractFunctionCalls(ChatCompletion completion)
+    private List<ToolCall> ExtractFunctionCalls(ChatCompletion completion)
     {
-        var functionCalls = new List<FunctionCall>();
+        var functionCalls = new List<ToolCall>();
 
         if (completion.ToolCalls?.Count > 0)
         {
             foreach (var toolCall in completion.ToolCalls)
             {
-                functionCalls.Add(new FunctionCall
+                functionCalls.Add(new ToolCall
                 {
                     Id = toolCall.Id,
                     Name = toolCall.FunctionName ?? "",
-                    Arguments = ParseArguments(toolCall.FunctionArguments?.ToString() ?? "{}"),
-                    ArgumentsJson = toolCall.FunctionArguments?.ToString()
+                    ArgumentsJson = toolCall.FunctionArguments?.ToString() ?? "{}"
                 });
             }
         }

@@ -1,12 +1,12 @@
+using Andy.Model.Llm;
+using Andy.Model.Model;
+using Andy.Model.Tooling;
 using Xunit;
 using Andy.Llm;
-using Andy.Llm.Abstractions;
-using Andy.Llm.Models;
 using Andy.Llm.Configuration;
 using Andy.Llm.Extensions;
 using Andy.Llm.Services;
 using Andy.Llm.Providers;
-using Andy.Context.Model;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.Logging;
@@ -125,46 +125,4 @@ public class ProviderTests
         Assert.Throws<NotSupportedException>(() => factory.CreateProvider("unsupported"));
     }
 
-    /// <summary>
-    /// Tests message conversion for different roles
-    /// </summary>
-    [Fact]
-    public void MessageConversion_ShouldHandleAllRoles()
-    {
-        // Arrange
-        var context = new ConversationContext();
-
-        // Act
-        context.SystemInstruction = "You are a helpful assistant";
-        context.AddUserMessage("Hello");
-        context.AddAssistantMessage("Hi there!");
-
-        var functionCalls = new List<FunctionCall>
-        {
-            new FunctionCall
-            {
-                Id = "call_123",
-                Name = "get_weather",
-                Arguments = new Dictionary<string, object?> { ["location"] = "NYC" }
-            }
-        };
-        context.AddAssistantMessageWithToolCalls(null, functionCalls);
-        context.AddToolResponse("get_weather", "call_123", new { temp = 72 });
-
-        // Assert
-        Assert.Equal(5, context.Messages.Count);
-        Assert.Equal(Role.System, context.Messages[0].Role);
-        Assert.Equal(Role.User, context.Messages[1].Role);
-        Assert.Equal(Role.Assistant, context.Messages[2].Role);
-        Assert.Equal(Role.Assistant, context.Messages[3].Role);
-        Assert.Equal(Role.Tool, context.Messages[4].Role);
-
-        // Check tool call in assistant message
-        var toolCallMessage = context.Messages[3];
-        Assert.NotNull(toolCallMessage.ToolCalls);
-        Assert.Single(toolCallMessage.ToolCalls);
-        Assert.Equal("get_weather", toolCallMessage.ToolCalls[0].Name);
-        Assert.Equal("call_123", toolCallMessage.ToolCalls[0].Id);
-        Assert.NotNull(toolCallMessage.ToolCalls[0].ArgumentsJson);
-    }
 }

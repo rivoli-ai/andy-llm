@@ -1,11 +1,12 @@
-using Andy.Llm;
-using Andy.Llm.Models;
+using Andy.Model.Llm;
+using Andy.Model.Model;
+using Andy.Model.Tooling;
 using Andy.Llm.Extensions;
 using Andy.Llm.Examples.Shared;
+using Andy.Llm.Providers;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
 using System.Text.Json;
-using Andy.Llm.Services;
 
 // Example: Function calling with tool responses
 
@@ -30,7 +31,8 @@ try
     logger.LogInformation("\n=== Function Calling Example ===");
     logger.LogInformation("Provider: {Provider}, Model: {Model}", provider.ToUpper(), model);
 
-    var client = serviceProvider.GetRequiredService<LlmClient>();
+    var factory = serviceProvider.GetRequiredService<ILlmProviderFactory>();
+    var llmProvider = await factory.CreateAvailableProviderAsync();
 
     // Define available tools
     var weatherTool = new ToolDeclaration
@@ -58,58 +60,75 @@ try
         }
     };
 
-    // Create conversation context with tools
-    var context = new ConversationContext
+    var calculateTool = new ToolDeclaration
     {
-        SystemInstruction = "You are a helpful assistant with access to weather information.",
-        AvailableTools = { weatherTool }
+        Name = "calculate",
+        Description = "Perform basic arithmetic calculations",
+        Parameters = new Dictionary<string, object>
+        {
+            ["type"] = "object",
+            ["properties"] = new Dictionary<string, object>
+            {
+                ["expression"] = new Dictionary<string, object>
+                {
+                    ["type"] = "string",
+                    ["description"] = "The mathematical expression to evaluate"
+                }
+            },
+            ["required"] = new[] { "expression" }
+        }
     };
 
-    logger.LogInformation("Ask about the weather in any city!\n");
+    // Create conversation context with messages
+    var messages = new List<Message>
+    {
+        new Message { Role = Role.System, Content = "You are a helpful assistant with access to weather data and calculation tools." }
+    };
 
-    // Example interaction
-    var userMessage = "What's the weather like in San Francisco?";
-    logger.LogInformation("User: {Message}", userMessage);
+    // Initial user query
+    var userInput = "What's the weather in San Francisco and how much is 15% of 240?";
+    logger.LogInformation("User: {Input}", userInput);
 
-    context.AddUserMessage(userMessage);
+    messages.Add(new Message { Role = Role.User, Content = userInput });
 
     // Create request with tools
-    var request = context.CreateRequest(model);
+    var request = new LlmRequest
+    {
+        Messages = messages,
+        Tools = new List<ToolDeclaration> { weatherTool, calculateTool },
+        Config = new LlmClientConfig { Model = model }
+    };
 
     // Get initial response
-    var response = await client.CompleteAsync(request);
+    var response = await llmProvider.CompleteAsync(request);
 
     // Check if the model wants to call functions
-    if (response.FunctionCalls != null && response.FunctionCalls.Any())
+    if (response.ToolCalls != null && response.ToolCalls.Any())
     {
-        // IMPORTANT: Add the assistant's message with function calls to context
-        context.AddAssistantMessageWithToolCalls(response.Content, response.FunctionCalls);
-
         logger.LogInformation("\nModel wants to call functions:");
-        foreach (var call in response.FunctionCalls)
+
+        // Add the assistant's message with tool calls to messages
+        var assistantMessage = new Message
+        {
+            Role = Role.Assistant,
+            Content = response.Content ?? string.Empty,
+            ToolCalls = response.ToolCalls
+        };
+        messages.Add(assistantMessage);
+
+        foreach (var call in response.ToolCalls)
         {
             logger.LogInformation("  Function: {Name}", call.Name);
-            logger.LogInformation("  Arguments: {Args}", JsonSerializer.Serialize(call.Arguments));
-            if (!string.IsNullOrEmpty(call.ArgumentsJson))
-            {
-                logger.LogInformation("  Raw ArgumentsJson: {ArgsJson}", call.ArgumentsJson);
-            }
+            logger.LogInformation("  Arguments: {Args}", call.ArgumentsJson);
 
-            // Optional: suggest minimal corrections based on tool schema
-            var corrected = ParameterCorrectionService.SuggestCorrections(call, context.AvailableTools);
-            if (corrected != null)
-            {
-                logger.LogInformation("  Corrected arguments applied");
-                call.Arguments = corrected;
-            }
+            string resultContent = string.Empty;
 
             // Simulate function execution
             if (call.Name == "get_weather")
             {
-                var location = call.Arguments["location"]?.ToString() ?? "Unknown";
-                var unit = call.Arguments.ContainsKey("unit")
-                    ? call.Arguments["unit"]?.ToString()
-                    : "fahrenheit";
+                var weatherArgs = JsonSerializer.Deserialize<Dictionary<string, JsonElement>>(call.ArgumentsJson);
+                var location = weatherArgs?["location"].GetString() ?? "Unknown";
+                var unit = weatherArgs?.ContainsKey("unit") == true ? weatherArgs["unit"].GetString() : "fahrenheit";
 
                 // Simulated weather data
                 var weatherData = new
@@ -122,27 +141,53 @@ try
                     wind_speed = 12
                 };
 
-                logger.LogInformation("\nExecuted function: {Result}", JsonSerializer.Serialize(weatherData));
-
-                // Add tool response to context
-                context.AddToolResponse(
-                    call.Name,
-                    call.Id,
-                    JsonSerializer.Serialize(weatherData)
-                );
+                resultContent = JsonSerializer.Serialize(weatherData);
+                logger.LogInformation("  Result: {Result}", resultContent);
             }
+            else if (call.Name == "calculate")
+            {
+                var calcArgs = JsonSerializer.Deserialize<Dictionary<string, JsonElement>>(call.ArgumentsJson);
+                var expression = calcArgs?["expression"].GetString() ?? "";
+
+                // Simple calculation (in production, use a proper expression evaluator)
+                if (expression.Contains("15% of 240") || expression.Contains("0.15 * 240"))
+                {
+                    resultContent = JsonSerializer.Serialize(new { result = 36, expression = expression });
+                }
+                else
+                {
+                    resultContent = JsonSerializer.Serialize(new { error = "Cannot evaluate expression" });
+                }
+
+                logger.LogInformation("  Result: {Result}", resultContent);
+            }
+
+            // Add tool result message
+            messages.Add(new Message
+            {
+                Role = Role.Tool,
+                Content = resultContent
+            });
         }
 
         // Get final response with function results
         logger.LogInformation("\nGetting final response with function results...");
-        var finalRequest = context.CreateRequest(model);
-        var finalResponse = await client.CompleteAsync(finalRequest);
+        var finalRequest = new LlmRequest
+        {
+            Messages = messages,
+            Tools = request.Tools,
+            Config = request.Config
+        };
+        var finalResponse = await llmProvider.CompleteAsync(finalRequest);
         logger.LogInformation("Assistant: {Response}", finalResponse.Content);
+
+        messages.Add(new Message { Role = Role.Assistant, Content = finalResponse.Content });
     }
     else
     {
         // No function calls, just display the response
         logger.LogInformation("Assistant: {Response}", response.Content);
+        messages.Add(new Message { Role = Role.Assistant, Content = response.Content });
     }
 
     // Interactive mode
@@ -161,77 +206,75 @@ try
 
         try
         {
-            context.AddUserMessage(input);
-            request = context.CreateRequest(model);
-            response = await client.CompleteAsync(request);
+            messages.Add(new Message { Role = Role.User, Content = input });
+
+            // Keep conversation manageable
+            if (messages.Count > 20)
+            {
+                // Keep system message and last 15 messages
+                var systemMessage = messages.First(m => m.Role == Role.System);
+                messages = new List<Message> { systemMessage };
+                messages.AddRange(messages.Skip(messages.Count - 15));
+            }
+
+            var newRequest = new LlmRequest
+            {
+                Messages = messages,
+                Tools = request.Tools,
+                Config = request.Config
+            };
+            response = await llmProvider.CompleteAsync(newRequest);
 
             // Handle function calls
-            if (response.FunctionCalls != null && response.FunctionCalls.Any())
+            if (response.ToolCalls != null && response.ToolCalls.Any())
             {
-                // Add assistant's message with function calls to context
-                context.AddAssistantMessageWithToolCalls(response.Content, response.FunctionCalls);
+                var assistantMsg = new Message
+                {
+                    Role = Role.Assistant,
+                    Content = response.Content ?? string.Empty,
+                    ToolCalls = response.ToolCalls
+                };
+                messages.Add(assistantMsg);
 
-                foreach (var call in response.FunctionCalls)
+                foreach (var call in response.ToolCalls)
                 {
                     logger.LogInformation("Calling function: {Name}", call.Name);
-                    if (!string.IsNullOrEmpty(call.ArgumentsJson))
-                    {
-                        logger.LogInformation("Raw ArgumentsJson: {ArgsJson}", call.ArgumentsJson);
-                    }
 
-                    // Optional: apply parameter correction suggestions
-                    var corrected = ParameterCorrectionService.SuggestCorrections(call, context.AvailableTools);
-                    if (corrected != null)
+                    // Execute function and add result (simplified for demo)
+                    var result = $"{{\"result\": \"Function {call.Name} executed successfully\"}}";
+                    messages.Add(new Message
                     {
-                        call.Arguments = corrected;
-                    }
-
-                    if (call.Name == "get_weather")
-                    {
-                        var location = call.Arguments["location"]?.ToString() ?? "Unknown";
-                        var weatherData = new
-                        {
-                            location = location,
-                            temperature = Random.Shared.Next(60, 85),
-                            unit = "fahrenheit",
-                            condition = new[] { "Sunny", "Cloudy", "Rainy", "Partly cloudy" }[Random.Shared.Next(4)],
-                            humidity = Random.Shared.Next(40, 80)
-                        };
-
-                        context.AddToolResponse(
-                            call.Name,
-                            call.Id,
-                            JsonSerializer.Serialize(weatherData)
-                        );
-                    }
+                        Role = Role.Tool,
+                        Content = result
+                    });
                 }
 
-                // Get final response
-                var finalRequest = context.CreateRequest(model);
-                var finalResponse = await client.CompleteAsync(finalRequest);
-                logger.LogInformation("Assistant: {Response}", finalResponse.Content);
-                context.AddAssistantMessage(finalResponse.Content);
+                // Get final response with results
+                var finalRequest = new LlmRequest
+                {
+                    Messages = messages,
+                    Tools = request.Tools,
+                    Config = request.Config
+                };
+                var finalResp = await llmProvider.CompleteAsync(finalRequest);
+                logger.LogInformation("Assistant: {Response}", finalResp.Content);
+                messages.Add(new Message { Role = Role.Assistant, Content = finalResp.Content });
             }
             else
             {
                 logger.LogInformation("Assistant: {Response}", response.Content);
-                context.AddAssistantMessage(response.Content);
+                messages.Add(new Message { Role = Role.Assistant, Content = response.Content });
             }
         }
         catch (Exception ex)
         {
-            logger.LogError("Error processing request: {Message}", ex.Message);
-            logger.LogDebug(ex, "Full error details");
+            logger.LogError("Error: {Message}", ex.Message);
         }
-
-        Console.WriteLine();
     }
-
-    logger.LogInformation("Goodbye!");
 }
 catch (Exception ex)
 {
-    logger.LogError(ex, "An error occurred during the function calling example");
+    logger.LogError(ex, "An error occurred during function calling example");
 }
 
 // Simple Program class for logger

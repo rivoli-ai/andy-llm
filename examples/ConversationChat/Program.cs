@@ -1,7 +1,8 @@
-using Andy.Llm;
+using Andy.Model.Llm;
+using Andy.Model.Model;
 using Andy.Llm.Examples.Shared;
-using Andy.Llm.Models;
 using Andy.Llm.Extensions;
+using Andy.Llm.Providers;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
 
@@ -28,14 +29,15 @@ try
 {
     logger.LogInformation("Using provider: {Provider}, model: {Model}", provider, model);
 
-    var client = serviceProvider.GetRequiredService<LlmClient>();
+    var factory = serviceProvider.GetRequiredService<ILlmProviderFactory>();
+    var llmProvider = await factory.CreateAvailableProviderAsync();
 
     // Create a conversation context
-    var conversation = new ConversationContext
+    var messages = new List<Message>
     {
-        SystemInstruction = "You are a helpful AI assistant. Keep your responses concise.",
-        MaxContextMessages = 10 // Keep last 10 messages
+        new Message { Role = Role.System, Content = "You are a helpful AI assistant. Keep your responses concise." }
     };
+    const int maxContextMessages = 10; // Keep last 10 messages
 
     logger.LogInformation("=== Conversation Chat Example ===");
     logger.LogInformation("Provider: {Provider}, Model: {Model}", provider.ToUpper(), model);
@@ -59,8 +61,8 @@ try
 
         if (input.ToLower() == "clear")
         {
-            conversation.Clear();
-            conversation.SystemInstruction = "You are a helpful AI assistant. Keep your responses concise.";
+            messages.Clear();
+            messages.Add(new Message { Role = Role.System, Content = "You are a helpful AI assistant. Keep your responses concise." });
             logger.LogInformation("[Conversation cleared]\n");
             continue;
         }
@@ -68,31 +70,42 @@ try
         if (input.ToLower() == "summary")
         {
             logger.LogInformation("\n[Conversation Summary]");
-            logger.LogInformation("{Summary}", conversation.GetSummary());
-            logger.LogInformation("Character count: {CharCount}\n", conversation.GetCharacterCount());
+            logger.LogInformation("Messages in context: {Count}", messages.Count);
+            var charCount = messages.Sum(m => m.Content?.Length ?? 0);
+            logger.LogInformation("Character count: {CharCount}\n", charCount);
             continue;
         }
 
         try
         {
             // Add user message
-            conversation.AddUserMessage(input);
+            messages.Add(new Message { Role = Role.User, Content = input });
+
+            // Trim context if needed
+            while (messages.Count > maxContextMessages + 1) // +1 for system message
+            {
+                messages.RemoveAt(1); // Keep system message at index 0
+            }
 
             // Create request with conversation context
-            var request = conversation.CreateRequest(model);
+            var request = new LlmRequest
+            {
+                Messages = messages,
+                Config = new LlmClientConfig { Model = model, MaxTokens = 500 }
+            };
 
             // Get response
             Console.Write("Assistant: ");
-            var response = await client.CompleteAsync(request);
+            var response = await llmProvider.CompleteAsync(request);
             Console.WriteLine(response.Content);
 
             // Add assistant response to context
-            conversation.AddAssistantMessage(response.Content);
+            messages.Add(new Message { Role = Role.Assistant, Content = response.Content });
 
             // Show token usage if available
-            if (response.TokensUsed.HasValue)
+            if (response.Usage != null)
             {
-                logger.LogInformation("[Tokens used: {TokensUsed}]", response.TokensUsed);
+                logger.LogInformation("[Tokens used: {TokensUsed}]", response.Usage.TotalTokens);
             }
 
             Console.WriteLine();

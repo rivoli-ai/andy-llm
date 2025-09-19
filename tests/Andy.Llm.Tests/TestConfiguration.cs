@@ -1,10 +1,12 @@
+using Andy.Model.Llm;
+using Andy.Model.Model;
+using Andy.Model.Tooling;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Logging.Debug;
-using Andy.Llm.Abstractions;
-using Andy.Llm.Models;
 using Andy.Llm.Extensions;
+using Andy.Llm.Providers;
 
 namespace Andy.Llm.Tests;
 
@@ -102,7 +104,7 @@ public static class TestConfiguration
         if (useMocks || !ShouldRunIntegrationTests())
         {
             // Add mock implementations
-            services.AddSingleton<ILlmProvider, MockLlmProvider>();
+            services.AddSingleton<Andy.Llm.Providers.ILlmProvider, MockLlmProvider>();
         }
         else
         {
@@ -125,7 +127,7 @@ public static class TestConfiguration
 /// <summary>
 /// Mock LLM provider for testing.
 /// </summary>
-public class MockLlmProvider : ILlmProvider
+public class MockLlmProvider : Andy.Llm.Providers.ILlmProvider
 {
     private readonly IConfiguration _configuration;
     private readonly ILogger<MockLlmProvider> _logger;
@@ -154,9 +156,13 @@ public class MockLlmProvider : ILlmProvider
 
         return new LlmResponse
         {
-            Content = response,
+            AssistantMessage = new Message
+            {
+                Role = Role.Assistant,
+                Content = response
+            },
             Model = request.Model ?? "mock-model",
-            Usage = new TokenUsage
+            Usage = new LlmUsage
             {
                 PromptTokens = 10,
                 CompletionTokens = 20,
@@ -180,7 +186,7 @@ public class MockLlmProvider : ILlmProvider
             await Task.Delay(50, cancellationToken);
             yield return new LlmStreamResponse
             {
-                TextDelta = word + " ",
+                Delta = new Message { Role = Role.Assistant, Content = word + " " },
                 IsComplete = false
             };
         }

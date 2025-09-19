@@ -1,12 +1,12 @@
+using Andy.Model.Llm;
+using Andy.Model.Model;
+using Andy.Model.Tooling;
 using Xunit;
-using Andy.Llm.Models;
-using Andy.Llm.Abstractions;
-using Andy.Context.Model;
-using Microsoft.Extensions.Logging;
+using Andy.Llm.Providers;
 
 namespace Andy.Llm.Tests.Providers;
 
-internal class StubRoundtripProvider : ILlmProvider
+internal class StubRoundtripProvider : Andy.Llm.Providers.ILlmProvider
 {
     public string Name => "Stub";
 
@@ -17,11 +17,15 @@ internal class StubRoundtripProvider : ILlmProvider
         // Return mixed text + multiple tool calls
         return Task.FromResult(new LlmResponse
         {
-            Content = "I'll call two tools.",
-            FunctionCalls = new List<FunctionCall>
+            AssistantMessage = new Message
             {
-                new FunctionCall { Id = "call_1", Name = "get_weather", Arguments = new Dictionary<string, object?> { ["location"] = "NYC" }, ArgumentsJson = "{\"location\":\"NYC\"}" },
-                new FunctionCall { Id = "call_2", Name = "get_time", Arguments = new Dictionary<string, object?> { ["timezone"] = "EST" }, ArgumentsJson = "{\"timezone\":\"EST\"}" }
+                Role = Role.Assistant,
+                Content = "I'll call two tools.",
+                ToolCalls = new List<ToolCall>
+                {
+                    new ToolCall { Id = "call_1", Name = "get_weather", ArgumentsJson = "{\"location\":\"NYC\"}" },
+                    new ToolCall { Id = "call_2", Name = "get_time", ArgumentsJson = "{\"timezone\":\"EST\"}" }
+                }
             },
             FinishReason = "tool_calls"
         });
@@ -30,14 +34,14 @@ internal class StubRoundtripProvider : ILlmProvider
     public async IAsyncEnumerable<LlmStreamResponse> StreamCompleteAsync(LlmRequest request, [System.Runtime.CompilerServices.EnumeratorCancellation] CancellationToken cancellationToken = default)
     {
         // Emit text delta
-        yield return new LlmStreamResponse { TextDelta = "I will ", IsComplete = false };
-        yield return new LlmStreamResponse { TextDelta = "call ", IsComplete = false };
-        yield return new LlmStreamResponse { TextDelta = "tools.", IsComplete = false };
+        yield return new LlmStreamResponse { Delta = new Message { Role = Role.Assistant, Content = "I will " }, IsComplete = false };
+        yield return new LlmStreamResponse { Delta = new Message { Role = Role.Assistant, Content = "call " }, IsComplete = false };
+        yield return new LlmStreamResponse { Delta = new Message { Role = Role.Assistant, Content = "tools." }, IsComplete = false };
         // Emit first tool
-        yield return new LlmStreamResponse { FunctionCall = new FunctionCall { Id = "partial_0", Name = "get_weather", Arguments = new(), ArgumentsJson = "{\"location\":\"NY\"}" }, IsComplete = false };
-        yield return new LlmStreamResponse { FunctionCall = new FunctionCall { Id = "call_1", Name = "get_weather", Arguments = new(), ArgumentsJson = "{\"location\":\"NYC\"}" }, IsComplete = false };
+        yield return new LlmStreamResponse { Delta = new Message { Role = Role.Assistant, ToolCalls = new List<ToolCall> { new ToolCall { Id = "partial_0", Name = "get_weather", ArgumentsJson = "{\"location\":\"NY\"}" } } }, IsComplete = false };
+        yield return new LlmStreamResponse { Delta = new Message { Role = Role.Assistant, ToolCalls = new List<ToolCall> { new ToolCall { Id = "call_1", Name = "get_weather", ArgumentsJson = "{\"location\":\"NYC\"}" } } }, IsComplete = false };
         // Emit second tool
-        yield return new LlmStreamResponse { FunctionCall = new FunctionCall { Id = "call_2", Name = "get_time", Arguments = new(), ArgumentsJson = "{\"timezone\":\"EST\"}" }, IsComplete = false };
+        yield return new LlmStreamResponse { Delta = new Message { Role = Role.Assistant, ToolCalls = new List<ToolCall> { new ToolCall { Id = "call_2", Name = "get_time", ArgumentsJson = "{\"timezone\":\"EST\"}" } } }, IsComplete = false };
         // Complete
         yield return new LlmStreamResponse { IsComplete = true, FinishReason = "stop" };
         await Task.CompletedTask;
@@ -53,16 +57,15 @@ public class RoundtripTests
     public async Task CompleteAsync_ShouldReturnMixedText_AndMultipleToolCalls()
     {
         var provider = new StubRoundtripProvider();
-        var logger = new Microsoft.Extensions.Logging.Abstractions.NullLogger<Andy.Llm.LlmClient>();
-        var client = new Andy.Llm.LlmClient(provider, logger);
+        // Use provider directly - LlmClient has been removed
 
         var req = new LlmRequest { Messages = new List<Message> { new Message { Role = Role.User, Content = "test" } } };
-        var res = await client.CompleteAsync(req);
+        var res = await provider.CompleteAsync(req);
 
         Assert.Equal("I'll call two tools.", res.Content);
         Assert.Equal(2, res.FunctionCalls.Count);
         Assert.Equal("get_weather", res.FunctionCalls[0].Name);
-        Assert.Equal("{\"location\":\"NYC\"}", res.FunctionCalls[0].ArgumentsJson);
+        Assert.Equal("{\"location\":\"NYC\"}", res.FunctionCalls[0].Arguments);
         Assert.Equal("get_time", res.FunctionCalls[1].Name);
     }
 

@@ -1,8 +1,7 @@
-using Andy.Llm;
-using Andy.Llm.Abstractions;
+using Andy.Model.Llm;
+using Andy.Model.Model;
 using Andy.Llm.Extensions;
-using Andy.Llm.Models;
-using Andy.Llm.Services;
+using Andy.Llm.Providers;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
@@ -68,7 +67,7 @@ class Program
 
             logger.LogInformation("Using model: {Model}", ollamaModel);
 
-            var factory = serviceProvider.GetRequiredService<ILlmProviderFactory>();
+            var factory = serviceProvider.GetRequiredService<Andy.Llm.Providers.ILlmProviderFactory>();
             var ollamaProvider = factory.CreateProvider("ollama");
 
             // Check if Ollama is running
@@ -153,7 +152,7 @@ class Program
         return null;
     }
 
-    static async Task RunSimpleCompletion(ILlmProvider provider, ILogger logger)
+    static async Task RunSimpleCompletion(Andy.Llm.Providers.ILlmProvider provider, ILogger logger)
     {
         logger.LogInformation("\n--- Example 1: Simple Completion ---");
 
@@ -161,45 +160,43 @@ class Program
         {
             Messages = new List<Message>
             {
-                new Message
-                {
-                    Role = MessageRole.User,
-                    Parts = new List<MessagePart>
-                    {
-                        new TextPart { Text = "What are the benefits of running AI models locally?" }
-                    }
-                }
+                new Message { Role = Role.User, Content = "What are the benefits of running AI models locally?" }
             },
-            MaxTokens = 200,
-            Temperature = 0.7
+            Config = new LlmClientConfig
+            {
+                MaxTokens = 200,
+                Temperature = 0.7m
+            }
         };
 
         var response = await provider.CompleteAsync(request);
         Console.WriteLine($"\nResponse: {response.Content}");
-        Console.WriteLine($"Tokens used: {response.TokensUsed}");
+        Console.WriteLine($"Tokens used: {response.Usage?.TotalTokens}");
     }
 
-    static async Task RunConversationExample(ILlmProvider provider, ILogger logger)
+    static async Task RunConversationExample(Andy.Llm.Providers.ILlmProvider provider, ILogger logger)
     {
         logger.LogInformation("\n--- Example 2: Conversation with Context ---");
 
-        var context = new ConversationContext
+        var messages = new List<Message>
         {
-            SystemInstruction = "You are a helpful AI assistant running locally. Be concise and technical."
+            new Message { Role = Role.System, Content = "You are a helpful AI assistant running locally. Be concise and technical." },
+            new Message { Role = Role.User, Content = "What is Ollama?" },
+            new Message { Role = Role.Assistant, Content = "Ollama is an open-source tool that allows you to run large language models locally on your machine. It provides a simple API and CLI for managing and running models like Llama 2, Mistral, and others." },
+            new Message { Role = Role.User, Content = "What hardware do I need?" }
         };
 
-        context.AddUserMessage("What is Ollama?");
-        context.AddAssistantMessage("Ollama is an open-source tool that allows you to run large language models locally on your machine. It provides a simple API and CLI for managing and running models like Llama 2, Mistral, and others.");
-        context.AddUserMessage("What hardware do I need?");
-
-        var request = context.CreateRequest();
-        request.MaxTokens = 150;
+        var request = new LlmRequest
+        {
+            Messages = messages,
+            Config = new LlmClientConfig { MaxTokens = 150 }
+        };
 
         var response = await provider.CompleteAsync(request);
         Console.WriteLine($"\nResponse: {response.Content}");
     }
 
-    static async Task RunStreamingExample(ILlmProvider provider, ILogger logger)
+    static async Task RunStreamingExample(Andy.Llm.Providers.ILlmProvider provider, ILogger logger)
     {
         logger.LogInformation("\n--- Example 3: Streaming Response ---");
         Console.WriteLine("\nGenerating a haiku about local AI (streaming):\n");
@@ -208,17 +205,13 @@ class Program
         {
             Messages = new List<Message>
             {
-                new Message
-                {
-                    Role = MessageRole.User,
-                    Parts = new List<MessagePart>
-                    {
-                        new TextPart { Text = "Write a haiku about running AI models locally." }
-                    }
-                }
+                new Message { Role = Role.User, Content = "Write a haiku about running AI models locally." }
             },
-            MaxTokens = 100,
-            Temperature = 0.9
+            Config = new LlmClientConfig
+            {
+                MaxTokens = 100,
+                Temperature = 0.9m
+            }
         };
 
         await foreach (var chunk in provider.StreamCompleteAsync(request))
@@ -234,7 +227,7 @@ class Program
         }
     }
 
-    static async Task RunCodeGenerationExample(ILlmProvider provider, ILogger logger)
+    static async Task RunCodeGenerationExample(Andy.Llm.Providers.ILlmProvider provider, ILogger logger)
     {
         logger.LogInformation("\n--- Example 4: Code Generation ---");
 
@@ -242,32 +235,21 @@ class Program
         {
             Messages = new List<Message>
             {
-                new Message
-                {
-                    Role = MessageRole.System,
-                    Parts = new List<MessagePart>
-                    {
-                        new TextPart { Text = "You are a code assistant. Generate clean, commented code." }
-                    }
-                },
-                new Message
-                {
-                    Role = MessageRole.User,
-                    Parts = new List<MessagePart>
-                    {
-                        new TextPart { Text = "Write a Python function to calculate factorial recursively." }
-                    }
-                }
+                new Message { Role = Role.System, Content = "You are a code assistant. Generate clean, commented code." },
+                new Message { Role = Role.User, Content = "Write a Python function to calculate factorial recursively." }
             },
-            MaxTokens = 200,
-            Temperature = 0.3 // Lower temperature for more deterministic code
+            Config = new LlmClientConfig
+            {
+                MaxTokens = 200,
+                Temperature = 0.3m // Lower temperature for more deterministic code
+            }
         };
 
         var response = await provider.CompleteAsync(request);
         Console.WriteLine($"\nGenerated Code:\n{response.Content}");
     }
 
-    static async Task RunPerformanceExample(ILlmProvider provider, ILogger logger)
+    static async Task RunPerformanceExample(Andy.Llm.Providers.ILlmProvider provider, ILogger logger)
     {
         logger.LogInformation("\n--- Example 5: Performance Metrics ---");
 
@@ -275,16 +257,9 @@ class Program
         {
             Messages = new List<Message>
             {
-                new Message
-                {
-                    Role = MessageRole.User,
-                    Parts = new List<MessagePart>
-                    {
-                        new TextPart { Text = "Count from 1 to 5." }
-                    }
-                }
+                new Message { Role = Role.User, Content = "Count from 1 to 5." }
             },
-            MaxTokens = 50
+            Config = new LlmClientConfig { MaxTokens = 50 }
         };
 
         var stopwatch = System.Diagnostics.Stopwatch.StartNew();
@@ -294,11 +269,11 @@ class Program
         Console.WriteLine($"\nResponse: {response.Content}");
         Console.WriteLine($"\nPerformance Metrics:");
         Console.WriteLine($"  Response time: {stopwatch.ElapsedMilliseconds}ms");
-        Console.WriteLine($"  Tokens generated: {response.TokensUsed}");
+        Console.WriteLine($"  Tokens generated: {response.Usage?.TotalTokens}");
 
-        if (response.TokensUsed > 0 && stopwatch.ElapsedMilliseconds > 0)
+        if (response.Usage?.TotalTokens > 0 && stopwatch.ElapsedMilliseconds > 0)
         {
-            var tokensPerSecond = (response.TokensUsed * 1000.0) / stopwatch.ElapsedMilliseconds;
+            var tokensPerSecond = (response.Usage.TotalTokens * 1000.0) / stopwatch.ElapsedMilliseconds;
             Console.WriteLine($"  Tokens/second: {tokensPerSecond:F2}");
         }
 
@@ -321,7 +296,7 @@ class Program
         }
     }
 
-    static async Task RunModelComparisonExample(ILlmProviderFactory factory, ILogger logger)
+    static async Task RunModelComparisonExample(Andy.Llm.Providers.ILlmProviderFactory factory, ILogger logger)
     {
         logger.LogInformation("\n--- Example 6: Model Comparison ---");
         logger.LogInformation("This example compares different models if you have multiple installed.");
@@ -379,20 +354,16 @@ class Program
 
                 var request = new LlmRequest
                 {
-                    Model = model,
                     Messages = new List<Message>
                     {
-                        new Message
-                        {
-                            Role = MessageRole.User,
-                            Parts = new List<MessagePart>
-                            {
-                                new TextPart { Text = prompt }
-                            }
-                        }
+                        new Message { Role = Role.User, Content = prompt }
                     },
-                    MaxTokens = 100,
-                    Temperature = 0.7
+                    Config = new LlmClientConfig
+                    {
+                        Model = model,
+                        MaxTokens = 100,
+                        Temperature = 0.7m
+                    }
                 };
 
                 var stopwatch = System.Diagnostics.Stopwatch.StartNew();

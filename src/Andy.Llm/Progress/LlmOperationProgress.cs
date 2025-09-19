@@ -250,6 +250,7 @@ public static class CancellationTokenExtensions
     /// </summary>
     /// <param name="cancellationToken">The cancellation token.</param>
     /// <param name="message">The message to include in the exception.</param>
+    /// <exception cref="OperationCanceledException"></exception>
     public static void ThrowIfCancellationRequested(
         this CancellationToken cancellationToken,
         string message)

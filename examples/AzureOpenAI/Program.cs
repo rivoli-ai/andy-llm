@@ -1,8 +1,8 @@
-using Andy.Llm;
-using Andy.Llm.Abstractions;
+using Andy.Model.Llm;
+using Andy.Model.Model;
+using Andy.Model.Tooling;
 using Andy.Llm.Extensions;
-using Andy.Llm.Models;
-using Andy.Llm.Services;
+using Andy.Llm.Providers;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
@@ -59,7 +59,7 @@ class Program
 
         try
         {
-            var factory = serviceProvider.GetRequiredService<ILlmProviderFactory>();
+            var factory = serviceProvider.GetRequiredService<Andy.Llm.Providers.ILlmProviderFactory>();
             var azureProvider = factory.CreateProvider("azure");
 
             // Check availability
@@ -93,7 +93,7 @@ class Program
         }
     }
 
-    static async Task RunSimpleCompletion(ILlmProvider provider, ILogger logger)
+    static async Task RunSimpleCompletion(Andy.Llm.Providers.ILlmProvider provider, ILogger logger)
     {
         logger.LogInformation("\n--- Example 1: Simple Completion ---");
 
@@ -101,45 +101,43 @@ class Program
         {
             Messages = new List<Message>
             {
-                new Message
-                {
-                    Role = MessageRole.User,
-                    Parts = new List<MessagePart>
-                    {
-                        new TextPart { Text = "What is Azure OpenAI Service and what are its key benefits?" }
-                    }
-                }
+                new Message { Role = Role.User, Content = "What is Azure OpenAI Service and what are its key benefits?" }
             },
-            MaxTokens = 200,
-            Temperature = 0.7
+            Config = new LlmClientConfig
+            {
+                MaxTokens = 200,
+                Temperature = 0.7m
+            }
         };
 
         var response = await provider.CompleteAsync(request);
         Console.WriteLine($"\nResponse: {response.Content}");
-        Console.WriteLine($"Tokens used: {response.TokensUsed}");
+        Console.WriteLine($"Tokens used: {response.Usage?.TotalTokens}");
     }
 
-    static async Task RunConversationExample(ILlmProvider provider, ILogger logger)
+    static async Task RunConversationExample(Andy.Llm.Providers.ILlmProvider provider, ILogger logger)
     {
         logger.LogInformation("\n--- Example 2: Conversation with Context ---");
 
-        var context = new ConversationContext
+        var messages = new List<Message>
         {
-            SystemInstruction = "You are an Azure cloud architecture expert. Provide concise, technical responses."
+            new Message { Role = Role.System, Content = "You are an Azure cloud architecture expert. Provide concise, technical responses." },
+            new Message { Role = Role.User, Content = "What's the difference between Azure OpenAI and OpenAI's API?" },
+            new Message { Role = Role.Assistant, Content = "Azure OpenAI provides the same models as OpenAI but with enterprise features like private endpoints, managed identity, content filtering, and compliance certifications. It's integrated with Azure's security and runs in your Azure subscription." },
+            new Message { Role = Role.User, Content = "What about data privacy?" }
         };
 
-        context.AddUserMessage("What's the difference between Azure OpenAI and OpenAI's API?");
-        context.AddAssistantMessage("Azure OpenAI provides the same models as OpenAI but with enterprise features like private endpoints, managed identity, content filtering, and compliance certifications. It's integrated with Azure's security and runs in your Azure subscription.");
-        context.AddUserMessage("What about data privacy?");
-
-        var request = context.CreateRequest();
-        request.MaxTokens = 150;
+        var request = new LlmRequest
+        {
+            Messages = messages,
+            Config = new LlmClientConfig { MaxTokens = 150 }
+        };
 
         var response = await provider.CompleteAsync(request);
         Console.WriteLine($"\nResponse: {response.Content}");
     }
 
-    static async Task RunStreamingExample(ILlmProvider provider, ILogger logger)
+    static async Task RunStreamingExample(Andy.Llm.Providers.ILlmProvider provider, ILogger logger)
     {
         logger.LogInformation("\n--- Example 3: Streaming Response ---");
         Console.WriteLine("\nGenerating Azure best practices (streaming):\n");
@@ -148,17 +146,13 @@ class Program
         {
             Messages = new List<Message>
             {
-                new Message
-                {
-                    Role = MessageRole.User,
-                    Parts = new List<MessagePart>
-                    {
-                        new TextPart { Text = "List 5 Azure OpenAI Service best practices, one per line." }
-                    }
-                }
+                new Message { Role = Role.User, Content = "List 5 Azure OpenAI Service best practices, one per line." }
             },
-            MaxTokens = 200,
-            Temperature = 0.5
+            Config = new LlmClientConfig
+            {
+                MaxTokens = 200,
+                Temperature = 0.5m
+            }
         };
 
         await foreach (var chunk in provider.StreamCompleteAsync(request))
@@ -174,7 +168,7 @@ class Program
         }
     }
 
-    static async Task RunFunctionCallingExample(ILlmProvider provider, ILogger logger)
+    static async Task RunFunctionCallingExample(Andy.Llm.Providers.ILlmProvider provider, ILogger logger)
     {
         logger.LogInformation("\n--- Example 4: Function Calling ---");
         logger.LogInformation("Note: Function calling requires a deployment that supports it (e.g., gpt-4)");
@@ -183,14 +177,7 @@ class Program
         {
             Messages = new List<Message>
             {
-                new Message
-                {
-                    Role = MessageRole.User,
-                    Parts = new List<MessagePart>
-                    {
-                        new TextPart { Text = "What's the current status of my Azure subscription with ID 'sub-12345'?" }
-                    }
-                }
+                new Message { Role = Role.User, Content = "What's the current status of my Azure subscription with ID 'sub-12345'?" }
             },
             Tools = new List<ToolDeclaration>
             {
@@ -213,20 +200,20 @@ class Program
                     }
                 }
             },
-            MaxTokens = 150
+            Config = new LlmClientConfig { MaxTokens = 150 }
         };
 
         try
         {
             var response = await provider.CompleteAsync(request);
 
-            if (response.FunctionCalls.Any())
+            if (response.ToolCalls.Any())
             {
                 logger.LogInformation("Function call detected:");
-                foreach (var call in response.FunctionCalls)
+                foreach (var call in response.ToolCalls)
                 {
                     Console.WriteLine($"  Function: {call.Name}");
-                    Console.WriteLine($"  Arguments: {System.Text.Json.JsonSerializer.Serialize(call.Arguments)}");
+                    Console.WriteLine($"  Arguments: {call.ArgumentsJson}");
                 }
             }
             else
@@ -240,7 +227,7 @@ class Program
         }
     }
 
-    static async Task RunTokenUsageExample(ILlmProvider provider, ILogger logger)
+    static async Task RunTokenUsageExample(Andy.Llm.Providers.ILlmProvider provider, ILogger logger)
     {
         logger.LogInformation("\n--- Example 5: Token Usage Tracking ---");
 
@@ -248,16 +235,9 @@ class Program
         {
             Messages = new List<Message>
             {
-                new Message
-                {
-                    Role = MessageRole.User,
-                    Parts = new List<MessagePart>
-                    {
-                        new TextPart { Text = "Explain Azure regions in one sentence." }
-                    }
-                }
+                new Message { Role = Role.User, Content = "Explain Azure regions in one sentence." }
             },
-            MaxTokens = 50
+            Config = new LlmClientConfig { MaxTokens = 50 }
         };
 
         var response = await provider.CompleteAsync(request);

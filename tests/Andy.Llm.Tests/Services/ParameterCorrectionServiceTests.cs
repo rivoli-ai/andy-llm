@@ -1,4 +1,6 @@
-using Andy.Llm.Models;
+using Andy.Model.Llm;
+using Andy.Model.Model;
+using Andy.Model.Tooling;
 using Andy.Llm.Services;
 using Xunit;
 
@@ -27,15 +29,15 @@ public class ParameterCorrectionServiceTests
             }
         };
 
-        var call = new FunctionCall
+        var call = new ToolCall
         {
             Id = "call_1",
             Name = "get_weather",
-            Arguments = new Dictionary<string, object?>
+            ArgumentsJson = System.Text.Json.JsonSerializer.Serialize(new Dictionary<string, object?>
             {
                 ["locatio"] = "NYC", // near-miss
                 ["unit"] = "c"
-            }
+            })
         };
 
         var corrected = ParameterCorrectionService.SuggestCorrections(call, tools);

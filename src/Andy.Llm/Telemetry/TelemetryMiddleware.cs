@@ -1,6 +1,8 @@
 using Microsoft.Extensions.Logging;
 using System.Diagnostics;
-using Andy.Llm.Models;
+using Andy.Model.Llm;
+using Andy.Model.Model;
+using Andy.Model.Tooling;
 using Andy.Llm.Security;
 
 namespace Andy.Llm.Telemetry;

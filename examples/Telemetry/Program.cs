@@ -1,8 +1,8 @@
-using Andy.Llm;
+using Andy.Model.Llm;
+using Andy.Model.Model;
 using Andy.Llm.Extensions;
-using Andy.Llm.Models;
-using Andy.Llm.Progress;
 using Andy.Llm.Telemetry;
+using Andy.Llm.Progress;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
 using Andy.Llm.Examples.Shared;
@@ -87,7 +87,8 @@ public class TelemetryExample
     {
         logger.LogInformation("\n=== Example 1: Using TelemetryMiddleware ===");
 
-        var llmClient = serviceProvider.GetRequiredService<LlmClient>();
+        var factory = serviceProvider.GetRequiredService<Andy.Llm.Providers.ILlmProviderFactory>();
+        var llmClient = await factory.CreateAvailableProviderAsync();
         var metrics = serviceProvider.GetRequiredService<LlmMetrics>();
         var telemetryLogger = serviceProvider.GetRequiredService<ILogger<TelemetryMiddleware>>();
         var telemetry = new TelemetryMiddleware(metrics, telemetryLogger);
@@ -104,9 +105,9 @@ public class TelemetryExample
                     {
                         Messages = new List<Message>
                         {
-                            Message.CreateText(MessageRole.User, "Write a one-line story about telemetry")
+                            new Message { Role = Role.User, Content = "Write a one-line story about telemetry" }
                         },
-                        MaxTokens = 50
+                        Config = new LlmClientConfig { MaxTokens = 50 }
                     };
 
                     var result = await llmClient.CompleteAsync(request, ct);
@@ -133,7 +134,8 @@ public class TelemetryExample
         logger.LogInformation("\n=== Example 2: Direct Metrics Recording ===");
 
         var metrics = serviceProvider.GetRequiredService<LlmMetrics>();
-        var llmClient = serviceProvider.GetRequiredService<LlmClient>();
+        var factory = serviceProvider.GetRequiredService<Andy.Llm.Providers.ILlmProviderFactory>();
+        var llmClient = await factory.CreateAvailableProviderAsync();
 
         // Record operation with automatic metrics
         try

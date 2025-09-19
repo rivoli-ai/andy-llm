@@ -1,5 +1,4 @@
 using Andy.Configuration;
-using Andy.Llm.Abstractions;
 using Andy.Llm.Configuration;
 using Andy.Llm.Providers;
 using Andy.Llm.Services;
@@ -38,9 +37,6 @@ public static class ServiceCollectionExtensions
         // Register factory
         services.AddSingleton<ILlmProviderFactory, LlmProviderFactory>();
 
-        // Register client
-        services.AddScoped<LlmClient>();
-
         return services;
     }
 
@@ -64,9 +60,6 @@ public static class ServiceCollectionExtensions
 
         // Register factory
         services.AddSingleton<ILlmProviderFactory, LlmProviderFactory>();
-
-        // Register client
-        services.AddScoped<LlmClient>();
 
         return services;
     }

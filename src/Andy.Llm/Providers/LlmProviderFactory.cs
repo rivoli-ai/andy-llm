@@ -1,10 +1,9 @@
-using Andy.Llm.Abstractions;
 using Andy.Llm.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
 
-namespace Andy.Llm.Services;
+namespace Andy.Llm.Providers;
 
 /// <summary>
 /// Factory for creating LLM providers based on configuration
@@ -49,14 +48,25 @@ public class LlmProviderFactory : ILlmProviderFactory
 
         _logger.LogDebug("Creating LLM provider: {Provider}", providerName);
 
-        var provider = providerName switch
+        ILlmProvider provider;
+
+        switch (providerName)
         {
-            "openai" => _serviceProvider.GetRequiredService<Providers.OpenAIProvider>(),
-            "cerebras" => _serviceProvider.GetRequiredService<Providers.CerebrasProvider>(),
-            "azure" or "azure-openai" => CreateAzureProvider(),
-            "local" or "ollama" => CreateLocalProvider(),
-            _ => throw new NotSupportedException($"Provider '{providerName}' is not supported")
-        };
+            case "openai":
+                provider = _serviceProvider.GetRequiredService<Providers.OpenAIProvider>();
+                break;
+            case "cerebras":
+                provider = _serviceProvider.GetRequiredService<Providers.CerebrasProvider>();
+                break;
+            case "azure" or "azure-openai":
+                provider = _serviceProvider.GetRequiredService<Providers.AzureOpenAIProvider>();
+                break;
+            case "local" or "ollama":
+                provider = _serviceProvider.GetRequiredService<Providers.OllamaProvider>();
+                break;
+            default:
+                throw new NotSupportedException($"Provider '{providerName}' is not supported");
+        }
 
         _providerCache[providerName] = provider;
         return provider;
@@ -108,16 +118,6 @@ public class LlmProviderFactory : ILlmProviderFactory
         }
 
         throw new InvalidOperationException("No LLM providers are available");
-    }
-
-    private ILlmProvider CreateAzureProvider()
-    {
-        return _serviceProvider.GetRequiredService<Providers.AzureOpenAIProvider>();
-    }
-
-    private ILlmProvider CreateLocalProvider()
-    {
-        return _serviceProvider.GetRequiredService<Providers.OllamaProvider>();
     }
 }
 

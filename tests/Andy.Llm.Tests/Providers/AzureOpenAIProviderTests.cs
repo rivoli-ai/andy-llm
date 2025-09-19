@@ -1,9 +1,8 @@
-using System.Net;
-using System.Text;
+using Andy.Model.Llm;
+using Andy.Model.Model;
+using Andy.Model.Tooling;
 using Andy.Llm.Configuration;
-using Andy.Llm.Models;
 using Andy.Llm.Providers;
-using Andy.Context.Model;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
 using Moq;
@@ -142,7 +141,7 @@ public class AzureOpenAIProviderTests
             {
                 new Message { Role = Role.User, Content = "Say hello" }
             },
-            MaxTokens = 10
+            Config = new LlmClientConfig { MaxTokens = 10 }
         };
 
         // Act
@@ -169,7 +168,7 @@ public class AzureOpenAIProviderTests
             {
                 new Message { Role = Role.User, Content = "Count to 5" }
             },
-            MaxTokens = 50
+            Config = new LlmClientConfig { MaxTokens = 50 }
         };
 
         // Act
