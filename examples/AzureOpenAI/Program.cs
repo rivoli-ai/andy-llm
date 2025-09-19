@@ -59,7 +59,7 @@ class Program
 
         try
         {
-            var factory = serviceProvider.GetRequiredService<Andy.Llm.Providers.ILlmProviderFactory>();
+            var factory = serviceProvider.GetRequiredService<ILlmProviderFactory>();
             var azureProvider = factory.CreateProvider("azure");
 
             // Check availability
@@ -93,7 +93,7 @@ class Program
         }
     }
 
-    static async Task RunSimpleCompletion(Andy.Llm.Providers.ILlmProvider provider, ILogger logger)
+    static async Task RunSimpleCompletion(Andy.Model.Llm.ILlmProvider provider, ILogger logger)
     {
         logger.LogInformation("\n--- Example 1: Simple Completion ---");
 
@@ -115,7 +115,7 @@ class Program
         Console.WriteLine($"Tokens used: {response.Usage?.TotalTokens}");
     }
 
-    static async Task RunConversationExample(Andy.Llm.Providers.ILlmProvider provider, ILogger logger)
+    static async Task RunConversationExample(Andy.Model.Llm.ILlmProvider provider, ILogger logger)
     {
         logger.LogInformation("\n--- Example 2: Conversation with Context ---");
 
@@ -137,7 +137,7 @@ class Program
         Console.WriteLine($"\nResponse: {response.Content}");
     }
 
-    static async Task RunStreamingExample(Andy.Llm.Providers.ILlmProvider provider, ILogger logger)
+    static async Task RunStreamingExample(Andy.Model.Llm.ILlmProvider provider, ILogger logger)
     {
         logger.LogInformation("\n--- Example 3: Streaming Response ---");
         Console.WriteLine("\nGenerating Azure best practices (streaming):\n");
@@ -168,7 +168,7 @@ class Program
         }
     }
 
-    static async Task RunFunctionCallingExample(Andy.Llm.Providers.ILlmProvider provider, ILogger logger)
+    static async Task RunFunctionCallingExample(Andy.Model.Llm.ILlmProvider provider, ILogger logger)
     {
         logger.LogInformation("\n--- Example 4: Function Calling ---");
         logger.LogInformation("Note: Function calling requires a deployment that supports it (e.g., gpt-4)");
@@ -227,7 +227,7 @@ class Program
         }
     }
 
-    static async Task RunTokenUsageExample(Andy.Llm.Providers.ILlmProvider provider, ILogger logger)
+    static async Task RunTokenUsageExample(Andy.Model.Llm.ILlmProvider provider, ILogger logger)
     {
         logger.LogInformation("\n--- Example 5: Token Usage Tracking ---");
 

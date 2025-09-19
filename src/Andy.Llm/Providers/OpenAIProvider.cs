@@ -19,7 +19,7 @@ namespace Andy.Llm.Providers;
 /// <summary>
 /// OpenAI provider implementation using the official OpenAI SDK
 /// </summary>
-public class OpenAIProvider : ILlmProvider
+public class OpenAIProvider : Andy.Model.Llm.ILlmProvider
 {
     private readonly OpenAIClient _openAiClient;
     private readonly ChatClient _chatClient;

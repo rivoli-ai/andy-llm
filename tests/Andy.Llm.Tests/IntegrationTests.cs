@@ -157,7 +157,7 @@ public class IntegrationTests : IClassFixture<IntegrationTests.IntegrationTestFi
             _serviceProvider = services.BuildServiceProvider();
         }
 
-        public Andy.Llm.Providers.ILlmProvider GetProvider(string name)
+        public Andy.Model.Llm.ILlmProvider GetProvider(string name)
         {
             var factory = _serviceProvider.GetRequiredService<ILlmProviderFactory>();
             return factory.CreateProvider(name);

@@ -162,12 +162,23 @@ try
                 logger.LogInformation("  Result: {Result}", resultContent);
             }
 
-            // Add tool result message
-            messages.Add(new Message
+            // Add tool result message with proper ToolResult
+            var toolMessage = new Message
             {
                 Role = Role.Tool,
-                Content = resultContent
-            });
+                Content = resultContent,
+                ToolResults = new List<ToolResult>
+                {
+                    new ToolResult
+                    {
+                        CallId = call.Id,
+                        Name = call.Name,
+                        ResultJson = resultContent,
+                        IsError = false
+                    }
+                }
+            };
+            messages.Add(toolMessage);
         }
 
         // Get final response with function results

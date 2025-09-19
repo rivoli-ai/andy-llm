@@ -1,4 +1,5 @@
 using Andy.Llm.Configuration;
+using Andy.Model.Llm;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;

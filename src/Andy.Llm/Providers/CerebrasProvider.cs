@@ -20,7 +20,7 @@ namespace Andy.Llm.Providers;
 /// <summary>
 /// Cerebras provider implementation using OpenAI-compatible API
 /// </summary>
-public class CerebrasProvider : ILlmProvider
+public class CerebrasProvider : Andy.Model.Llm.ILlmProvider
 {
     private readonly ChatClient _chatClient;
     private readonly HttpClient _httpClient;

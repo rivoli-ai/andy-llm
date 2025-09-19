@@ -1,9 +1,8 @@
-using Andy.Llm;
-using Andy.Llm.Llm;
-using Andy.Llm.Providers;
+using Andy.Model.Llm;
+using Andy.Model.Model;
 using Andy.Llm.Configuration;
+using Andy.Llm.Providers;
 using Andy.Llm.Extensions;
-using Andy.Llm.Services;
 using Andy.Llm.Examples.Shared;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
@@ -124,15 +123,13 @@ public class ListModels
                 if (model.MaxTokens.HasValue)
                     logger.LogInformation("  Max Tokens: {MaxTokens:N0}", model.MaxTokens);
                 
-                if (model.SupportsFunctions.HasValue)
-                    logger.LogInformation("  Function Calling: {Supported}", 
-                        model.SupportsFunctions.Value ? "Yes" : "No");
+                logger.LogInformation("  Function Calling: {Supported}",
+                    model.SupportsFunctions ? "Yes" : "No");
                 
-                if (model.SupportsVision.HasValue)
-                    logger.LogInformation("  Vision Support: {Supported}", 
-                        model.SupportsVision.Value ? "Yes" : "No");
+                logger.LogInformation("  Vision Support: {Supported}",
+                    model.SupportsVision ? "Yes" : "No");
                 
-                if (model.IsFineTuned.HasValue && model.IsFineTuned.Value)
+                if (model.IsFineTuned)
                     logger.LogInformation("  Type: Fine-tuned");
                 
                 if (model.Created.HasValue)

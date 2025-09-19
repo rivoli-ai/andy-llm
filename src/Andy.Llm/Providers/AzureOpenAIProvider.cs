@@ -15,7 +15,7 @@ namespace Andy.Llm.Providers;
 /// <summary>
 /// Provider for Azure OpenAI Service.
 /// </summary>
-public class AzureOpenAIProvider : ILlmProvider
+public class AzureOpenAIProvider : Andy.Model.Llm.ILlmProvider
 {
     private readonly ILogger<AzureOpenAIProvider> _logger;
     private readonly ProviderConfig _config;

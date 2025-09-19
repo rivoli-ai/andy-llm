@@ -15,7 +15,7 @@ public class OpenAIContractTests
     [Fact]
     public async Task CompleteAsync_ShouldReturnFunctionCalls_WithRawArgumentsJson()
     {
-        var mockProvider = new Mock<Andy.Llm.Providers.ILlmProvider>();
+        var mockProvider = new Mock<Andy.Model.Llm.ILlmProvider>();
         mockProvider.Setup(p => p.Name).Returns("Mock");
 
         var response = new LlmResponse

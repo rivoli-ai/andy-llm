@@ -66,7 +66,7 @@ public class StreamingExample
         }
     }
 
-    static async Task BasicStreaming(Andy.Llm.Providers.ILlmProvider provider, ILogger logger)
+    static async Task BasicStreaming(Andy.Model.Llm.ILlmProvider provider, ILogger logger)
     {
         logger.LogInformation("\n=== Example 1: Basic Streaming ===");
 
@@ -108,7 +108,7 @@ public class StreamingExample
         }
     }
 
-    static async Task StreamingWithCancellation(Andy.Llm.Providers.ILlmProvider provider, ILogger logger)
+    static async Task StreamingWithCancellation(Andy.Model.Llm.ILlmProvider provider, ILogger logger)
     {
         logger.LogInformation("\n=== Example 2: Streaming with Cancellation ===");
 
@@ -148,7 +148,7 @@ public class StreamingExample
         }
     }
 
-    static async Task StreamingWithProgress(Andy.Llm.Providers.ILlmProvider provider, ILogger logger)
+    static async Task StreamingWithProgress(Andy.Model.Llm.ILlmProvider provider, ILogger logger)
     {
         logger.LogInformation("\n=== Example 3: Streaming with Progress ===");
 
@@ -191,7 +191,7 @@ public class StreamingExample
         }
     }
 
-    static async Task StreamingWithErrorHandling(Andy.Llm.Providers.ILlmProvider provider, ILogger logger)
+    static async Task StreamingWithErrorHandling(Andy.Model.Llm.ILlmProvider provider, ILogger logger)
     {
         logger.LogInformation("\n=== Example 4: Streaming with Error Handling ===");
 
@@ -238,7 +238,7 @@ public class StreamingExample
         }
     }
 
-    static async Task StreamingWithFunctionCalls(Andy.Llm.Providers.ILlmProvider provider, ILogger logger)
+    static async Task StreamingWithFunctionCalls(Andy.Model.Llm.ILlmProvider provider, ILogger logger)
     {
         logger.LogInformation("\n=== Example 5: Streaming with Complex Content ===");
         logger.LogInformation("Demonstrating streaming with a more complex request\n");

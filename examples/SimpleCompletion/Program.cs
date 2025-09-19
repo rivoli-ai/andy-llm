@@ -31,33 +31,41 @@ public class SimpleCompletion
             logger.LogInformation("=== Example 1: Simple OpenAI Completion ===");
             var factory = serviceProvider.GetRequiredService<ILlmProviderFactory>();
             var provider = await factory.CreateAvailableProviderAsync();
+
+            var userPrompt1 = "What is the capital of France?";
+            logger.LogInformation("User: {Prompt}", userPrompt1);
+
             var request = new LlmRequest
             {
                 Messages = new List<Message>
                 {
-                    new Message {Role = Role.User, Content = "What is the capital of France?"}
+                    new Message {Role = Role.User, Content = userPrompt1}
                 },
                 Config = new LlmClientConfig {Model = "gpt-4o-mini"}
             };
 
             var response = await provider.CompleteAsync(request);
-            logger.LogInformation("Response: {Response}\n", response.Content);
+            logger.LogInformation("Assistant: {Response}\n", response.Content);
             // Example 2: Using Cerebras provider explicitly
             logger.LogInformation("=== Example 2: Cerebras Completion ===");
             try
             {
                 var cerebrasProvider = factory.CreateProvider("cerebras");
+
+                var userPrompt2 = "Explain quantum computing in one sentence.";
+                logger.LogInformation("User: {Prompt}", userPrompt2);
+
                 var cerebrasRequest = new LlmRequest
                 {
                     Messages = new List<Message>
                     {
-                        new Message {Role = Role.User, Content = "Explain quantum computing in one sentence."}
+                        new Message {Role = Role.User, Content = userPrompt2}
                     },
                     // Model is optional - will use default llama3.1-8b
                     Config = new LlmClientConfig {MaxTokens = 100, Temperature = 0.7M}
                 };
                 var cerebrasResponse = await cerebrasProvider.CompleteAsync(cerebrasRequest);
-                logger.LogInformation("Cerebras Response: {Response}\n", cerebrasResponse.Content);
+                logger.LogInformation("Assistant: {Response}\n", cerebrasResponse.Content);
             }
             catch (InvalidOperationException ex)
             {
@@ -67,18 +75,34 @@ public class SimpleCompletion
 
             // Example 3: Streaming response
             logger.LogInformation("=== Example 3: Streaming Response ===");
+
+            var userPrompt3 = "Count from 1 to 5 slowly, with a brief description for each number.";
+            logger.LogInformation("User: {Prompt}", userPrompt3);
+            logger.LogInformation("Assistant (streaming): ");
+
             var streamRequest = new LlmRequest
             {
-                Messages =
-                    new List<Message> {new Message {Role = Role.User, Content = "Count from 1 to 5 slowly."}},
-                Config = new LlmClientConfig {Model = "gpt-4o-mini", MaxTokens = 100}
+                Messages = new List<Message> {new Message {Role = Role.User, Content = userPrompt3}},
+                Config = new LlmClientConfig {Model = "gpt-4o-mini", MaxTokens = 200}
             };
-            logger.LogInformation("Streaming: ");
+
+            var streamedText = string.Empty;
             await foreach (var chunk in provider.StreamCompleteAsync(streamRequest))
+            {
                 if (!string.IsNullOrEmpty(chunk.TextDelta))
+                {
                     // For streaming, we still need to write directly to console for real-time output
                     Console.Write(chunk.TextDelta);
-            logger.LogInformation("\n");
+                    streamedText += chunk.TextDelta;
+                }
+            }
+
+            // Add completion indicators
+            if (!string.IsNullOrEmpty(streamedText))
+            {
+                Console.WriteLine("\n[Streaming completed]");
+            }
+            logger.LogInformation("");
             logger.LogInformation("Examples completed!");
         }
         catch (Exception ex)

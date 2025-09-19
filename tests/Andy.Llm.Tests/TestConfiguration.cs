@@ -104,7 +104,7 @@ public static class TestConfiguration
         if (useMocks || !ShouldRunIntegrationTests())
         {
             // Add mock implementations
-            services.AddSingleton<Andy.Llm.Providers.ILlmProvider, MockLlmProvider>();
+            services.AddSingleton<Andy.Model.Llm.ILlmProvider, MockLlmProvider>();
         }
         else
         {
@@ -127,7 +127,7 @@ public static class TestConfiguration
 /// <summary>
 /// Mock LLM provider for testing.
 /// </summary>
-public class MockLlmProvider : Andy.Llm.Providers.ILlmProvider
+public class MockLlmProvider : Andy.Model.Llm.ILlmProvider
 {
     private readonly IConfiguration _configuration;
     private readonly ILogger<MockLlmProvider> _logger;

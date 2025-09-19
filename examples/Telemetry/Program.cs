@@ -1,6 +1,7 @@
 using Andy.Model.Llm;
 using Andy.Model.Model;
 using Andy.Llm.Extensions;
+using Andy.Llm.Providers;
 using Andy.Llm.Telemetry;
 using Andy.Llm.Progress;
 using Microsoft.Extensions.DependencyInjection;
@@ -87,7 +88,7 @@ public class TelemetryExample
     {
         logger.LogInformation("\n=== Example 1: Using TelemetryMiddleware ===");
 
-        var factory = serviceProvider.GetRequiredService<Andy.Llm.Providers.ILlmProviderFactory>();
+        var factory = serviceProvider.GetRequiredService<ILlmProviderFactory>();
         var llmClient = await factory.CreateAvailableProviderAsync();
         var metrics = serviceProvider.GetRequiredService<LlmMetrics>();
         var telemetryLogger = serviceProvider.GetRequiredService<ILogger<TelemetryMiddleware>>();
@@ -134,7 +135,7 @@ public class TelemetryExample
         logger.LogInformation("\n=== Example 2: Direct Metrics Recording ===");
 
         var metrics = serviceProvider.GetRequiredService<LlmMetrics>();
-        var factory = serviceProvider.GetRequiredService<Andy.Llm.Providers.ILlmProviderFactory>();
+        var factory = serviceProvider.GetRequiredService<ILlmProviderFactory>();
         var llmClient = await factory.CreateAvailableProviderAsync();
 
         // Record operation with automatic metrics

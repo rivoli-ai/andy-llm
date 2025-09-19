@@ -2,6 +2,7 @@ using Andy.Configuration;
 using Andy.Llm.Configuration;
 using Andy.Llm.Providers;
 using Andy.Llm.Services;
+using Andy.Model.Llm;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 

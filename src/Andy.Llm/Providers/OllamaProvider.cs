@@ -16,7 +16,7 @@ namespace Andy.Llm.Providers;
 /// <summary>
 /// Provider for Ollama local LLM server.
 /// </summary>
-public class OllamaProvider : ILlmProvider
+public class OllamaProvider : Andy.Model.Llm.ILlmProvider
 {
     private readonly ILogger<OllamaProvider> _logger;
     private readonly HttpClient _httpClient;

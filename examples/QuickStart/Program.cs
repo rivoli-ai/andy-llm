@@ -1,5 +1,5 @@
 using System;
-using Andy.Llm.Llm;using System.Threading.Tasks;
+using System.Threading.Tasks;
 using Andy.Llm.Parsing;
 using Microsoft.Extensions.Logging;
 
@@ -28,7 +28,7 @@ class Program
         Console.WriteLine("   Run with: dotnet run --project examples/StructuredOutput\n");
         
         Console.WriteLine("2. HYBRID PARSING EXAMPLE");
-        Console.WriteLine("   Demonstrates parsing of OpenAI, Anthropic, and text responses");
+        Console.WriteLine("   Demonstrates parsing of OpenAI and other provider responses");
         Console.WriteLine("   Run with: dotnet run --project examples/HybridParsing\n");
         
         Console.WriteLine("3. TOOL CALLING EXAMPLE");
@@ -39,15 +39,16 @@ class Program
         Console.WriteLine("==================");
         Console.WriteLine("Set your API keys before running:");
         Console.WriteLine("  export OPENAI_API_KEY=\"your-key\"");
-        Console.WriteLine("  export ANTHROPIC_API_KEY=\"your-key\"");
         Console.WriteLine("  export CEREBRAS_API_KEY=\"your-key\"");
+        Console.WriteLine("  export OLLAMA_API_BASE=\"http://localhost:11434\"");
         Console.WriteLine("  export AZURE_OPENAI_KEY=\"your-key\"");
         Console.WriteLine("  export AZURE_OPENAI_ENDPOINT=\"your-endpoint\"\n");
-        
+
         Console.WriteLine("You can also set the provider:");
         Console.WriteLine("  export LLM_PROVIDER=openai");
-        Console.WriteLine("  export LLM_PROVIDER=anthropic");
-        Console.WriteLine("  export LLM_PROVIDER=cerebras\n");
+        Console.WriteLine("  export LLM_PROVIDER=cerebras");
+        Console.WriteLine("  export LLM_PROVIDER=ollama");
+        Console.WriteLine("  export LLM_PROVIDER=azure\n");
         
         Console.WriteLine("Example Commands:");
         Console.WriteLine("================");
@@ -64,18 +65,18 @@ class Program
         // Show a simple parsing demo
         Console.WriteLine("Quick Demo - Parsing Different Response Formats:");
         Console.WriteLine("=================================================\n");
-        
+
         var factory = new StructuredResponseFactory();
-        
+
         // OpenAI format
-        var openAiResponse = @"{""choices"":[{""message"":{""content"":""Hello!""}}]}";
+        var openAiResponse = @"{""choices"":[{""message"":{""content"":""Hello from OpenAI!""}}]}";
         var parsed1 = factory.CreateFromOpenAI(openAiResponse);
-        Console.WriteLine($"OpenAI Response: {parsed1.TextContent}");
-        
-        // Anthropic format
-        var anthropicResponse = @"{""content"":[{""type"":""text"",""text"":""Hi there!""}]}";
-        var parsed2 = factory.CreateFromAnthropic(anthropicResponse);
-        Console.WriteLine($"Anthropic Response: {parsed2.TextContent}");
+        Console.WriteLine($"OpenAI Format Response: {parsed1.TextContent}");
+
+        // Generic/text format
+        var textResponse = "Hello from a text-based response!";
+        var parsed2 = factory.CreateFromGeneric(textResponse, null);
+        Console.WriteLine($"Text Format Response: {parsed2.TextContent}");
         
         Console.WriteLine("\nFor more detailed examples, run the individual example projects listed above.");
     }

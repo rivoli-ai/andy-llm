@@ -6,7 +6,7 @@ using Andy.Llm.Providers;
 
 namespace Andy.Llm.Tests.Providers;
 
-internal class StubRoundtripProvider : Andy.Llm.Providers.ILlmProvider
+internal class StubRoundtripProvider : Andy.Model.Llm.ILlmProvider
 {
     public string Name => "Stub";
 

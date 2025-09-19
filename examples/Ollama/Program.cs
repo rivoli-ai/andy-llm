@@ -67,7 +67,7 @@ class Program
 
             logger.LogInformation("Using model: {Model}", ollamaModel);
 
-            var factory = serviceProvider.GetRequiredService<Andy.Llm.Providers.ILlmProviderFactory>();
+            var factory = serviceProvider.GetRequiredService<ILlmProviderFactory>();
             var ollamaProvider = factory.CreateProvider("ollama");
 
             // Check if Ollama is running
@@ -152,7 +152,7 @@ class Program
         return null;
     }
 
-    static async Task RunSimpleCompletion(Andy.Llm.Providers.ILlmProvider provider, ILogger logger)
+    static async Task RunSimpleCompletion(Andy.Model.Llm.ILlmProvider provider, ILogger logger)
     {
         logger.LogInformation("\n--- Example 1: Simple Completion ---");
 
@@ -174,7 +174,7 @@ class Program
         Console.WriteLine($"Tokens used: {response.Usage?.TotalTokens}");
     }
 
-    static async Task RunConversationExample(Andy.Llm.Providers.ILlmProvider provider, ILogger logger)
+    static async Task RunConversationExample(Andy.Model.Llm.ILlmProvider provider, ILogger logger)
     {
         logger.LogInformation("\n--- Example 2: Conversation with Context ---");
 
@@ -196,7 +196,7 @@ class Program
         Console.WriteLine($"\nResponse: {response.Content}");
     }
 
-    static async Task RunStreamingExample(Andy.Llm.Providers.ILlmProvider provider, ILogger logger)
+    static async Task RunStreamingExample(Andy.Model.Llm.ILlmProvider provider, ILogger logger)
     {
         logger.LogInformation("\n--- Example 3: Streaming Response ---");
         Console.WriteLine("\nGenerating a haiku about local AI (streaming):\n");
@@ -227,7 +227,7 @@ class Program
         }
     }
 
-    static async Task RunCodeGenerationExample(Andy.Llm.Providers.ILlmProvider provider, ILogger logger)
+    static async Task RunCodeGenerationExample(Andy.Model.Llm.ILlmProvider provider, ILogger logger)
     {
         logger.LogInformation("\n--- Example 4: Code Generation ---");
 
@@ -249,7 +249,7 @@ class Program
         Console.WriteLine($"\nGenerated Code:\n{response.Content}");
     }
 
-    static async Task RunPerformanceExample(Andy.Llm.Providers.ILlmProvider provider, ILogger logger)
+    static async Task RunPerformanceExample(Andy.Model.Llm.ILlmProvider provider, ILogger logger)
     {
         logger.LogInformation("\n--- Example 5: Performance Metrics ---");
 
@@ -296,7 +296,7 @@ class Program
         }
     }
 
-    static async Task RunModelComparisonExample(Andy.Llm.Providers.ILlmProviderFactory factory, ILogger logger)
+    static async Task RunModelComparisonExample(ILlmProviderFactory factory, ILogger logger)
     {
         logger.LogInformation("\n--- Example 6: Model Comparison ---");
         logger.LogInformation("This example compares different models if you have multiple installed.");
