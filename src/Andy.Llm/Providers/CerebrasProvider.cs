@@ -503,9 +503,14 @@ public class CerebrasProvider : Andy.Model.Llm.ILlmProvider
             MaxOutputTokenCount = request.MaxTokens
         };
 
-        // Add tools if present - llama-3.3-70b supports tool calling
-        if (request.Tools?.Any() == true)
+        // Get the model being used (from request or default)
+        var modelInUse = request.Config?.Model ?? _defaultModel;
+
+        // Add tools only if the model supports function calling
+        // Only llama-3.3-70b supports tool calling on Cerebras
+        if (request.Tools?.Any() == true && SupportsFunctionCalling(modelInUse))
         {
+            _logger.LogDebug("Adding {ToolCount} tools for model {Model}", request.Tools.Count, modelInUse);
             foreach (var tool in request.Tools)
             {
                 var functionTool = ChatTool.CreateFunctionTool(
@@ -515,6 +520,10 @@ public class CerebrasProvider : Andy.Model.Llm.ILlmProvider
                 );
                 options.Tools.Add(functionTool);
             }
+        }
+        else if (request.Tools?.Any() == true)
+        {
+            _logger.LogWarning("Model {Model} does not support function calling. Tools will be ignored.", modelInUse);
         }
 
         return options;
