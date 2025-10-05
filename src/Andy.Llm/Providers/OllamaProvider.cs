@@ -369,10 +369,10 @@ public class OllamaProvider : Andy.Model.Llm.ILlmProvider
             {
                 Role = message.Role switch
                 {
-                    MessageRole.System => "system",
-                    MessageRole.User => "user",
-                    MessageRole.Assistant => "assistant",
-                    MessageRole.Tool => "assistant", // Ollama doesn't have a separate tool role
+                    Role.System => "system",
+                    Role.User => "user",
+                    Role.Assistant => "assistant",
+                    Role.Tool => "assistant", // Ollama doesn't have a separate tool role
                     _ => "user"
                 },
                 Content = content

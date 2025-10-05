@@ -137,9 +137,10 @@ public class OpenAIProvider : Andy.Model.Llm.ILlmProvider
 
             if (response?.Value == null)
             {
+                _logger.LogError("OpenAI API returned null response");
                 return new LlmResponse
                 {
-                    AssistantMessage = new Message { Role = Role.Assistant, Content = "" },
+                    AssistantMessage = new Message { Role = Role.Assistant, Content = "OpenAI API returned null response" },
                     FinishReason = "error"
                 };
             }
@@ -147,15 +148,48 @@ public class OpenAIProvider : Andy.Model.Llm.ILlmProvider
             var completion = response.Value;
             var functionCalls = ExtractFunctionCalls(completion);
 
+            // Safely extract text content
+            var content = "";
+            if (completion.Content != null && completion.Content.Count > 0)
+            {
+                var firstContent = completion.Content[0];
+                if (firstContent != null)
+                {
+                    content = firstContent.Text ?? "";
+                }
+            }
+
+            var finishReason = completion.FinishReason.ToString();
+
+            // Detailed logging for debugging
+            var firstText = (completion.Content != null && completion.Content.Count > 0 && completion.Content[0] != null)
+                ? completion.Content[0].Text ?? "null"
+                : "empty";
+            _logger.LogInformation("OpenAI RAW response - Content.Count: {ContentCount}, Content[0]?.Text: '{Text}', FinishReason: '{Reason}', ToolCalls: {ToolCount}",
+                completion.Content?.Count ?? 0,
+                firstText,
+                finishReason,
+                functionCalls.Count);
+
+            // If no content and no tool calls, this is likely an error
+            if (string.IsNullOrEmpty(content) && functionCalls.Count == 0)
+            {
+                var errorMsg = $"OpenAI returned no content. FinishReason: {finishReason}";
+                _logger.LogWarning(errorMsg);
+                content = errorMsg;
+            }
+
+            _logger.LogInformation("OpenAI final content to return: '{Content}'", content);
+
             return new LlmResponse
             {
                 AssistantMessage = new Message
                 {
                     Role = Role.Assistant,
-                    Content = completion.Content?.Count > 0 ? completion.Content[0]?.Text ?? "" : "",
+                    Content = content,
                     ToolCalls = functionCalls
                 },
-                FinishReason = completion.FinishReason.ToString(),
+                FinishReason = finishReason,
                 Usage = completion.Usage != null ? new LlmUsage
                 {
                     PromptTokens = completion.Usage.InputTokenCount,
@@ -167,10 +201,10 @@ public class OpenAIProvider : Andy.Model.Llm.ILlmProvider
         }
         catch (Exception ex)
         {
-            _logger.LogError(ex, "Error during OpenAI completion");
+            _logger.LogError(ex, "Error during OpenAI completion: {Message}", ex.Message);
             return new LlmResponse
             {
-                AssistantMessage = new Message { Role = Role.Assistant, Content = "" },
+                AssistantMessage = new Message { Role = Role.Assistant, Content = $"OpenAI Error: {ex.Message}" },
                 FinishReason = "error"
             };
         }
@@ -488,17 +522,17 @@ public class OpenAIProvider : Andy.Model.Llm.ILlmProvider
     {
         switch (message.Role)
         {
-            case MessageRole.System:
+            case Role.System:
                 var systemText = string.Join(" ", message.Parts.OfType<TextPart>().Select(p => p.Text));
                 yield return new SystemChatMessage(systemText);
                 break;
 
-            case MessageRole.User:
+            case Role.User:
                 var userText = string.Join(" ", message.Parts.OfType<TextPart>().Select(p => p.Text));
                 yield return new UserChatMessage(userText);
                 break;
 
-            case MessageRole.Assistant:
+            case Role.Assistant:
                 var textParts = message.Parts.OfType<TextPart>().ToList();
                 var toolCallParts = message.Parts.OfType<ToolCallPart>().ToList();
 
@@ -535,10 +569,19 @@ public class OpenAIProvider : Andy.Model.Llm.ILlmProvider
                 }
                 break;
 
-            case MessageRole.Tool:
-                foreach (var part in message.Parts.OfType<ToolResponsePart>())
+            case Role.Tool:
+                // Handle modern format: Content + ToolCallId
+                if (!string.IsNullOrEmpty(message.ToolCallId))
                 {
-                    yield return new ToolChatMessage(part.ToolResult.CallId, part.ToolResult.ResultJson);
+                    yield return new ToolChatMessage(message.ToolCallId, message.Content);
+                }
+                // Handle legacy format: ToolResults in Parts
+                else
+                {
+                    foreach (var part in message.Parts.OfType<ToolResponsePart>())
+                    {
+                        yield return new ToolChatMessage(part.ToolResult.CallId, part.ToolResult.ResultJson);
+                    }
                 }
                 break;
         }

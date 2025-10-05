@@ -439,17 +439,17 @@ public class CerebrasProvider : Andy.Model.Llm.ILlmProvider
     {
         switch (message.Role)
         {
-            case MessageRole.System:
+            case Role.System:
                 var systemText = string.Join(" ", message.Parts.OfType<TextPart>().Select(p => p.Text));
                 yield return new SystemChatMessage(systemText);
                 break;
 
-            case MessageRole.User:
+            case Role.User:
                 var userText = string.Join(" ", message.Parts.OfType<TextPart>().Select(p => p.Text));
                 yield return new UserChatMessage(userText);
                 break;
 
-            case MessageRole.Assistant:
+            case Role.Assistant:
                 var textParts = message.Parts.OfType<TextPart>().ToList();
                 var toolCallParts = message.Parts.OfType<ToolCallPart>().ToList();
 
@@ -485,7 +485,7 @@ public class CerebrasProvider : Andy.Model.Llm.ILlmProvider
                 }
                 break;
 
-            case MessageRole.Tool:
+            case Role.Tool:
                 // Tool responses are supported by llama-3.3-70b
                 foreach (var part in message.Parts.OfType<ToolResponsePart>())
                 {
