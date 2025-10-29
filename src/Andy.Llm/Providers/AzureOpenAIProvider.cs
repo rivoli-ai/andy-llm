@@ -319,6 +319,17 @@ public class AzureOpenAIProvider : Andy.Model.Llm.ILlmProvider
 
     private ProviderConfig LoadConfiguration(LlmOptions options)
     {
+        // Find the first Azure configuration (supports hierarchical names like "azure/production")
+        var azureConfig = options.Providers
+            .FirstOrDefault(p => string.Equals(p.Value.Provider ?? p.Key, "azure", StringComparison.OrdinalIgnoreCase) ||
+                               string.Equals(p.Value.Provider ?? p.Key, "azure-openai", StringComparison.OrdinalIgnoreCase));
+
+        if (azureConfig.Value != null)
+        {
+            return azureConfig.Value;
+        }
+
+        // Fallback: try simple key for backward compatibility
         if (options.Providers.TryGetValue("azure", out var config))
         {
             return config;

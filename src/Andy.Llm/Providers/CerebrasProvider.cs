@@ -48,12 +48,23 @@ public class CerebrasProvider : Andy.Model.Llm.ILlmProvider
 
         var llmOptions = options?.Value ?? throw new ArgumentNullException(nameof(options));
 
-        if (!llmOptions.Providers.TryGetValue("cerebras", out var config))
-        {
-            throw new InvalidOperationException("Cerebras provider configuration not found");
-        }
+        // Find the first Cerebras configuration (supports hierarchical names like "cerebras/large-code")
+        var cerebrasConfig = llmOptions.Providers
+            .FirstOrDefault(p => string.Equals(p.Value.Provider ?? p.Key, "cerebras", StringComparison.OrdinalIgnoreCase));
 
-        _config = config;
+        if (cerebrasConfig.Value == null)
+        {
+            // Fallback: try simple "cerebras" key for backward compatibility
+            if (!llmOptions.Providers.TryGetValue("cerebras", out var config))
+            {
+                throw new InvalidOperationException("Cerebras provider configuration not found. Ensure at least one provider configuration has Provider=\"cerebras\" or use the key \"cerebras\".");
+            }
+            _config = config;
+        }
+        else
+        {
+            _config = cerebrasConfig.Value;
+        }
 
         if (string.IsNullOrEmpty(_config.ApiKey))
         {

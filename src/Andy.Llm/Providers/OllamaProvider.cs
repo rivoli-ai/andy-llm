@@ -328,6 +328,17 @@ public class OllamaProvider : Andy.Model.Llm.ILlmProvider
 
     private ProviderConfig LoadConfiguration(LlmOptions options)
     {
+        // Find the first Ollama configuration (supports hierarchical names like "ollama/local")
+        var ollamaConfig = options.Providers
+            .FirstOrDefault(p => string.Equals(p.Value.Provider ?? p.Key, "ollama", StringComparison.OrdinalIgnoreCase) ||
+                               string.Equals(p.Value.Provider ?? p.Key, "local", StringComparison.OrdinalIgnoreCase));
+
+        if (ollamaConfig.Value != null)
+        {
+            return ollamaConfig.Value;
+        }
+
+        // Fallback: try simple key for backward compatibility
         if (options.Providers.TryGetValue("ollama", out var config))
         {
             return config;

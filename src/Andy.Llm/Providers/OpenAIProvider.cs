@@ -48,12 +48,23 @@ public class OpenAIProvider : Andy.Model.Llm.ILlmProvider
 
         var llmOptions = options?.Value ?? throw new ArgumentNullException(nameof(options));
 
-        if (!llmOptions.Providers.TryGetValue("openai", out var config))
-        {
-            throw new InvalidOperationException("OpenAI provider configuration not found");
-        }
+        // Find the first OpenAI configuration (supports hierarchical names like "openai/latest-small")
+        var openAiConfig = llmOptions.Providers
+            .FirstOrDefault(p => string.Equals(p.Value.Provider ?? p.Key, "openai", StringComparison.OrdinalIgnoreCase));
 
-        _config = config;
+        if (openAiConfig.Value == null)
+        {
+            // Fallback: try simple "openai" key for backward compatibility
+            if (!llmOptions.Providers.TryGetValue("openai", out var config))
+            {
+                throw new InvalidOperationException("OpenAI provider configuration not found. Ensure at least one provider configuration has Provider=\"openai\" or use the key \"openai\".");
+            }
+            _config = config;
+        }
+        else
+        {
+            _config = openAiConfig.Value;
+        }
 
         if (string.IsNullOrEmpty(_config.ApiKey))
         {
