@@ -584,7 +584,8 @@ public class CerebrasProvider : Andy.Model.Llm.ILlmProvider
         };
 
         // Get the model being used (from request or default)
-        var modelInUse = request.Config?.Model ?? _defaultModel;
+        // Handle both null and empty string
+        var modelInUse = !string.IsNullOrEmpty(request.Config?.Model) ? request.Config.Model : _defaultModel;
 
         // Add tools only if the model supports function calling
         // Only llama-3.3-70b supports tool calling on Cerebras
@@ -600,6 +601,10 @@ public class CerebrasProvider : Andy.Model.Llm.ILlmProvider
                 );
                 options.Tools.Add(functionTool);
             }
+
+            // Force the model to use tools when they are provided
+            options.ToolChoice = ChatToolChoice.CreateRequiredChoice();
+            _logger.LogDebug("Set ToolChoice to Required for model {Model}", modelInUse);
         }
         else if (request.Tools?.Any() == true)
         {

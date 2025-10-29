@@ -667,6 +667,9 @@ public class OpenAIProvider : Andy.Model.Llm.ILlmProvider
                 );
                 options.Tools.Add(functionTool);
             }
+
+            // Force the model to use tools when they are provided
+            options.ToolChoice = ChatToolChoice.CreateRequiredChoice();
         }
 
         return options;

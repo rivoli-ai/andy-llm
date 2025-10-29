@@ -179,14 +179,17 @@ public class IntegrationTests : IClassFixture<IntegrationTests.IntegrationTestFi
         var response = await provider.CompleteAsync(request);
 
         Assert.NotNull(response);
-        // Should either call the tool or explain it can't
-        Assert.True(response.HasToolCalls || !string.IsNullOrEmpty(response.Content),
-            "Response should either have tool calls or content");
 
+        // Log what we got for debugging
         if (response.HasToolCalls)
         {
             Assert.NotEmpty(response.ToolCalls);
             Assert.Contains(response.ToolCalls, tc => tc.Name == "get_weather");
+        }
+        else
+        {
+            // If no tool calls, this is a failure - the model should use tools
+            Assert.True(false, $"Cerebras llama-3.3-70b did not make tool calls. Response: {response.Content}");
         }
     }
 
