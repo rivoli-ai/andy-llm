@@ -181,6 +181,24 @@ public class OpenAIProvider : Andy.Model.Llm.ILlmProvider
     }
 
     /// <summary>
+    /// Gets a ChatClient for the specified model, or the default client if model is null/matches default.
+    /// </summary>
+    /// <param name="requestedModel">The model requested for this specific call, or null to use default.</param>
+    /// <returns>A ChatClient configured for the requested model.</returns>
+    private ChatClient GetChatClientForModel(string? requestedModel)
+    {
+        // If no model specified in request, or it matches the default, use the existing client
+        if (string.IsNullOrEmpty(requestedModel) || requestedModel == _defaultModel)
+        {
+            return _chatClient;
+        }
+
+        // Create a new ChatClient for the requested model
+        _logger.LogDebug("Creating ChatClient for model: {Model} (default: {DefaultModel})", requestedModel, _defaultModel);
+        return _openAiClient.GetChatClient(requestedModel);
+    }
+
+    /// <summary>
     /// Checks if the provider is available.
     /// </summary>
     /// <param name="cancellationToken">The cancellation token.</param>
@@ -218,7 +236,9 @@ public class OpenAIProvider : Andy.Model.Llm.ILlmProvider
         var messages = ConvertMessages(request);
         var options = CreateCompletionOptions(request);
 
-        var response = await _chatClient.CompleteChatAsync(messages, options, cancellationToken);
+        // Use the model from request config if specified, otherwise use default
+        var chatClient = GetChatClientForModel(request.Config?.Model);
+        var response = await chatClient.CompleteChatAsync(messages, options, cancellationToken);
 
         if (response?.Value == null)
         {
@@ -262,7 +282,9 @@ public class OpenAIProvider : Andy.Model.Llm.ILlmProvider
 
         var accumulatedToolCalls = new Dictionary<int, AccumulatedToolCall>();
 
-        await foreach (var update in _chatClient.CompleteChatStreamingAsync(messages, options, cancellationToken))
+        // Use the model from request config if specified, otherwise use default
+        var chatClient = GetChatClientForModel(request.Config?.Model);
+        await foreach (var update in chatClient.CompleteChatStreamingAsync(messages, options, cancellationToken))
         {
             // Handle text content
             if (update.ContentUpdate?.Count > 0)

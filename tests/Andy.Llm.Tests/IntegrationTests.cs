@@ -58,6 +58,43 @@ public class IntegrationTests : IClassFixture<IntegrationTests.IntegrationTestFi
     }
 
     /// <summary>
+    /// Tests OpenAI provider with gpt-5-codex model.
+    /// </summary>
+    [SkippableFact]
+    public async Task OpenAI_Gpt5Codex_ShouldWork()
+    {
+        if (Environment.GetEnvironmentVariable("OPENAI_API_KEY") == null)
+        {
+            return; // Skip test silently if API key not set
+        }
+
+        var provider = _fixture.GetProvider("openai");
+
+        var request = new LlmRequest
+        {
+            Messages = new List<Message>
+            {
+                new Message {Role = Role.User, Content = "Say 'Hello, World!' and nothing else."}
+            },
+            Config = new LlmClientConfig
+            {
+                Model = "gpt-5-codex",
+                MaxTokens = 50,
+                Temperature = 0
+            }
+        };
+
+        var response = await provider.CompleteAsync(request);
+
+        Assert.NotNull(response);
+        Assert.NotEmpty(response.Content);
+        Assert.Contains("Hello", response.Content, StringComparison.OrdinalIgnoreCase);
+        // Verify that model information is captured
+        Assert.NotNull(response.Model);
+        Assert.NotEmpty(response.Model);
+    }
+
+    /// <summary>
     /// Tests Cerebras provider when CEREBRAS_API_KEY is set.
     /// </summary>
     [SkippableFact]
