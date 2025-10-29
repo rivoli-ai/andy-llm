@@ -427,17 +427,17 @@ public class AzureOpenAIProvider : Andy.Model.Llm.ILlmProvider
         {
             switch (message.Role)
             {
-                case MessageRole.System:
+                case Role.System:
                     var systemContent = string.Join(" ", message.Parts.OfType<TextPart>().Select(p => p.Text));
                     messages.Add(new SystemChatMessage(systemContent));
                     break;
 
-                case MessageRole.User:
+                case Role.User:
                     var userContent = string.Join(" ", message.Parts.OfType<TextPart>().Select(p => p.Text));
                     messages.Add(new UserChatMessage(userContent));
                     break;
 
-                case MessageRole.Assistant:
+                case Role.Assistant:
                     var textParts = message.Parts.OfType<TextPart>().ToList();
                     var toolCalls = message.Parts.OfType<ToolCallPart>().ToList();
 
@@ -471,7 +471,7 @@ public class AzureOpenAIProvider : Andy.Model.Llm.ILlmProvider
                     }
                     break;
 
-                case MessageRole.Tool:
+                case Role.Tool:
                     var toolResponses = message.Parts.OfType<ToolResponsePart>().ToList();
                     foreach (var toolResponse in toolResponses)
                     {

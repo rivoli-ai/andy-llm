@@ -17,7 +17,7 @@
 
   <ItemGroup>
     <PackageReference Include="Andy.Configuration" Version="2025.7.16-rc.6" />
-    <PackageReference Include="Andy.Model" Version="2025.9.18-rc.3" />
+    <PackageReference Include="Andy.Model" Version="2025.9.20-rc.4" />
     <PackageReference Include="Azure.AI.OpenAI" Version="2.1.0" />
     <PackageReference Include="Cerebras.Cloud.Sdk.Unofficial" Version="2025.7.13-rc.8" />
     <PackageReference Include="Microsoft.Extensions.Http.Polly" Version="8.0.8" />

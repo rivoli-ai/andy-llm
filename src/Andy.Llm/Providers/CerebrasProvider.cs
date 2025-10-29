@@ -519,17 +519,17 @@ public class CerebrasProvider : Andy.Model.Llm.ILlmProvider
     {
         switch (message.Role)
         {
-            case MessageRole.System:
+            case Role.System:
                 var systemText = string.Join(" ", message.Parts.OfType<TextPart>().Select(p => p.Text));
                 yield return new SystemChatMessage(systemText);
                 break;
 
-            case MessageRole.User:
+            case Role.User:
                 var userText = string.Join(" ", message.Parts.OfType<TextPart>().Select(p => p.Text));
                 yield return new UserChatMessage(userText);
                 break;
 
-            case MessageRole.Assistant:
+            case Role.Assistant:
                 var textParts = message.Parts.OfType<TextPart>().ToList();
                 var toolCallParts = message.Parts.OfType<ToolCallPart>().ToList();
 
@@ -565,7 +565,7 @@ public class CerebrasProvider : Andy.Model.Llm.ILlmProvider
                 }
                 break;
 
-            case MessageRole.Tool:
+            case Role.Tool:
                 // Tool responses are supported by llama-3.3-70b
                 foreach (var part in message.Parts.OfType<ToolResponsePart>())
                 {
@@ -583,9 +583,14 @@ public class CerebrasProvider : Andy.Model.Llm.ILlmProvider
             MaxOutputTokenCount = request.MaxTokens
         };
 
-        // Add tools if present - llama-3.3-70b supports tool calling
-        if (request.Tools?.Any() == true)
+        // Get the model being used (from request or default)
+        var modelInUse = request.Config?.Model ?? _defaultModel;
+
+        // Add tools only if the model supports function calling
+        // Only llama-3.3-70b supports tool calling on Cerebras
+        if (request.Tools?.Any() == true && SupportsFunctionCalling(modelInUse))
         {
+            _logger.LogDebug("Adding {ToolCount} tools for model {Model}", request.Tools.Count, modelInUse);
             foreach (var tool in request.Tools)
             {
                 var functionTool = ChatTool.CreateFunctionTool(
@@ -595,6 +600,10 @@ public class CerebrasProvider : Andy.Model.Llm.ILlmProvider
                 );
                 options.Tools.Add(functionTool);
             }
+        }
+        else if (request.Tools?.Any() == true)
+        {
+            _logger.LogWarning("Model {Model} does not support function calling. Tools will be ignored.", modelInUse);
         }
 
         return options;
