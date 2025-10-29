@@ -206,6 +206,19 @@ public class CerebrasProvider : Andy.Model.Llm.ILlmProvider
             var messages = ConvertMessages(request);
             var options = CreateCompletionOptions(request);
 
+            // Log detailed request information for debugging
+            _logger.LogDebug("Cerebras CompleteAsync - Messages: {MessageCount}, Tools in request: {ToolCount}, Tools in options: {OptionsToolCount}, ToolChoice: {ToolChoice}",
+                messages.Count,
+                request.Tools?.Count ?? 0,
+                options.Tools?.Count ?? 0,
+                options.ToolChoice?.ToString() ?? "null");
+
+            if (options.Tools?.Count > 0)
+            {
+                _logger.LogDebug("Tools being sent to Cerebras: {ToolNames}",
+                    string.Join(", ", options.Tools.Select(t => t.FunctionName)));
+            }
+
             var response = await _chatClient.CompleteChatAsync(messages, options, cancellationToken);
 
             if (response?.Value == null)
@@ -218,7 +231,17 @@ public class CerebrasProvider : Andy.Model.Llm.ILlmProvider
             }
 
             var completion = response.Value;
+
+            // Log response details for debugging
+            _logger.LogDebug("Cerebras response - FinishReason: {FinishReason}, ContentCount: {ContentCount}, ToolCallCount: {ToolCallCount}",
+                completion.FinishReason,
+                completion.Content?.Count ?? 0,
+                completion.ToolCalls?.Count ?? 0);
+
             var functionCalls = ExtractFunctionCalls(completion);
+
+            // Use completion.Model if available, otherwise fall back to configured default model
+            var responseModel = !string.IsNullOrEmpty(completion.Model) ? completion.Model : _defaultModel;
 
             return new LlmResponse
             {
@@ -235,7 +258,7 @@ public class CerebrasProvider : Andy.Model.Llm.ILlmProvider
                     CompletionTokens = completion.Usage.OutputTokenCount,
                     TotalTokens = completion.Usage.TotalTokenCount
                 } : null,
-                Model = completion.Model
+                Model = responseModel
             };
         }
         catch (ClientResultException ex)
