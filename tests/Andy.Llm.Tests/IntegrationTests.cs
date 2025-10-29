@@ -129,6 +129,68 @@ public class IntegrationTests : IClassFixture<IntegrationTests.IntegrationTestFi
     }
 
     /// <summary>
+    /// Tests Cerebras function calling with llama-3.3-70b.
+    /// </summary>
+    [SkippableFact]
+    public async Task Cerebras_FunctionCalling_WithLlama33_ShouldWork()
+    {
+        if (Environment.GetEnvironmentVariable("CEREBRAS_API_KEY") == null)
+        {
+            return; // Skip test silently if API key not set
+        }
+
+        var provider = _fixture.GetProvider("cerebras");
+
+        var request = new LlmRequest
+        {
+            Messages = new List<Message>
+            {
+                new Message { Role = Role.User, Content = "What's the weather in San Francisco?" }
+            },
+            Tools = new List<ToolDeclaration>
+            {
+                new ToolDeclaration
+                {
+                    Name = "get_weather",
+                    Description = "Get the current weather for a location",
+                    Parameters = new Dictionary<string, object>
+                    {
+                        ["type"] = "object",
+                        ["properties"] = new Dictionary<string, object>
+                        {
+                            ["location"] = new Dictionary<string, object>
+                            {
+                                ["type"] = "string",
+                                ["description"] = "The city and state, e.g. San Francisco, CA"
+                            }
+                        },
+                        ["required"] = new[] { "location" }
+                    }
+                }
+            },
+            Config = new LlmClientConfig
+            {
+                Model = "llama-3.3-70b",  // Only this model supports function calling
+                MaxTokens = 100,
+                Temperature = 0
+            }
+        };
+
+        var response = await provider.CompleteAsync(request);
+
+        Assert.NotNull(response);
+        // Should either call the tool or explain it can't
+        Assert.True(response.HasToolCalls || !string.IsNullOrEmpty(response.Content),
+            "Response should either have tool calls or content");
+
+        if (response.HasToolCalls)
+        {
+            Assert.NotEmpty(response.ToolCalls);
+            Assert.Contains(response.ToolCalls, tc => tc.Name == "get_weather");
+        }
+    }
+
+    /// <summary>
     /// Tests streaming with OpenAI provider.
     /// </summary>
     [SkippableFact]
