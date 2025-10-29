@@ -148,11 +148,26 @@ public class IntegrationTests : IClassFixture<IntegrationTests.IntegrationTestFi
             });
 
             // Configure LLM services from environment
-            services.ConfigureLlmFromEnvironment();
             services.AddLlmServices(options =>
             {
                 options.DefaultProvider = "openai";
+
+                // Provide default configuration that will be merged with environment variables
+                options.Providers["openai"] = new Configuration.ProviderConfig
+                {
+                    ApiBase = "https://api.openai.com/v1",
+                    Model = "gpt-4o-mini"
+                };
+
+                options.Providers["cerebras"] = new Configuration.ProviderConfig
+                {
+                    ApiBase = "https://api.cerebras.ai/v1",
+                    Model = "llama3.1-8b"
+                };
             });
+
+            // Environment variables will override the above defaults
+            services.ConfigureLlmFromEnvironment();
 
             _serviceProvider = services.BuildServiceProvider();
         }

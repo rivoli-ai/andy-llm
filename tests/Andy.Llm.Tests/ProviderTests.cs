@@ -34,6 +34,7 @@ public class ProviderTests
                 ["openai"] = new ProviderConfig
                 {
                     ApiKey = "test-key",
+                    ApiBase = "https://api.openai.com/v1",
                     Model = "gpt-4"
                 }
             }
@@ -88,8 +89,18 @@ public class ProviderTests
         {
             options.Providers = new Dictionary<string, ProviderConfig>
             {
-                ["openai"] = new ProviderConfig { ApiKey = "test-key" },
-                ["cerebras"] = new ProviderConfig { ApiKey = "test-key" }
+                ["openai"] = new ProviderConfig
+                {
+                    ApiKey = "test-key",
+                    ApiBase = "https://api.openai.com/v1",
+                    Model = "gpt-4"
+                },
+                ["cerebras"] = new ProviderConfig
+                {
+                    ApiKey = "test-key",
+                    ApiBase = "https://api.cerebras.ai/v1",
+                    Model = "llama3.1-70b"
+                }
             };
         });
 

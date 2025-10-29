@@ -190,7 +190,9 @@ public class ModelListingTests
             {
                 ["cerebras"] = new ProviderConfig
                 {
-                    ApiKey = "test-key"
+                    ApiKey = "test-key",
+                    ApiBase = "https://api.cerebras.ai/v1",
+                    Model = "llama3.1-70b"
                 }
             }
         });
