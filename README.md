@@ -119,15 +119,24 @@ var services = new ServiceCollection();
 // Configure from environment variables
 services.ConfigureLlmFromEnvironment();
 
-// Or configure programmatically
+// Or configure programmatically with human-readable names
 services.AddLlmServices(options =>
 {
-    options.DefaultProvider = "openai";
-    options.DefaultModel = "gpt-4o-mini";
-    options.Providers["openai"] = new ProviderConfig
+    options.DefaultProvider = "openai/latest-small";
+    options.Providers["openai/latest-small"] = new ProviderConfig
     {
+        Provider = "openai",
         ApiKey = "your-api-key",
-        Model = "gpt-4o-mini"
+        Model = "gpt-4o-mini",
+        ApiBase = "https://api.openai.com/v1"
+    };
+    options.Providers["openai/latest-large"] = new ProviderConfig
+    {
+        Provider = "openai",
+        ApiKey = "your-api-key",
+        Model = "gpt-5",
+        ApiBase = "https://api.openai.com/v1",
+        Enabled = false
     };
 });
 
@@ -137,19 +146,136 @@ var llmClient = serviceProvider.GetRequiredService<LlmClient>();
 
 ## Configuration
 
+### Configuration Names
+
+The library supports human-readable hierarchical configuration names for better organization:
+
+```json
+{
+  "Llm": {
+    "DefaultProvider": "openai/latest-small",
+    "Providers": {
+      "openai/latest-large": {
+        "Provider": "openai",
+        "ApiBase": "https://api.openai.com/v1",
+        "ApiKey": "${OPENAI_API_KEY}",
+        "Model": "gpt-5",
+        "Enabled": false
+      },
+      "openai/latest-small": {
+        "Provider": "openai",
+        "ApiBase": "https://api.openai.com/v1",
+        "ApiKey": "${OPENAI_API_KEY}",
+        "Model": "gpt-4o-mini",
+        "Enabled": true
+      },
+      "openai/large-code": {
+        "Provider": "openai",
+        "ApiBase": "https://api.openai.com/v1",
+        "ApiKey": "${OPENAI_API_KEY}",
+        "Model": "gpt-5-codex",
+        "Enabled": false
+      },
+      "cerebras/large-code": {
+        "Provider": "cerebras",
+        "ApiBase": "https://api.cerebras.ai/v1",
+        "ApiKey": "${CEREBRAS_API_KEY}",
+        "Model": "qwen-3-coder-480b",
+        "Enabled": false
+      }
+    }
+  }
+}
+```
+
+Configuration names can use any format. The `Provider` property specifies the underlying provider type (openai, cerebras, azure, ollama). If omitted, the provider type is inferred from the configuration name prefix (e.g., "openai/latest-large" infers "openai").
+
+### Provider Priority
+
+The library supports priority-based provider selection using the `Priority` field. When using `CreateAvailableProviderAsync()`, providers are selected in the following order:
+
+1. **Default Provider** (if fully configured and enabled)
+2. **Providers with Priority** (ordered from highest to lowest)
+3. **Remaining Enabled Providers** (in dictionary order)
+
+A provider is considered "fully configured" when all required fields are present and non-empty:
+- **OpenAI/Cerebras**: `ApiKey`, `ApiBase`, and `Model` must be set
+- **Azure**: `ApiKey`, `ApiBase`, and `DeploymentName` must be set
+- **Ollama**: `ApiBase` and `Model` must be set (no API key required)
+
+Example with priorities:
+
+```json
+{
+  "Llm": {
+    "DefaultProvider": "openai/latest-large",
+    "Providers": {
+      "openai/latest-large": {
+        "Provider": "openai",
+        "ApiBase": "https://api.openai.com/v1",
+        "ApiKey": "${OPENAI_API_KEY}",
+        "Model": "gpt-4o",
+        "Enabled": true,
+        "Priority": 100
+      },
+      "cerebras/fast-large": {
+        "Provider": "cerebras",
+        "ApiBase": "https://api.cerebras.ai/v1",
+        "ApiKey": "${CEREBRAS_API_KEY}",
+        "Model": "llama-3.3-70b",
+        "Enabled": true,
+        "Priority": 90
+      },
+      "openai/latest-small": {
+        "Provider": "openai",
+        "ApiBase": "https://api.openai.com/v1",
+        "ApiKey": "${OPENAI_API_KEY}",
+        "Model": "gpt-4o-mini",
+        "Enabled": true,
+        "Priority": 80
+      }
+    }
+  }
+}
+```
+
+In this example:
+- If `OPENAI_API_KEY` is set, `openai/latest-large` will be used (default provider, Priority 100)
+- If `OPENAI_API_KEY` is not set but `CEREBRAS_API_KEY` is set, `cerebras/fast-large` will be used (Priority 90)
+- If only `openai/latest-small` is configured, it will be used (Priority 80)
+
+Providers without the `Priority` field have no explicit priority and are selected after all prioritized providers.
+
+### Backward Compatibility
+
+Simple configuration names without hierarchical structure remain supported:
+
+```csharp
+services.AddLlmServices(options =>
+{
+    options.DefaultProvider = "openai";
+    options.Providers["openai"] = new ProviderConfig
+    {
+        ApiKey = "your-api-key",
+        Model = "gpt-4o-mini"
+    };
+});
+```
+
 ### Environment Variables
 
 The library supports configuration through environment variables for all major providers:
 
 #### OpenAI
 - `OPENAI_API_KEY` - Your OpenAI API key
-- `OPENAI_MODEL` - Model to use (default: gpt-4o)
-- `OPENAI_API_BASE` - Custom API endpoint (optional)
+- `OPENAI_API_BASE` - API base URL (required)
+- `OPENAI_MODEL` - Model to use (required)
 - `OPENAI_ORGANIZATION` - Organization ID (optional)
 
 #### Cerebras
 - `CEREBRAS_API_KEY` - Your Cerebras API key
-- `CEREBRAS_MODEL` - Model to use (default: llama3.1-8b)
+- `CEREBRAS_API_BASE` - API base URL (required)
+- `CEREBRAS_MODEL` - Model to use (required)
 
 #### Azure OpenAI
 - `AZURE_OPENAI_ENDPOINT` - Your Azure OpenAI endpoint
@@ -158,8 +284,8 @@ The library supports configuration through environment variables for all major p
 - `AZURE_OPENAI_API_VERSION` - API version (default: 2024-02-15-preview)
 
 #### Local/Ollama
-- `OLLAMA_API_BASE` - Your local endpoint (e.g., http://localhost:11434)
-- `OLLAMA_MODEL` - Model to use (e.g., llama2)
+- `OLLAMA_API_BASE` - Your local endpoint (required, e.g., http://localhost:11434)
+- `OLLAMA_MODEL` - Model to use (required, e.g., llama2)
 
 ## Features
 
@@ -323,11 +449,16 @@ var request = context.CreateRequest();
 ```csharp
 var factory = serviceProvider.GetRequiredService<ILlmProviderFactory>();
 
-// Use specific provider
+// Use specific configuration by name
+var smallModel = factory.CreateProvider("openai/latest-small");
+var largeModel = factory.CreateProvider("openai/latest-large");
+var codeModel = factory.CreateProvider("cerebras/large-code");
+
+// Backward compatible: simple provider names still work
 var openAiProvider = factory.CreateProvider("openai");
 var cerebrasProvider = factory.CreateProvider("cerebras");
 
-// Or get first available provider
+// Get first available provider based on priority and completeness
 var provider = await factory.CreateAvailableProviderAsync();
 ```
 

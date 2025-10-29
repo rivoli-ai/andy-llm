@@ -5,6 +5,7 @@ using Andy.Llm.Configuration;
 using Andy.Llm.Extensions;
 using Andy.Llm.Examples.Shared;
 using Andy.Llm.Providers;
+using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
 
@@ -15,49 +16,21 @@ public class MultiProvider
 {
     public static async Task Main()
     {
+        // Load configuration from appsettings.json
+        var configuration = new ConfigurationBuilder()
+            .SetBasePath(AppContext.BaseDirectory)
+            .AddJsonFile("appsettings.json", optional: false)
+            .AddEnvironmentVariables()
+            .Build();
+
         // Setup dependency injection
         var services = new ServiceCollection();
 
         services.AddLogging(builder => builder.AddCleanConsole());
 
-        // Configure multiple providers
-        services.AddLlmServices(options =>
-        {
-            options.DefaultProvider = "openai";
-
-            // OpenAI configuration
-            options.Providers["openai"] = new ProviderConfig
-            {
-                ApiKey = Environment.GetEnvironmentVariable("OPENAI_API_KEY"),
-                Model = Environment.GetEnvironmentVariable("OPENAI_MODEL") ?? "gpt-4o",
-                Enabled = !string.IsNullOrEmpty(Environment.GetEnvironmentVariable("OPENAI_API_KEY"))
-            };
-
-            // Cerebras configuration
-            options.Providers["cerebras"] = new ProviderConfig
-            {
-                ApiKey = Environment.GetEnvironmentVariable("CEREBRAS_API_KEY"),
-                Model = Environment.GetEnvironmentVariable("CEREBRAS_MODEL") ?? "llama-3.3-70b",
-                Enabled = !string.IsNullOrEmpty(Environment.GetEnvironmentVariable("CEREBRAS_API_KEY"))
-            };
-
-            // Azure OpenAI configuration
-            options.Providers["azure"] = new ProviderConfig
-            {
-                ApiKey = Environment.GetEnvironmentVariable("AZURE_OPENAI_KEY"),
-                ApiBase = Environment.GetEnvironmentVariable("AZURE_OPENAI_ENDPOINT"),
-                DeploymentName = Environment.GetEnvironmentVariable("AZURE_OPENAI_DEPLOYMENT"),
-                Enabled = !string.IsNullOrEmpty(Environment.GetEnvironmentVariable("AZURE_OPENAI_KEY"))
-            };
-
-            // Ollama configuration
-            options.Providers["ollama"] = new ProviderConfig
-            {
-                ApiBase = Environment.GetEnvironmentVariable("OLLAMA_API_BASE") ?? "http://localhost:11434",
-                Model = Environment.GetEnvironmentVariable("OLLAMA_MODEL") ?? "gpt-oss:20b",
-                Enabled = true
-            };
-        });
+        // Configure multiple providers from appsettings.json, then environment variables will merge
+        services.AddLlmServices(configuration);
+        services.ConfigureLlmFromEnvironment();
 
         var serviceProvider = services.BuildServiceProvider();
         var logger = serviceProvider.GetRequiredService<ILogger<MultiProvider>>();
@@ -97,7 +70,7 @@ public class MultiProvider
 
         try
         {
-            var provider = factory.CreateProvider(); // Uses default (OpenAI)
+            var provider = await factory.CreateAvailableProviderAsync(); // Uses default from config
             logger.LogInformation("Default provider: {ProviderName}", provider.Name);
 
             var request = new LlmRequest
@@ -123,7 +96,7 @@ public class MultiProvider
         logger.LogInformation("\n=== Example 2: Using Specific Providers ===");
         logger.LogInformation("Note: Cerebras runs open-source models like Llama (Meta) at high speed");
 
-        var providers = new[] { "openai", "cerebras", "azure", "ollama" };
+        var providers = new[] { "openai/latest-small", "cerebras/fast-large", "azure/production", "ollama/local" };
 
         foreach (var providerName in providers)
         {
@@ -147,8 +120,7 @@ public class MultiProvider
                     },
                     Config = new LlmClientConfig
                     {
-                        MaxTokens = 50,
-                        Model = providerName == "ollama" ? "gpt-oss:20b" : null
+                        MaxTokens = 50
                     }
                 };
 
@@ -204,7 +176,7 @@ public class MultiProvider
         logger.LogInformation("\n=== Example 4: Compare Provider Performance ===");
 
         var prompt = "Explain recursion in one sentence.";
-        var providers = new[] { "openai", "cerebras" };
+        var providers = new[] { "openai/latest-small", "cerebras/fast-large" };
 
         foreach (var providerName in providers)
         {
@@ -263,7 +235,7 @@ public class MultiProvider
         try
         {
             logger.LogInformation("\nOpenAI - Function Calling:");
-            var openai = factory.CreateProvider("openai");
+            var openai = factory.CreateProvider("openai/latest-large");
 
             if (await openai.IsAvailableAsync())
             {
@@ -291,11 +263,10 @@ public class MultiProvider
                     new Message { Role = Role.User, Content = "What time is it?" }
                 };
 
-                var model = Environment.GetEnvironmentVariable("OPENAI_MODEL") ?? "gpt-4o";
                 var request = new LlmRequest
                 {
                     Messages = messages,
-                    Config = new LlmClientConfig { Model = model },
+                    Config = new LlmClientConfig { MaxTokens = 500 },
                     SystemPrompt = systemInstruction,
                     Tools = availableTools
                 };
@@ -326,7 +297,7 @@ public class MultiProvider
         try
         {
             logger.LogInformation("\nCerebras - Fast Inference (using Llama models):");
-            var cerebras = factory.CreateProvider("cerebras");
+            var cerebras = factory.CreateProvider("cerebras/fast-large");
 
             if (await cerebras.IsAvailableAsync())
             {
@@ -361,7 +332,7 @@ public class MultiProvider
         try
         {
             logger.LogInformation("\nOllama - Local Models:");
-            var ollama = factory.CreateProvider("ollama");
+            var ollama = factory.CreateProvider("ollama/local");
 
             if (await ollama.IsAvailableAsync())
             {
@@ -371,7 +342,7 @@ public class MultiProvider
                     {
                         new Message { Role = Role.User, Content = "What are the benefits of running models locally?" }
                     },
-                    Config = new LlmClientConfig { MaxTokens = 100, Model = "gpt-oss:20b" }  // Explicitly specify Ollama model
+                    Config = new LlmClientConfig { MaxTokens = 100 }
                 };
 
                 var response = await ollama.CompleteAsync(request);

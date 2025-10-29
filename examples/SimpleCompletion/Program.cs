@@ -5,6 +5,7 @@ using Andy.Llm.Examples.Shared;
 using Andy.Llm.Extensions;
 using Andy.Llm.Services;
 using Andy.Llm.Providers;
+using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
 
@@ -13,21 +14,24 @@ public class SimpleCompletion
     public static async Task Main()
     {
 // Example: Simple text completion with OpenAI and Cerebras
+// Load configuration from appsettings.json
+        var configuration = new ConfigurationBuilder()
+            .SetBasePath(AppContext.BaseDirectory)
+            .AddJsonFile("appsettings.json", optional: false)
+            .AddEnvironmentVariables()
+            .Build();
+
 // Setup services
         var services = new ServiceCollection();
         services.AddLogging(builder => builder.AddCleanConsole());
-// Configure from environment variables
-// Set OPENAI_API_KEY and/or CEREBRAS_API_KEY
+// Configure providers from appsettings.json, then environment variables will merge
+        services.AddLlmServices(configuration);
         services.ConfigureLlmFromEnvironment();
-        services.AddLlmServices(options =>
-        {
-            options.DefaultProvider = "openai";
-        });
         var serviceProvider = services.BuildServiceProvider();
         var logger = serviceProvider.GetRequiredService<ILogger<SimpleCompletion>>();
         try
         {
-            // Example 1: Using default provider (OpenAI by default)
+            // Example 1: Using default provider (openai/latest-small from appsettings.json)
             logger.LogInformation("=== Example 1: Simple OpenAI Completion ===");
             var factory = serviceProvider.GetRequiredService<ILlmProviderFactory>();
             var provider = await factory.CreateAvailableProviderAsync();
@@ -40,8 +44,7 @@ public class SimpleCompletion
                 Messages = new List<Message>
                 {
                     new Message {Role = Role.User, Content = userPrompt1}
-                },
-                Config = new LlmClientConfig {Model = "gpt-4o-mini"}
+                }
             };
 
             var response = await provider.CompleteAsync(request);
@@ -102,6 +105,7 @@ public class SimpleCompletion
             {
                 Console.WriteLine("\n[Streaming completed]");
             }
+
             logger.LogInformation("");
             logger.LogInformation("Examples completed!");
         }

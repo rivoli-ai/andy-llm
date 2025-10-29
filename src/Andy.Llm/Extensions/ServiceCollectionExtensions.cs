@@ -14,14 +14,88 @@ namespace Andy.Llm.Extensions;
 public static class ServiceCollectionExtensions
 {
     /// <summary>
-    /// Adds LLM services to the service collection
+    /// Adds LLM services to the service collection.
+    /// This method MERGES configuration from IConfiguration with existing configuration.
+    /// Existing values take precedence over new values from IConfiguration.
     /// </summary>
     public static IServiceCollection AddLlmServices(
         this IServiceCollection services,
         IConfiguration configuration)
     {
-        // Register configuration
-        services.Configure<LlmOptions>(configuration.GetSection("Llm"));
+        // Register configuration with merging logic
+        services.Configure<LlmOptions>(options =>
+        {
+            var configSection = configuration.GetSection("Llm");
+            if (!configSection.Exists())
+            {
+                return;
+            }
+
+            // Bind to a temporary object to get values from IConfiguration
+            var tempOptions = new LlmOptions();
+            configSection.Bind(tempOptions);
+
+            // Merge DefaultProvider (only if not already set)
+            if (string.IsNullOrEmpty(options.DefaultProvider))
+            {
+                options.DefaultProvider = tempOptions.DefaultProvider;
+            }
+
+            // Merge Providers
+            foreach (var (providerName, providerConfig) in tempOptions.Providers)
+            {
+                // Find existing provider case-insensitively
+                var existingKey = options.Providers.Keys.FirstOrDefault(k =>
+                    k.Equals(providerName, StringComparison.OrdinalIgnoreCase));
+
+                if (existingKey != null && options.Providers.TryGetValue(existingKey, out var existing))
+                {
+                    // Merge strategy:
+                    // - ApiKey: prefer existing (from environment variables)
+                    // - Model: prefer configuration (appsettings.json overrides environment)
+                    // - Other fields: prefer existing if set, otherwise use configuration
+
+                    existing.ApiKey ??= providerConfig.ApiKey;
+                    existing.ApiBase ??= providerConfig.ApiBase;
+
+                    // Model from configuration ALWAYS overrides environment variable
+                    if (!string.IsNullOrEmpty(providerConfig.Model))
+                    {
+                        existing.Model = providerConfig.Model;
+                    }
+
+                    existing.Organization ??= providerConfig.Organization;
+                    existing.ApiVersion ??= providerConfig.ApiVersion;
+                    existing.DeploymentName ??= providerConfig.DeploymentName;
+
+                    // Enabled and Priority from configuration take precedence
+                    if (providerConfig.Enabled != existing.Enabled)
+                    {
+                        existing.Enabled = providerConfig.Enabled;
+                    }
+                    if (providerConfig.Priority.HasValue)
+                    {
+                        existing.Priority = providerConfig.Priority;
+                    }
+                }
+                else
+                {
+                    // No existing config, add from IConfiguration
+                    options.Providers[providerName] = providerConfig;
+                }
+            }
+
+            // Merge other settings (only if not already set)
+            options.DefaultModel ??= tempOptions.DefaultModel;
+            if (options.DefaultTemperature == 0.7)  // Default value
+            {
+                options.DefaultTemperature = tempOptions.DefaultTemperature;
+            }
+            if (options.DefaultMaxTokens == 4096)  // Default value
+            {
+                options.DefaultMaxTokens = tempOptions.DefaultMaxTokens;
+            }
+        });
 
         // Register Andy.Configuration if needed
         services.AddAndyConfiguration(configuration);
@@ -77,13 +151,36 @@ public static class ServiceCollectionExtensions
     }
 
     /// <summary>
-    /// Configures LLM options from environment variables
+    /// Configures LLM options from environment variables.
+    /// This method MERGES environment variable configuration with existing configuration from appsettings.json.
+    /// Existing values in configuration take precedence (e.g., Model from appsettings.json won't be overridden).
     /// </summary>
     public static IServiceCollection ConfigureLlmFromEnvironment(
         this IServiceCollection services)
     {
         services.Configure<LlmOptions>(options =>
         {
+            // Helper method to merge provider configuration
+            void MergeProviderConfig(string providerName, ProviderConfig envConfig)
+            {
+                if (options.Providers.TryGetValue(providerName, out var existing))
+                {
+                    // Merge: only override null/empty values
+                    existing.ApiKey ??= envConfig.ApiKey;
+                    existing.ApiBase ??= envConfig.ApiBase;
+                    existing.Model ??= envConfig.Model;  // Don't override if already set!
+                    existing.Organization ??= envConfig.Organization;
+                    existing.ApiVersion ??= envConfig.ApiVersion;
+                    existing.DeploymentName ??= envConfig.DeploymentName;
+                    // Keep existing Enabled and Priority values
+                }
+                else
+                {
+                    // No existing config, create new
+                    options.Providers[providerName] = envConfig;
+                }
+            }
+
             // OpenAI configuration
             var openAiKey = Environment.GetEnvironmentVariable("OPENAI_API_KEY");
             var openAiBase = Environment.GetEnvironmentVariable("OPENAI_API_BASE");
@@ -92,14 +189,14 @@ public static class ServiceCollectionExtensions
 
             if (!string.IsNullOrEmpty(openAiKey))
             {
-                options.Providers["openai"] = new ProviderConfig
+                MergeProviderConfig("openai", new ProviderConfig
                 {
                     ApiKey = openAiKey,
                     ApiBase = openAiBase,
-                    Model = openAiModel ?? "gpt-4o",
+                    Model = openAiModel,
                     Organization = openAiOrg,
                     Enabled = true
-                };
+                });
             }
 
             // Azure OpenAI configuration
@@ -110,29 +207,30 @@ public static class ServiceCollectionExtensions
 
             if (!string.IsNullOrEmpty(azureEndpoint) && !string.IsNullOrEmpty(azureKey))
             {
-                options.Providers["azure"] = new ProviderConfig
+                MergeProviderConfig("azure", new ProviderConfig
                 {
                     ApiKey = azureKey,
                     ApiBase = azureEndpoint,
                     DeploymentName = azureDeployment,
                     ApiVersion = azureVersion ?? "2024-02-15-preview",
                     Enabled = true
-                };
+                });
             }
 
             // Cerebras configuration
             var cerebrasKey = Environment.GetEnvironmentVariable("CEREBRAS_API_KEY");
+            var cerebrasBase = Environment.GetEnvironmentVariable("CEREBRAS_API_BASE");
             var cerebrasModel = Environment.GetEnvironmentVariable("CEREBRAS_MODEL");
 
             if (!string.IsNullOrEmpty(cerebrasKey))
             {
-                options.Providers["cerebras"] = new ProviderConfig
+                MergeProviderConfig("cerebras", new ProviderConfig
                 {
                     ApiKey = cerebrasKey,
-                    ApiBase = "https://api.cerebras.ai/v1",
-                    Model = cerebrasModel ?? "llama3.1-8b",
+                    ApiBase = cerebrasBase,
+                    Model = cerebrasModel,
                     Enabled = true
-                };
+                });
             }
 
             // Local/Ollama configuration
@@ -141,16 +239,16 @@ public static class ServiceCollectionExtensions
 
             if (!string.IsNullOrEmpty(ollamaBase))
             {
-                options.Providers["ollama"] = new ProviderConfig
+                MergeProviderConfig("ollama", new ProviderConfig
                 {
                     ApiBase = ollamaBase,
-                    Model = ollamaModel ?? "llama2",
+                    Model = ollamaModel,
                     Enabled = true
-                };
+                });
             }
 
-            // Set default provider based on what's configured
-            if (options.Providers.Any(p => p.Value.Enabled))
+            // Only set default provider if not already configured
+            if (string.IsNullOrEmpty(options.DefaultProvider) && options.Providers.Any(p => p.Value.Enabled))
             {
                 options.DefaultProvider = options.Providers.First(p => p.Value.Enabled).Key;
             }

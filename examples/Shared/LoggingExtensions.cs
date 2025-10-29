@@ -32,6 +32,8 @@ public static class LoggingExtensions
         builder.AddFilter("System", LogLevel.Warning);
         builder.AddFilter("Microsoft", LogLevel.Warning);
         builder.AddFilter("System.Net.Http", LogLevel.Warning);
+        // Allow provider factory logging to show configuration details
+        builder.AddFilter("Andy.Llm.Providers.LlmProviderFactory", LogLevel.Information);
         builder.AddFilter("Andy.Llm.Providers", LogLevel.Warning);
         builder.AddFilter("Andy.Llm.Services", LogLevel.Warning);
 
@@ -62,6 +64,8 @@ public static class LoggingExtensions
         builder.AddFilter("System", LogLevel.Warning);
         builder.AddFilter("Microsoft", LogLevel.Warning);
         builder.AddFilter("System.Net.Http", LogLevel.Warning);
+        // Allow provider factory logging to show configuration details
+        builder.AddFilter("Andy.Llm.Providers.LlmProviderFactory", LogLevel.Information);
         builder.AddFilter("Andy.Llm.Providers", LogLevel.Warning);
         builder.AddFilter("Andy.Llm.Services", LogLevel.Warning);
 

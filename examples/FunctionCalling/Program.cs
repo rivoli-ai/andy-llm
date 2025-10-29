@@ -4,24 +4,24 @@ using Andy.Model.Tooling;
 using Andy.Llm.Extensions;
 using Andy.Llm.Examples.Shared;
 using Andy.Llm.Providers;
+using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
 using System.Text.Json;
 
 // Example: Function calling with tool responses
 
-// Determine which provider to use
-var providerEnv = Environment.GetEnvironmentVariable("LLM_PROVIDER") ?? "openai";
-var provider = providerEnv.ToLower();
-var model = provider == "cerebras" ? "llama-3.3-70b" : "gpt-4o-mini";
+// Load configuration from appsettings.json
+var configuration = new ConfigurationBuilder()
+    .SetBasePath(AppContext.BaseDirectory)
+    .AddJsonFile("appsettings.json", optional: false)
+    .AddEnvironmentVariables()
+    .Build();
 
 var services = new ServiceCollection();
 services.AddLogging(builder => builder.AddCleanConsole());
+services.AddLlmServices(configuration);
 services.ConfigureLlmFromEnvironment();
-services.AddLlmServices(options =>
-{
-    options.DefaultProvider = provider;
-});
 
 var serviceProvider = services.BuildServiceProvider();
 var logger = serviceProvider.GetRequiredService<ILogger<Program>>();
@@ -29,7 +29,6 @@ var logger = serviceProvider.GetRequiredService<ILogger<Program>>();
 try
 {
     logger.LogInformation("\n=== Function Calling Example ===");
-    logger.LogInformation("Provider: {Provider}, Model: {Model}", provider.ToUpper(), model);
 
     var factory = serviceProvider.GetRequiredService<ILlmProviderFactory>();
     var llmProvider = await factory.CreateAvailableProviderAsync();
@@ -96,7 +95,7 @@ try
     {
         Messages = messages,
         Tools = new List<ToolDeclaration> { weatherTool, calculateTool },
-        Config = new LlmClientConfig { Model = model }
+        Config = new LlmClientConfig { MaxTokens = 1000 }
     };
 
     // Get initial response

@@ -4,6 +4,7 @@ using Andy.Llm.Configuration;
 using Andy.Llm.Providers;
 using Andy.Llm.Extensions;
 using Andy.Llm.Examples.Shared;
+using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
 
@@ -14,49 +15,21 @@ public class ListModels
 {
     public static async Task Main(string[] args)
     {
+        // Load configuration from appsettings.json
+        var configuration = new ConfigurationBuilder()
+            .SetBasePath(AppContext.BaseDirectory)
+            .AddJsonFile("appsettings.json", optional: false)
+            .AddEnvironmentVariables()
+            .Build();
+
         // Setup dependency injection
         var services = new ServiceCollection();
-        
+
         services.AddLogging(builder => builder.AddCleanConsole());
 
-        // Configure providers
-        services.AddLlmServices(options =>
-        {
-            options.DefaultProvider = "openai";
-            
-            // OpenAI configuration
-            options.Providers["openai"] = new ProviderConfig
-            {
-                ApiKey = Environment.GetEnvironmentVariable("OPENAI_API_KEY"),
-                Model = Environment.GetEnvironmentVariable("OPENAI_MODEL") ?? "gpt-4o",
-                Enabled = !string.IsNullOrEmpty(Environment.GetEnvironmentVariable("OPENAI_API_KEY"))
-            };
-            
-            // Cerebras configuration
-            options.Providers["cerebras"] = new ProviderConfig
-            {
-                ApiKey = Environment.GetEnvironmentVariable("CEREBRAS_API_KEY"),
-                Model = Environment.GetEnvironmentVariable("CEREBRAS_MODEL") ?? "llama-3.3-70b",
-                Enabled = !string.IsNullOrEmpty(Environment.GetEnvironmentVariable("CEREBRAS_API_KEY"))
-            };
-            
-            // Azure OpenAI configuration
-            options.Providers["azure"] = new ProviderConfig
-            {
-                ApiKey = Environment.GetEnvironmentVariable("AZURE_OPENAI_KEY"),
-                ApiBase = Environment.GetEnvironmentVariable("AZURE_OPENAI_ENDPOINT"),
-                DeploymentName = Environment.GetEnvironmentVariable("AZURE_OPENAI_DEPLOYMENT"),
-                Enabled = !string.IsNullOrEmpty(Environment.GetEnvironmentVariable("AZURE_OPENAI_KEY"))
-            };
-            
-            // Ollama configuration
-            options.Providers["ollama"] = new ProviderConfig
-            {
-                ApiBase = Environment.GetEnvironmentVariable("OLLAMA_API_BASE") ?? "http://localhost:11434",
-                Model = Environment.GetEnvironmentVariable("OLLAMA_MODEL") ?? "gpt-oss:20b",
-                Enabled = true
-            };
-        });
+        // Configure providers from appsettings.json, then environment variables will merge
+        services.AddLlmServices(configuration);
+        services.ConfigureLlmFromEnvironment();
 
         var serviceProvider = services.BuildServiceProvider();
         var logger = serviceProvider.GetRequiredService<ILogger<ListModels>>();
@@ -69,10 +42,10 @@ public class ListModels
             logger.LogInformation("This example demonstrates listing available models from different LLM providers.\n");
 
             // List models from each provider
-            await ListProviderModels(factory, "openai", logger);
-            await ListProviderModels(factory, "cerebras", logger);
-            await ListProviderModels(factory, "azure", logger);
-            await ListProviderModels(factory, "ollama", logger);
+            await ListProviderModels(factory, "openai/latest-large", logger);
+            await ListProviderModels(factory, "cerebras/fast-large", logger);
+            await ListProviderModels(factory, "azure/production", logger);
+            await ListProviderModels(factory, "ollama/local", logger);
 
             // Example: List all available models from all providers
             await ListAllModels(factory, logger);
@@ -157,8 +130,8 @@ public class ListModels
     static async Task ListAllModels(ILlmProviderFactory factory, ILogger logger)
     {
         logger.LogInformation("\n\n=== SUMMARY: All Available Models ===");
-        
-        var providers = new[] { "openai", "cerebras", "azure", "ollama" };
+
+        var providers = new[] { "openai/latest-large", "cerebras/fast-large", "azure/production", "ollama/local" };
         var allModels = new List<(string Provider, string ModelId, string? Description)>();
         
         foreach (var providerName in providers)

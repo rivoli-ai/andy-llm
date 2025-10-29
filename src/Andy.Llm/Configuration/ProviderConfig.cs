@@ -6,6 +6,12 @@ namespace Andy.Llm.Configuration;
 public class ProviderConfig
 {
     /// <summary>
+    /// The underlying provider type (openai, cerebras, azure, ollama).
+    /// If not specified, will be inferred from the configuration key name.
+    /// </summary>
+    public string? Provider { get; set; }
+
+    /// <summary>
     /// API key for the provider
     /// </summary>
     public string? ApiKey { get; set; }
@@ -44,4 +50,12 @@ public class ProviderConfig
     /// Whether this provider is enabled
     /// </summary>
     public bool Enabled { get; set; } = true;
+
+    /// <summary>
+    /// Priority for provider selection (higher number = higher priority).
+    /// Default provider always has highest priority regardless of this value.
+    /// Providers with explicit priority are tried before providers without.
+    /// Among providers with same priority (or no priority), dictionary order is used.
+    /// </summary>
+    public int? Priority { get; set; }
 }

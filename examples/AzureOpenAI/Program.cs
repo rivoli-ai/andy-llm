@@ -18,7 +18,7 @@ class Program
 
         // Build configuration
         var configuration = new ConfigurationBuilder()
-            .SetBasePath(Directory.GetCurrentDirectory())
+            .SetBasePath(AppContext.BaseDirectory)
             .AddJsonFile("appsettings.json", optional: true)
             .AddEnvironmentVariables()
             .Build();
@@ -60,7 +60,7 @@ class Program
         try
         {
             var factory = serviceProvider.GetRequiredService<ILlmProviderFactory>();
-            var azureProvider = factory.CreateProvider("azure");
+            var azureProvider = factory.CreateProvider("azure/production");
 
             // Check availability
             logger.LogInformation("\nChecking Azure OpenAI availability...");

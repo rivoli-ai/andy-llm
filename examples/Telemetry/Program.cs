@@ -4,6 +4,7 @@ using Andy.Llm.Extensions;
 using Andy.Llm.Providers;
 using Andy.Llm.Telemetry;
 using Andy.Llm.Progress;
+using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
 using Andy.Llm.Examples.Shared;
@@ -20,6 +21,13 @@ public class TelemetryExample
 {
     public static async Task Main()
     {
+        // Load configuration from appsettings.json
+        var configuration = new ConfigurationBuilder()
+            .SetBasePath(AppContext.BaseDirectory)
+            .AddJsonFile("appsettings.json", optional: false)
+            .AddEnvironmentVariables()
+            .Build();
+
         // Setup dependency injection with telemetry
         var services = new ServiceCollection();
 
@@ -42,11 +50,8 @@ public class TelemetryExample
         // Add LLM services
         services.AddSingleton<LlmMetrics>();
         services.AddSingleton<TelemetryMiddleware>();
+        services.AddLlmServices(configuration);
         services.ConfigureLlmFromEnvironment();
-        services.AddLlmServices(options =>
-        {
-            options.DefaultProvider = "openai";
-        });
 
         var serviceProvider = services.BuildServiceProvider();
         var logger = serviceProvider.GetRequiredService<ILogger<TelemetryExample>>();

@@ -65,14 +65,25 @@ public class OpenAIProvider : Andy.Model.Llm.ILlmProvider
             }
         }
 
-        _defaultModel = _config.Model ?? llmOptions.DefaultModel ?? "gpt-4o";
+        // Validate ApiBase is configured
+        if (string.IsNullOrEmpty(_config.ApiBase))
+        {
+            throw new InvalidOperationException("OpenAI API base URL not configured");
+        }
+
+        // Validate Model is configured
+        if (string.IsNullOrEmpty(_config.Model))
+        {
+            throw new InvalidOperationException("OpenAI model not configured");
+        }
+
+        _defaultModel = _config.Model;
 
         // Create OpenAI client
-        var openAiOptions = new OpenAIClientOptions();
-        if (!string.IsNullOrEmpty(_config.ApiBase))
+        var openAiOptions = new OpenAIClientOptions
         {
-            openAiOptions.Endpoint = new Uri(_config.ApiBase);
-        }
+            Endpoint = new Uri(_config.ApiBase)
+        };
         if (!string.IsNullOrEmpty(_config.Organization))
         {
             openAiOptions.OrganizationId = _config.Organization;
@@ -83,7 +94,7 @@ public class OpenAIProvider : Andy.Model.Llm.ILlmProvider
 
         // Create HTTP client for models endpoint
         _httpClient = httpClientFactory?.CreateClient("OpenAI") ?? new HttpClient();
-        _httpClient.BaseAddress = new Uri(_config.ApiBase ?? "https://api.openai.com/v1/");
+        _httpClient.BaseAddress = new Uri(_config.ApiBase.TrimEnd('/') + "/");
         _httpClient.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", _config.ApiKey);
         if (!string.IsNullOrEmpty(_config.Organization))
         {

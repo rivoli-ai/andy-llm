@@ -65,13 +65,24 @@ public class CerebrasProvider : Andy.Model.Llm.ILlmProvider
             }
         }
 
-        // Use llama-3.3-70b which supports tool calling
-        _defaultModel = _config.Model ?? "llama-3.3-70b";
+        // Validate ApiBase is configured
+        if (string.IsNullOrEmpty(_config.ApiBase))
+        {
+            throw new InvalidOperationException("Cerebras API base URL not configured");
+        }
+
+        // Validate Model is configured
+        if (string.IsNullOrEmpty(_config.Model))
+        {
+            throw new InvalidOperationException("Cerebras model not configured");
+        }
+
+        _defaultModel = _config.Model;
 
         // Cerebras uses OpenAI-compatible API
         var cerebrasOptions = new OpenAIClientOptions
         {
-            Endpoint = new Uri(_config.ApiBase ?? "https://api.cerebras.ai/v1")
+            Endpoint = new Uri(_config.ApiBase)
         };
 
         // Use OpenAI SDK with Cerebras endpoint
@@ -80,7 +91,7 @@ public class CerebrasProvider : Andy.Model.Llm.ILlmProvider
 
         // Create HTTP client for models endpoint
         _httpClient = httpClientFactory?.CreateClient("Cerebras") ?? new HttpClient();
-        _httpClient.BaseAddress = new Uri(_config.ApiBase ?? "https://api.cerebras.ai/v1/");
+        _httpClient.BaseAddress = new Uri(_config.ApiBase.TrimEnd('/') + "/");
         _httpClient.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", _config.ApiKey);
 
         _logger.LogInformation("Cerebras provider initialized with model: {Model}", _defaultModel);

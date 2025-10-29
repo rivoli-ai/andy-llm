@@ -17,7 +17,7 @@ class Program
 
         // Build configuration
         var configuration = new ConfigurationBuilder()
-            .SetBasePath(Directory.GetCurrentDirectory())
+            .SetBasePath(AppContext.BaseDirectory)
             .AddJsonFile("appsettings.json", optional: true)
             .AddEnvironmentVariables()
             .Build();
@@ -68,7 +68,7 @@ class Program
             logger.LogInformation("Using model: {Model}", ollamaModel);
 
             var factory = serviceProvider.GetRequiredService<ILlmProviderFactory>();
-            var ollamaProvider = factory.CreateProvider("ollama");
+            var ollamaProvider = factory.CreateProvider("ollama/local");
 
             // Check if Ollama is running
             logger.LogInformation("\nChecking Ollama availability...");
@@ -348,7 +348,7 @@ class Program
             {
                 // Try to use different models by setting environment variable
                 Environment.SetEnvironmentVariable("OLLAMA_MODEL", model);
-                var provider = factory.CreateProvider("ollama");
+                var provider = factory.CreateProvider("ollama/local");
 
                 logger.LogInformation("\nTrying model: {Model}", model);
 

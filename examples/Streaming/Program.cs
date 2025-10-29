@@ -2,6 +2,7 @@ using Andy.Model.Llm;
 using Andy.Model.Model;
 using Andy.Llm.Extensions;
 using Andy.Llm.Providers;
+using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
 using Andy.Llm.Examples.Shared;
@@ -12,16 +13,20 @@ public class StreamingExample
 {
     public static async Task Main()
     {
+        // Load configuration from appsettings.json
+        var configuration = new ConfigurationBuilder()
+            .SetBasePath(AppContext.BaseDirectory)
+            .AddJsonFile("appsettings.json", optional: false)
+            .AddEnvironmentVariables()
+            .Build();
+
         // Setup
         var services = new ServiceCollection();
         services.AddLogging(builder => builder.AddCleanConsole());
 
-        // Configure LLM services
+        // Configure LLM services from appsettings.json, then environment variables will merge
+        services.AddLlmServices(configuration);
         services.ConfigureLlmFromEnvironment();
-        services.AddLlmServices(options =>
-        {
-            options.DefaultProvider = "openai";
-        });
 
         var serviceProvider = services.BuildServiceProvider();
         var logger = serviceProvider.GetRequiredService<ILogger<StreamingExample>>();

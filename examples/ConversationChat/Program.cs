@@ -3,32 +3,29 @@ using Andy.Model.Model;
 using Andy.Llm.Examples.Shared;
 using Andy.Llm.Extensions;
 using Andy.Llm.Providers;
+using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
 
 // Example: Multi-turn conversation with context management
 
-// Determine which provider to use
-var providerEnv = Environment.GetEnvironmentVariable("LLM_PROVIDER") ?? "openai";
-var provider = providerEnv.ToLower();
-// Use the correct model for each provider
-var model = provider == "cerebras" ? "llama-3.3-70b" : "gpt-4o-mini";
+// Load configuration from appsettings.json
+var configuration = new ConfigurationBuilder()
+    .SetBasePath(AppContext.BaseDirectory)
+    .AddJsonFile("appsettings.json", optional: false)
+    .AddEnvironmentVariables()
+    .Build();
 
 var services = new ServiceCollection();
 services.AddLogging(builder => builder.AddCleanConsole());
+services.AddLlmServices(configuration);
 services.ConfigureLlmFromEnvironment();
-services.AddLlmServices(options =>
-{
-    options.DefaultProvider = provider;
-});
 
 var serviceProvider = services.BuildServiceProvider();
 var logger = serviceProvider.GetRequiredService<ILogger<Program>>();
 
 try
 {
-    logger.LogInformation("Using provider: {Provider}, model: {Model}", provider, model);
-
     var factory = serviceProvider.GetRequiredService<ILlmProviderFactory>();
     var llmProvider = await factory.CreateAvailableProviderAsync();
 
@@ -40,9 +37,7 @@ try
     const int maxContextMessages = 10; // Keep last 10 messages
 
     logger.LogInformation("=== Conversation Chat Example ===");
-    logger.LogInformation("Provider: {Provider}, Model: {Model}", provider.ToUpper(), model);
-    logger.LogInformation("Type 'exit' to quit, 'clear' to reset conversation, 'summary' to see context");
-    logger.LogInformation("Set LLM_PROVIDER=cerebras or LLM_PROVIDER=openai to switch providers\n");
+    logger.LogInformation("Type 'exit' to quit, 'clear' to reset conversation, 'summary' to see context\n");
 
     while (true)
     {
@@ -91,7 +86,7 @@ try
             var request = new LlmRequest
             {
                 Messages = messages,
-                Config = new LlmClientConfig { Model = model, MaxTokens = 500 }
+                Config = new LlmClientConfig { MaxTokens = 500 }
             };
 
             // Get response
