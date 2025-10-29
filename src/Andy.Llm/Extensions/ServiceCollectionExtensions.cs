@@ -160,25 +160,44 @@ public static class ServiceCollectionExtensions
     {
         services.Configure<LlmOptions>(options =>
         {
-            // Helper method to merge provider configuration
-            void MergeProviderConfig(string providerName, ProviderConfig envConfig)
+            // Detect if we're in "legacy mode" (no appsettings.json configuration)
+            // In legacy mode, environment variables can create providers for backward compatibility
+            // In modern mode (with appsettings.json), environment variables only merge into existing configs
+            var hasExistingConfig = options.Providers.Any();
+
+            // Helper method to merge provider configuration from environment variables
+            void MergeProviderConfig(string providerType, ProviderConfig envConfig)
             {
-                if (options.Providers.TryGetValue(providerName, out var existing))
+                // Find all existing providers of this type (e.g., "openai/latest-small" has Provider="openai")
+                // This allows hierarchical configurations to receive environment variable overrides
+                var matchingProviders = options.Providers
+                    .Where(p => string.Equals(p.Value.Provider ?? p.Key, providerType, StringComparison.OrdinalIgnoreCase))
+                    .ToList();
+
+                if (matchingProviders.Any())
                 {
-                    // Merge: only override null/empty values
-                    existing.ApiKey ??= envConfig.ApiKey;
-                    existing.ApiBase ??= envConfig.ApiBase;
-                    existing.Model ??= envConfig.Model;  // Don't override if already set!
-                    existing.Organization ??= envConfig.Organization;
-                    existing.ApiVersion ??= envConfig.ApiVersion;
-                    existing.DeploymentName ??= envConfig.DeploymentName;
-                    // Keep existing Enabled and Priority values
+                    // Merge into ALL matching providers (e.g., all openai/* configs)
+                    foreach (var kvp in matchingProviders)
+                    {
+                        var existing = kvp.Value;
+                        // Merge: only override null/empty values from environment
+                        existing.ApiKey ??= envConfig.ApiKey;
+                        existing.ApiBase ??= envConfig.ApiBase;
+                        existing.Model ??= envConfig.Model;
+                        existing.Organization ??= envConfig.Organization;
+                        existing.ApiVersion ??= envConfig.ApiVersion;
+                        existing.DeploymentName ??= envConfig.DeploymentName;
+                        // CRITICAL: Keep existing Enabled and Priority values - NEVER override from environment!
+                    }
                 }
-                else
+                else if (!hasExistingConfig)
                 {
-                    // No existing config, create new
-                    options.Providers[providerName] = envConfig;
+                    // Legacy mode: No appsettings.json configuration exists at all
+                    // Create provider from environment variables for backward compatibility
+                    options.Providers[providerType] = envConfig;
                 }
+                // If we have existing config but no matching provider, DO NOTHING.
+                // This means the user explicitly configured providers and chose not to include this one.
             }
 
             // OpenAI configuration

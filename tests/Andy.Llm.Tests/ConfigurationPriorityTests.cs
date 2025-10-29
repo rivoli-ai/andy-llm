@@ -729,4 +729,147 @@ public class ConfigurationPriorityTests
         Assert.NotNull(llmOptions.Value.Providers["cerebras"].Model);
         Assert.NotNull(llmOptions.Value.Providers["cerebras"].ApiBase);
     }
+
+    [Fact]
+    public void EnvironmentVariables_WithDisabledProvider_ShouldNotEnableIt()
+    {
+        // Arrange - Simulate environment variables
+        Environment.SetEnvironmentVariable("CEREBRAS_API_KEY", "test-key");
+        Environment.SetEnvironmentVariable("CEREBRAS_API_BASE", "https://api.cerebras.ai/v1");
+        Environment.SetEnvironmentVariable("CEREBRAS_MODEL", "llama3.1-70b");
+
+        try
+        {
+            var services = new ServiceCollection();
+            services.AddLogging();
+
+            // Configure with DISABLED cerebras provider
+            services.AddLlmServices(options =>
+            {
+                options.Providers = new Dictionary<string, ProviderConfig>
+                {
+                    ["cerebras/large"] = new ProviderConfig
+                    {
+                        Provider = "cerebras",
+                        Enabled = false,  // DISABLED in config
+                        Model = "qwen-3-coder-480b"
+                    }
+                };
+            });
+
+            // Apply environment variables
+            services.ConfigureLlmFromEnvironment();
+
+            var serviceProvider = services.BuildServiceProvider();
+            var llmOptions = serviceProvider.GetRequiredService<IOptions<LlmOptions>>();
+
+            // Assert - Provider should still be DISABLED
+            Assert.False(llmOptions.Value.Providers["cerebras/large"].Enabled);
+
+            // But API key should be merged
+            Assert.Equal("test-key", llmOptions.Value.Providers["cerebras/large"].ApiKey);
+
+            // Model from config should NOT be overridden
+            Assert.Equal("qwen-3-coder-480b", llmOptions.Value.Providers["cerebras/large"].Model);
+
+            // Should NOT have created a new "cerebras" provider
+            Assert.False(llmOptions.Value.Providers.ContainsKey("cerebras"));
+        }
+        finally
+        {
+            Environment.SetEnvironmentVariable("CEREBRAS_API_KEY", null);
+            Environment.SetEnvironmentVariable("CEREBRAS_API_BASE", null);
+            Environment.SetEnvironmentVariable("CEREBRAS_MODEL", null);
+        }
+    }
+
+    [Fact]
+    public void EnvironmentVariables_WithExistingConfig_ShouldNotCreateNewProviders()
+    {
+        // Arrange - Set OPENAI environment variables
+        Environment.SetEnvironmentVariable("OPENAI_API_KEY", "sk-test");
+        Environment.SetEnvironmentVariable("CEREBRAS_API_KEY", "test-cerebras");
+
+        try
+        {
+            var services = new ServiceCollection();
+            services.AddLogging();
+
+            // Configure with ONLY OpenAI (no Cerebras)
+            services.AddLlmServices(options =>
+            {
+                options.Providers = new Dictionary<string, ProviderConfig>
+                {
+                    ["openai/latest-small"] = new ProviderConfig
+                    {
+                        Provider = "openai",
+                        ApiBase = "https://api.openai.com/v1",
+                        Model = "gpt-4o-mini",
+                        Enabled = true
+                    }
+                };
+            });
+
+            // Apply environment variables
+            services.ConfigureLlmFromEnvironment();
+
+            var serviceProvider = services.BuildServiceProvider();
+            var llmOptions = serviceProvider.GetRequiredService<IOptions<LlmOptions>>();
+
+            // Assert - Should have OpenAI with merged API key
+            Assert.True(llmOptions.Value.Providers.ContainsKey("openai/latest-small"));
+            Assert.Equal("sk-test", llmOptions.Value.Providers["openai/latest-small"].ApiKey);
+
+            // Should NOT have created "cerebras" provider even though CEREBRAS_API_KEY is set
+            Assert.False(llmOptions.Value.Providers.ContainsKey("cerebras"));
+
+            // Should also NOT have created plain "openai" provider
+            Assert.False(llmOptions.Value.Providers.ContainsKey("openai"));
+
+            // Should have exactly 1 provider
+            Assert.Single(llmOptions.Value.Providers);
+        }
+        finally
+        {
+            Environment.SetEnvironmentVariable("OPENAI_API_KEY", null);
+            Environment.SetEnvironmentVariable("CEREBRAS_API_KEY", null);
+        }
+    }
+
+    [Fact]
+    public void EnvironmentVariables_WithNoConfig_ShouldCreateProvidersForBackwardCompatibility()
+    {
+        // Arrange - Set environment variables
+        Environment.SetEnvironmentVariable("OPENAI_API_KEY", "sk-test");
+        Environment.SetEnvironmentVariable("OPENAI_MODEL", "gpt-4o");
+        Environment.SetEnvironmentVariable("OPENAI_API_BASE", "https://api.openai.com/v1");
+
+        try
+        {
+            var services = new ServiceCollection();
+            services.AddLogging();
+
+            // NO configuration at all (legacy mode)
+            services.AddLlmServices(options => { });
+
+            // Apply environment variables
+            services.ConfigureLlmFromEnvironment();
+
+            var serviceProvider = services.BuildServiceProvider();
+            var llmOptions = serviceProvider.GetRequiredService<IOptions<LlmOptions>>();
+
+            // Assert - Should have created provider from environment in legacy mode
+            Assert.True(llmOptions.Value.Providers.ContainsKey("openai"));
+            Assert.Equal("sk-test", llmOptions.Value.Providers["openai"].ApiKey);
+            Assert.Equal("gpt-4o", llmOptions.Value.Providers["openai"].Model);
+            Assert.Equal("https://api.openai.com/v1", llmOptions.Value.Providers["openai"].ApiBase);
+            Assert.True(llmOptions.Value.Providers["openai"].Enabled);
+        }
+        finally
+        {
+            Environment.SetEnvironmentVariable("OPENAI_API_KEY", null);
+            Environment.SetEnvironmentVariable("OPENAI_MODEL", null);
+            Environment.SetEnvironmentVariable("OPENAI_API_BASE", null);
+        }
+    }
 }
