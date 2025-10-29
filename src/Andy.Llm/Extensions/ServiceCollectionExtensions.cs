@@ -165,6 +165,10 @@ public static class ServiceCollectionExtensions
             // In modern mode (with appsettings.json), environment variables only merge into existing configs
             var hasExistingConfig = options.Providers.Any();
 
+            // Helper to check if a value is a placeholder like "${OPENAI_API_KEY}"
+            static bool IsPlaceholder(string? value) =>
+                !string.IsNullOrEmpty(value) && value.StartsWith("${") && value.EndsWith("}");
+
             // Helper method to merge provider configuration from environment variables
             void MergeProviderConfig(string providerType, ProviderConfig envConfig)
             {
@@ -180,13 +184,19 @@ public static class ServiceCollectionExtensions
                     foreach (var kvp in matchingProviders)
                     {
                         var existing = kvp.Value;
-                        // Merge: only override null/empty values from environment
-                        existing.ApiKey ??= envConfig.ApiKey;
-                        existing.ApiBase ??= envConfig.ApiBase;
-                        existing.Model ??= envConfig.Model;
-                        existing.Organization ??= envConfig.Organization;
-                        existing.ApiVersion ??= envConfig.ApiVersion;
-                        existing.DeploymentName ??= envConfig.DeploymentName;
+                        // Merge: override null, empty, or placeholder values (like "${OPENAI_API_KEY}") from environment
+                        if (string.IsNullOrEmpty(existing.ApiKey) || IsPlaceholder(existing.ApiKey))
+                            existing.ApiKey = envConfig.ApiKey;
+                        if (string.IsNullOrEmpty(existing.ApiBase) || IsPlaceholder(existing.ApiBase))
+                            existing.ApiBase = envConfig.ApiBase;
+                        if (string.IsNullOrEmpty(existing.Model) || IsPlaceholder(existing.Model))
+                            existing.Model = envConfig.Model;
+                        if (string.IsNullOrEmpty(existing.Organization) || IsPlaceholder(existing.Organization))
+                            existing.Organization = envConfig.Organization;
+                        if (string.IsNullOrEmpty(existing.ApiVersion) || IsPlaceholder(existing.ApiVersion))
+                            existing.ApiVersion = envConfig.ApiVersion;
+                        if (string.IsNullOrEmpty(existing.DeploymentName) || IsPlaceholder(existing.DeploymentName))
+                            existing.DeploymentName = envConfig.DeploymentName;
                         // CRITICAL: Keep existing Enabled and Priority values - NEVER override from environment!
                     }
                 }

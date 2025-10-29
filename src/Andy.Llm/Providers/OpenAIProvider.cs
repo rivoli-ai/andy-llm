@@ -150,52 +150,36 @@ public class OpenAIProvider : Andy.Model.Llm.ILlmProvider
     /// <returns>The LLM response.</returns>
     public async Task<LlmResponse> CompleteAsync(LlmRequest request, CancellationToken cancellationToken = default)
     {
-        try
+        var messages = ConvertMessages(request);
+        var options = CreateCompletionOptions(request);
+
+        var response = await _chatClient.CompleteChatAsync(messages, options, cancellationToken);
+
+        if (response?.Value == null)
         {
-            var messages = ConvertMessages(request);
-            var options = CreateCompletionOptions(request);
-
-            var response = await _chatClient.CompleteChatAsync(messages, options, cancellationToken);
-
-            if (response?.Value == null)
-            {
-                return new LlmResponse
-                {
-                    AssistantMessage = new Message { Role = Role.Assistant, Content = "" },
-                    FinishReason = "error"
-                };
-            }
-
-            var completion = response.Value;
-            var functionCalls = ExtractFunctionCalls(completion);
-
-            return new LlmResponse
-            {
-                AssistantMessage = new Message
-                {
-                    Role = Role.Assistant,
-                    Content = completion.Content?.Count > 0 ? completion.Content[0]?.Text ?? "" : "",
-                    ToolCalls = functionCalls
-                },
-                FinishReason = completion.FinishReason.ToString(),
-                Usage = completion.Usage != null ? new LlmUsage
-                {
-                    PromptTokens = completion.Usage.InputTokenCount,
-                    CompletionTokens = completion.Usage.OutputTokenCount,
-                    TotalTokens = completion.Usage.TotalTokenCount
-                } : null,
-                Model = completion.Model
-            };
+            throw new InvalidOperationException("OpenAI API returned null response");
         }
-        catch (Exception ex)
+
+        var completion = response.Value;
+        var functionCalls = ExtractFunctionCalls(completion);
+
+        return new LlmResponse
         {
-            _logger.LogError(ex, "Error during OpenAI completion");
-            return new LlmResponse
+            AssistantMessage = new Message
             {
-                AssistantMessage = new Message { Role = Role.Assistant, Content = "" },
-                FinishReason = "error"
-            };
-        }
+                Role = Role.Assistant,
+                Content = completion.Content?.Count > 0 ? completion.Content[0]?.Text ?? "" : "",
+                ToolCalls = functionCalls
+            },
+            FinishReason = completion.FinishReason.ToString(),
+            Usage = completion.Usage != null ? new LlmUsage
+            {
+                PromptTokens = completion.Usage.InputTokenCount,
+                CompletionTokens = completion.Usage.OutputTokenCount,
+                TotalTokens = completion.Usage.TotalTokenCount
+            } : null,
+            Model = completion.Model
+        };
     }
 
     /// <summary>
