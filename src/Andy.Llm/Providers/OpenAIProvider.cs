@@ -629,9 +629,19 @@ public class OpenAIProvider : Andy.Model.Llm.ILlmProvider
                 break;
 
             case MessageRole.Tool:
-                foreach (var part in message.Parts.OfType<ToolResponsePart>())
+                // Check if using Parts-based structure
+                var toolResponseParts = message.Parts.OfType<ToolResponsePart>().ToList();
+                if (toolResponseParts.Any())
                 {
-                    yield return new ToolChatMessage(part.ToolResult.CallId, part.ToolResult.ResultJson);
+                    foreach (var part in toolResponseParts)
+                    {
+                        yield return new ToolChatMessage(part.ToolResult.CallId, part.ToolResult.ResultJson);
+                    }
+                }
+                // Fallback: Handle simple Content + ToolCallId structure (used by SimpleAgent)
+                else if (!string.IsNullOrEmpty(message.ToolCallId) && !string.IsNullOrEmpty(message.Content))
+                {
+                    yield return new ToolChatMessage(message.ToolCallId, message.Content);
                 }
                 break;
         }
