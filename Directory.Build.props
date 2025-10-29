@@ -18,7 +18,7 @@
     <SymbolPackageFormat>snupkg</SymbolPackageFormat>
     <ContinuousIntegrationBuild Condition="'$(CI)' == 'true'">true</ContinuousIntegrationBuild>
     <Deterministic>true</Deterministic>
-    <Version>0.1.2</Version>
+    <Version>0.1.7</Version>
     <Description>Andy.Llm — Large Language Model integration library for .NET.</Description>
     <PackageRequireLicenseAcceptance>false</PackageRequireLicenseAcceptance>
     <PackageReadmeFile Condition="Exists('README.md')">README.md</PackageReadmeFile>

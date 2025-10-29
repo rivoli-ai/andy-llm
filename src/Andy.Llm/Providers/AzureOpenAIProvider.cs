@@ -22,9 +22,57 @@ public class AzureOpenAIProvider : Andy.Model.Llm.ILlmProvider
     private readonly AzureOpenAIClient _azureClient;
     private readonly ChatClient _chatClient;
     private readonly string _deploymentName;
+    private readonly string _configName;
 
     /// <summary>
-    /// Initializes a new instance of the <see cref="AzureOpenAIProvider"/> class.
+    /// Initializes a new instance of the Azure OpenAI provider with a specific configuration
+    /// </summary>
+    /// <param name="config">The provider configuration</param>
+    /// <param name="configName">The configuration name</param>
+    /// <param name="logger">Logger</param>
+    public AzureOpenAIProvider(
+        ProviderConfig config,
+        string configName,
+        ILogger<AzureOpenAIProvider> logger)
+    {
+        _logger = logger ?? throw new ArgumentNullException(nameof(logger));
+        _config = config ?? throw new ArgumentNullException(nameof(config));
+        _configName = configName ?? "azure";
+
+        // Validate required settings
+        var endpoint = _config.ApiBase;
+        var apiKey = _config.ApiKey;
+        _deploymentName = _config.DeploymentName!;  // Validated below
+
+        if (string.IsNullOrEmpty(endpoint))
+        {
+            throw new InvalidOperationException($"Azure OpenAI endpoint not configured for '{configName}'");
+        }
+
+        if (string.IsNullOrEmpty(apiKey))
+        {
+            throw new InvalidOperationException($"Azure OpenAI API key not configured for '{configName}'");
+        }
+
+        if (string.IsNullOrEmpty(_deploymentName))
+        {
+            throw new InvalidOperationException($"Azure OpenAI deployment name not configured for '{configName}'");
+        }
+
+        // Create Azure OpenAI client
+        _azureClient = new AzureOpenAIClient(
+            new Uri(endpoint),
+            new AzureKeyCredential(apiKey));
+
+        // Get chat client for deployment
+        _chatClient = _azureClient.GetChatClient(_deploymentName);
+
+        _logger.LogInformation("Azure OpenAI provider initialized - Config: {ConfigName}, Endpoint: {Endpoint}, Deployment: {Deployment}",
+            configName, endpoint, _deploymentName);
+    }
+
+    /// <summary>
+    /// Initializes a new instance of the <see cref="AzureOpenAIProvider"/> class (backward compatibility constructor).
     /// </summary>
     /// <param name="options">The LLM options containing Azure OpenAI configuration.</param>
     /// <param name="logger">The logger instance.</param>
@@ -33,6 +81,24 @@ public class AzureOpenAIProvider : Andy.Model.Llm.ILlmProvider
         ILogger<AzureOpenAIProvider> logger)
     {
         _logger = logger;
+
+        // Find the first Azure configuration to get the config name
+        var azureConfigPair = options.Value.Providers
+            .FirstOrDefault(p => string.Equals(p.Value.Provider ?? p.Key, "azure", StringComparison.OrdinalIgnoreCase) ||
+                               string.Equals(p.Value.Provider ?? p.Key, "azure-openai", StringComparison.OrdinalIgnoreCase));
+
+        if (azureConfigPair.Value != null)
+        {
+            _configName = azureConfigPair.Key;
+        }
+        else if (options.Value.Providers.ContainsKey("azure"))
+        {
+            _configName = "azure";
+        }
+        else
+        {
+            _configName = "azure";
+        }
 
         // Load configuration
         _config = LoadConfiguration(options.Value);
@@ -69,7 +135,7 @@ public class AzureOpenAIProvider : Andy.Model.Llm.ILlmProvider
     /// <summary>
     /// Gets the name of the provider.
     /// </summary>
-    public string Name => "azure";
+    public string Name => _configName;
 
     /// <summary>
     /// Checks if the Azure OpenAI service is available.

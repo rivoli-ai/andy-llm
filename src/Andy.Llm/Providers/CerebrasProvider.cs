@@ -27,14 +27,70 @@ public class CerebrasProvider : Andy.Model.Llm.ILlmProvider
     private readonly ILogger<CerebrasProvider> _logger;
     private readonly ProviderConfig _config;
     private readonly string _defaultModel;
+    private readonly string _configName;
 
     /// <summary>
     /// Gets the name of this provider.
     /// </summary>
-    public string Name => "Cerebras";
+    public string Name => _configName;
 
     /// <summary>
-    /// Initializes a new instance of the Cerebras provider
+    /// Initializes a new instance of the Cerebras provider with a specific configuration
+    /// </summary>
+    /// <param name="config">The provider configuration</param>
+    /// <param name="configName">The configuration name (e.g., "cerebras/large-code")</param>
+    /// <param name="logger">Logger</param>
+    /// <param name="httpClientFactory">Optional HTTP client factory (for models endpoint)</param>
+    public CerebrasProvider(
+        ProviderConfig config,
+        string configName,
+        ILogger<CerebrasProvider> logger,
+        IHttpClientFactory? httpClientFactory = null)
+    {
+        _logger = logger ?? throw new ArgumentNullException(nameof(logger));
+        _config = config ?? throw new ArgumentNullException(nameof(config));
+        _configName = configName ?? "Cerebras";
+
+        // Validate ApiKey is configured
+        if (string.IsNullOrEmpty(_config.ApiKey))
+        {
+            throw new InvalidOperationException($"Cerebras API key not configured for '{configName}'");
+        }
+
+        // Validate ApiBase is configured
+        if (string.IsNullOrEmpty(_config.ApiBase))
+        {
+            throw new InvalidOperationException($"Cerebras API base URL not configured for '{configName}'");
+        }
+
+        // Validate Model is configured
+        if (string.IsNullOrEmpty(_config.Model))
+        {
+            throw new InvalidOperationException($"Cerebras model not configured for '{configName}'");
+        }
+
+        _defaultModel = _config.Model;
+
+        // Cerebras uses OpenAI-compatible API
+        var cerebrasOptions = new OpenAIClientOptions
+        {
+            Endpoint = new Uri(_config.ApiBase)
+        };
+
+        // Use OpenAI SDK with Cerebras endpoint
+        var openAiClient = new OpenAIClient(new ApiKeyCredential(_config.ApiKey), cerebrasOptions);
+        _chatClient = openAiClient.GetChatClient(_defaultModel);
+
+        // Create HTTP client for models endpoint
+        _httpClient = httpClientFactory?.CreateClient("Cerebras") ?? new HttpClient();
+        _httpClient.BaseAddress = new Uri(_config.ApiBase.TrimEnd('/') + "/");
+        _httpClient.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", _config.ApiKey);
+
+        _logger.LogInformation("Cerebras provider initialized - Config: {ConfigName}, Model: {Model}", configName, _defaultModel);
+    }
+
+    /// <summary>
+    /// Initializes a new instance of the Cerebras provider (backward compatibility constructor)
     /// </summary>
     /// <param name="options">Llm options</param>
     /// <param name="logger">Logger</param>
@@ -60,10 +116,12 @@ public class CerebrasProvider : Andy.Model.Llm.ILlmProvider
                 throw new InvalidOperationException("Cerebras provider configuration not found. Ensure at least one provider configuration has Provider=\"cerebras\" or use the key \"cerebras\".");
             }
             _config = config;
+            _configName = "cerebras";
         }
         else
         {
             _config = cerebrasConfig.Value;
+            _configName = cerebrasConfig.Key;
         }
 
         if (string.IsNullOrEmpty(_config.ApiKey))

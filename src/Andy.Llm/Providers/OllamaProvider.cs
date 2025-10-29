@@ -22,9 +22,49 @@ public class OllamaProvider : Andy.Model.Llm.ILlmProvider
     private readonly HttpClient _httpClient;
     private readonly string _apiBase;
     private readonly string _defaultModel;
+    private readonly string _configName;
 
     /// <summary>
-    /// Initializes a new instance of the <see cref="OllamaProvider"/> class.
+    /// Initializes a new instance of the Ollama provider with a specific configuration
+    /// </summary>
+    /// <param name="config">The provider configuration</param>
+    /// <param name="configName">The configuration name</param>
+    /// <param name="logger">Logger</param>
+    /// <param name="httpClientFactory">Optional HTTP client factory</param>
+    public OllamaProvider(
+        ProviderConfig config,
+        string configName,
+        ILogger<OllamaProvider> logger,
+        IHttpClientFactory? httpClientFactory = null)
+    {
+        _logger = logger ?? throw new ArgumentNullException(nameof(logger));
+        var providerConfig = config ?? throw new ArgumentNullException(nameof(config));
+        _configName = configName ?? "ollama";
+
+        _apiBase = providerConfig.ApiBase!;  // Validated below
+        _defaultModel = providerConfig.Model!;  // Validated below
+
+        if (string.IsNullOrEmpty(_apiBase))
+        {
+            throw new InvalidOperationException($"Ollama API base URL not configured for '{configName}'");
+        }
+
+        if (string.IsNullOrEmpty(_defaultModel))
+        {
+            throw new InvalidOperationException($"Ollama model not configured for '{configName}'");
+        }
+
+        // Create HTTP client
+        _httpClient = httpClientFactory?.CreateClient("Ollama") ?? new HttpClient();
+        _httpClient.BaseAddress = new Uri(_apiBase);
+        _httpClient.Timeout = TimeSpan.FromMinutes(5); // Longer timeout for local models
+
+        _logger.LogInformation("Ollama provider initialized - Config: {ConfigName}, Endpoint: {Endpoint}, Model: {Model}",
+            configName, _apiBase, _defaultModel);
+    }
+
+    /// <summary>
+    /// Initializes a new instance of the <see cref="OllamaProvider"/> class (backward compatibility constructor).
     /// </summary>
     /// <param name="options">The LLM options containing Ollama configuration.</param>
     /// <param name="logger">The logger instance.</param>
@@ -35,6 +75,24 @@ public class OllamaProvider : Andy.Model.Llm.ILlmProvider
         IHttpClientFactory? httpClientFactory = null)
     {
         _logger = logger;
+
+        // Find the first Ollama configuration to get the config name
+        var ollamaConfigPair = options.Value.Providers
+            .FirstOrDefault(p => string.Equals(p.Value.Provider ?? p.Key, "ollama", StringComparison.OrdinalIgnoreCase) ||
+                               string.Equals(p.Value.Provider ?? p.Key, "local", StringComparison.OrdinalIgnoreCase));
+
+        if (ollamaConfigPair.Value != null)
+        {
+            _configName = ollamaConfigPair.Key;
+        }
+        else if (options.Value.Providers.ContainsKey("ollama"))
+        {
+            _configName = "ollama";
+        }
+        else
+        {
+            _configName = "ollama";
+        }
 
         // Load configuration
         var config = LoadConfiguration(options.Value);
@@ -54,7 +112,7 @@ public class OllamaProvider : Andy.Model.Llm.ILlmProvider
     /// <summary>
     /// Gets the name of the provider.
     /// </summary>
-    public string Name => "ollama";
+    public string Name => _configName;
 
     /// <summary>
     /// Checks if the Ollama service is available.

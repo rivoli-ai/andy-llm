@@ -13,6 +13,7 @@ namespace Andy.Llm.Tests;
 /// Integration tests for LLM providers.
 /// These tests require environment variables to be set for the respective providers.
 /// </summary>
+[Collection("EnvironmentVariable Tests")]  // Prevent parallel execution with ConfigurationPriorityTests
 public class IntegrationTests : IClassFixture<IntegrationTests.IntegrationTestFixture>
 {
     private readonly IntegrationTestFixture _fixture;

@@ -35,8 +35,8 @@ public static class ServiceCollectionExtensions
             var tempOptions = new LlmOptions();
             configSection.Bind(tempOptions);
 
-            // Merge DefaultProvider (only if not already set)
-            if (string.IsNullOrEmpty(options.DefaultProvider))
+            // Merge DefaultProvider (configuration value takes precedence over default)
+            if (!string.IsNullOrEmpty(tempOptions.DefaultProvider))
             {
                 options.DefaultProvider = tempOptions.DefaultProvider;
             }

@@ -1,3 +1,4 @@
+using System.Collections.Concurrent;
 using Andy.Llm.Configuration;
 using Andy.Model.Llm;
 using Microsoft.Extensions.DependencyInjection;
@@ -14,7 +15,7 @@ public class LlmProviderFactory : ILlmProviderFactory
     private readonly IServiceProvider _serviceProvider;
     private readonly IOptions<LlmOptions> _options;
     private readonly ILogger<LlmProviderFactory> _logger;
-    private readonly Dictionary<string, ILlmProvider> _providerCache = new();
+    private readonly ConcurrentDictionary<string, ILlmProvider> _providerCache = new();
 
     /// <summary>
     /// Initializes a new instance of the <see cref="LlmProviderFactory"/> class.
@@ -41,58 +42,112 @@ public class LlmProviderFactory : ILlmProviderFactory
     {
         providerName = (providerName ?? _options.Value.DefaultProvider).ToLowerInvariant();
 
-        // Check cache first
-        if (_providerCache.TryGetValue(providerName, out var cached))
+        // Use GetOrAdd for thread-safe lazy initialization
+        // This ensures only one thread creates the provider even under concurrent access
+        return _providerCache.GetOrAdd(providerName, key =>
         {
-            return cached;
-        }
+            // Try to get the configuration for this provider name
+            ProviderConfig? config;
+            string configKey = key;
 
-        // Get the configuration for this provider name
-        if (!_options.Value.Providers.TryGetValue(providerName, out var config))
-        {
-            throw new NotSupportedException($"Provider configuration '{providerName}' not found");
-        }
+            // First try exact match
+            if (!_options.Value.Providers.TryGetValue(key, out config))
+            {
+                // If no exact match, try to find by provider type
+                // e.g., "cerebras" should find "cerebras/large-code" if Provider="cerebras"
+                var matchingProvider = _options.Value.Providers
+                    .FirstOrDefault(p => string.Equals(p.Value.Provider ?? p.Key.Split('/')[0], key, StringComparison.OrdinalIgnoreCase));
 
-        // Determine the actual provider type
-        // If Provider property is set, use it; otherwise infer from the configuration name
-        string providerType;
-        if (!string.IsNullOrEmpty(config.Provider))
-        {
-            providerType = config.Provider.ToLowerInvariant();
-        }
-        else
-        {
-            // Infer from configuration name (e.g., "openai/latest-large" -> "openai")
-            providerType = providerName.Contains('/')
-                ? providerName.Split('/')[0]
-                : providerName;
-        }
+                if (matchingProvider.Value != null)
+                {
+                    config = matchingProvider.Value;
+                    configKey = matchingProvider.Key;
 
-        _logger.LogInformation("Creating LLM provider - Configuration: {ConfigName}, Provider: {ProviderType}, Model: {Model}",
-            providerName, providerType.ToUpper(), config.Model ?? config.DeploymentName ?? "default");
+                    // If we found a match with a different key, also cache it under the actual config key
+                    // to avoid duplicate lookups later
+                    if (!string.Equals(key, configKey, StringComparison.OrdinalIgnoreCase))
+                    {
+                        // Will be added after creation below
+                    }
+                }
+                else
+                {
+                    throw new NotSupportedException($"Provider configuration '{key}' not found");
+                }
+            }
 
-        ILlmProvider provider;
+            // Determine the actual provider type
+            // If Provider property is set, use it; otherwise infer from the configuration name
+            string providerType;
+            if (!string.IsNullOrEmpty(config.Provider))
+            {
+                providerType = config.Provider.ToLowerInvariant();
+            }
+            else
+            {
+                // Infer from configuration name (e.g., "openai/latest-large" -> "openai")
+                providerType = key.Contains('/')
+                    ? key.Split('/')[0]
+                    : key;
+            }
 
-        switch (providerType)
-        {
-            case "openai":
-                provider = _serviceProvider.GetRequiredService<Providers.OpenAIProvider>();
-                break;
-            case "cerebras":
-                provider = _serviceProvider.GetRequiredService<Providers.CerebrasProvider>();
-                break;
-            case "azure" or "azure-openai":
-                provider = _serviceProvider.GetRequiredService<Providers.AzureOpenAIProvider>();
-                break;
-            case "local" or "ollama":
-                provider = _serviceProvider.GetRequiredService<Providers.OllamaProvider>();
-                break;
-            default:
-                throw new NotSupportedException($"Provider type '{providerType}' is not supported");
-        }
+            _logger.LogInformation("Creating LLM provider - Configuration: {ConfigName}, Provider: {ProviderType}, Model: {Model}",
+                configKey, providerType.ToUpper(), config.Model ?? config.DeploymentName ?? "default");
 
-        _providerCache[providerName] = provider;
-        return provider;
+            // Clone the config to avoid modifying the shared configuration object
+            // This prevents race conditions when multiple threads access the same config
+            var configCopy = new Configuration.ProviderConfig
+            {
+                Provider = config.Provider,
+                ApiKey = config.ApiKey,
+                ApiBase = config.ApiBase,
+                Model = config.Model,
+                Organization = config.Organization,
+                DeploymentName = config.DeploymentName,
+                ApiVersion = config.ApiVersion,
+                Enabled = config.Enabled,
+                Priority = config.Priority
+            };
+
+            // Apply environment variable fallbacks for missing values
+            // This ensures backward compatibility with tests and configurations that rely on env vars
+            ApplyEnvironmentFallbacks(configCopy, providerType);
+
+            // Create provider instance with specific configuration
+            ILlmProvider provider;
+            var loggerFactory = _serviceProvider.GetRequiredService<ILoggerFactory>();
+            var httpClientFactory = _serviceProvider.GetService<IHttpClientFactory>();
+
+            switch (providerType)
+            {
+                case "openai":
+                    var openaiLogger = loggerFactory.CreateLogger<Providers.OpenAIProvider>();
+                    provider = new Providers.OpenAIProvider(configCopy, configKey, openaiLogger, httpClientFactory);
+                    break;
+                case "cerebras":
+                    var cerebrasLogger = loggerFactory.CreateLogger<Providers.CerebrasProvider>();
+                    provider = new Providers.CerebrasProvider(configCopy, configKey, cerebrasLogger, httpClientFactory);
+                    break;
+                case "azure" or "azure-openai":
+                    var azureLogger = loggerFactory.CreateLogger<Providers.AzureOpenAIProvider>();
+                    provider = new Providers.AzureOpenAIProvider(configCopy, configKey, azureLogger);
+                    break;
+                case "local" or "ollama":
+                    var ollamaLogger = loggerFactory.CreateLogger<Providers.OllamaProvider>();
+                    provider = new Providers.OllamaProvider(configCopy, configKey, ollamaLogger, httpClientFactory);
+                    break;
+                default:
+                    throw new NotSupportedException($"Provider type '{providerType}' is not supported");
+            }
+
+            // If the lookup key differs from the actual config key, also cache under the config key
+            if (!string.Equals(key, configKey, StringComparison.OrdinalIgnoreCase))
+            {
+                _providerCache.TryAdd(configKey, provider);
+            }
+
+            return provider;
+        });
     }
 
     /// <summary>
@@ -204,6 +259,60 @@ public class LlmProviderFactory : ILlmProviderFactory
         }
 
         throw new InvalidOperationException("No LLM providers are available");
+    }
+
+    /// <summary>
+    /// Applies environment variable fallbacks to a provider configuration.
+    /// Only fills in values that are missing, null, or placeholders.
+    /// </summary>
+    private static void ApplyEnvironmentFallbacks(ProviderConfig config, string providerType)
+    {
+        // Helper to check if a value is a placeholder like "${OPENAI_API_KEY}"
+        static bool IsPlaceholder(string? value) =>
+            !string.IsNullOrEmpty(value) && value.StartsWith("${") && value.EndsWith("}");
+
+        switch (providerType.ToLowerInvariant())
+        {
+            case "openai":
+                if (string.IsNullOrEmpty(config.ApiKey) || IsPlaceholder(config.ApiKey))
+                    config.ApiKey = Environment.GetEnvironmentVariable("OPENAI_API_KEY");
+                if (string.IsNullOrEmpty(config.ApiBase) || IsPlaceholder(config.ApiBase))
+                    config.ApiBase = Environment.GetEnvironmentVariable("OPENAI_API_BASE");
+                if (string.IsNullOrEmpty(config.Model) || IsPlaceholder(config.Model))
+                    config.Model = Environment.GetEnvironmentVariable("OPENAI_MODEL");
+                if (string.IsNullOrEmpty(config.Organization) || IsPlaceholder(config.Organization))
+                    config.Organization = Environment.GetEnvironmentVariable("OPENAI_ORGANIZATION");
+                break;
+
+            case "cerebras":
+                if (string.IsNullOrEmpty(config.ApiKey) || IsPlaceholder(config.ApiKey))
+                    config.ApiKey = Environment.GetEnvironmentVariable("CEREBRAS_API_KEY");
+                if (string.IsNullOrEmpty(config.ApiBase) || IsPlaceholder(config.ApiBase))
+                    config.ApiBase = Environment.GetEnvironmentVariable("CEREBRAS_API_BASE");
+                if (string.IsNullOrEmpty(config.Model) || IsPlaceholder(config.Model))
+                    config.Model = Environment.GetEnvironmentVariable("CEREBRAS_MODEL");
+                break;
+
+            case "azure":
+            case "azure-openai":
+                if (string.IsNullOrEmpty(config.ApiKey) || IsPlaceholder(config.ApiKey))
+                    config.ApiKey = Environment.GetEnvironmentVariable("AZURE_OPENAI_KEY");
+                if (string.IsNullOrEmpty(config.ApiBase) || IsPlaceholder(config.ApiBase))
+                    config.ApiBase = Environment.GetEnvironmentVariable("AZURE_OPENAI_ENDPOINT");
+                if (string.IsNullOrEmpty(config.DeploymentName) || IsPlaceholder(config.DeploymentName))
+                    config.DeploymentName = Environment.GetEnvironmentVariable("AZURE_OPENAI_DEPLOYMENT");
+                if (string.IsNullOrEmpty(config.ApiVersion) || IsPlaceholder(config.ApiVersion))
+                    config.ApiVersion = Environment.GetEnvironmentVariable("AZURE_OPENAI_API_VERSION");
+                break;
+
+            case "local":
+            case "ollama":
+                if (string.IsNullOrEmpty(config.ApiBase) || IsPlaceholder(config.ApiBase))
+                    config.ApiBase = Environment.GetEnvironmentVariable("OLLAMA_API_BASE") ?? "http://localhost:11434";
+                if (string.IsNullOrEmpty(config.Model) || IsPlaceholder(config.Model))
+                    config.Model = Environment.GetEnvironmentVariable("OLLAMA_MODEL");
+                break;
+        }
     }
 }
 

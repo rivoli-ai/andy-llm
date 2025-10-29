@@ -29,15 +29,16 @@ try
     var factory = serviceProvider.GetRequiredService<ILlmProviderFactory>();
     var llmProvider = await factory.CreateAvailableProviderAsync();
 
+    logger.LogInformation("=== Conversation Chat Example ===");
+    logger.LogInformation("Using provider: {Provider}", llmProvider.Name);
+    logger.LogInformation("Type 'exit' to quit, 'clear' to reset conversation, 'summary' to see context\n");
+
     // Create a conversation context
     var messages = new List<Message>
     {
         new Message { Role = Role.System, Content = "You are a helpful AI assistant. Keep your responses concise." }
     };
     const int maxContextMessages = 10; // Keep last 10 messages
-
-    logger.LogInformation("=== Conversation Chat Example ===");
-    logger.LogInformation("Type 'exit' to quit, 'clear' to reset conversation, 'summary' to see context\n");
 
     while (true)
     {

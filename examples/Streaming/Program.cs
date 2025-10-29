@@ -48,6 +48,8 @@ public class StreamingExample
             var factory = serviceProvider.GetRequiredService<ILlmProviderFactory>();
             var llmProvider = await factory.CreateAvailableProviderAsync();
 
+            logger.LogInformation("Using provider: {Provider}\n", llmProvider.Name);
+
             // Example 1: Basic streaming
             await BasicStreaming(llmProvider, logger);
 

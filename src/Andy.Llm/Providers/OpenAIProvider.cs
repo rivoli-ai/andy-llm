@@ -27,14 +27,77 @@ public class OpenAIProvider : Andy.Model.Llm.ILlmProvider
     private readonly ILogger<OpenAIProvider> _logger;
     private readonly ProviderConfig _config;
     private readonly string _defaultModel;
+    private readonly string _configName;
 
     /// <summary>
     /// Gets the name of this provider.
     /// </summary>
-    public string Name => "OpenAI";
+    public string Name => _configName;
 
     /// <summary>
-    /// Initializes a new instance of the OpenAI provider
+    /// Initializes a new instance of the OpenAI provider with a specific configuration
+    /// </summary>
+    /// <param name="config">The provider configuration</param>
+    /// <param name="configName">The configuration name (e.g., "openai/latest-small")</param>
+    /// <param name="logger">Logger</param>
+    /// <param name="httpClientFactory">Optional HTTP client factory (for models endpoint)</param>
+    public OpenAIProvider(
+        ProviderConfig config,
+        string configName,
+        ILogger<OpenAIProvider> logger,
+        IHttpClientFactory? httpClientFactory = null)
+    {
+        _logger = logger ?? throw new ArgumentNullException(nameof(logger));
+        _config = config ?? throw new ArgumentNullException(nameof(config));
+        _configName = configName ?? "OpenAI";
+
+        // Validate ApiKey is configured
+        if (string.IsNullOrEmpty(_config.ApiKey))
+        {
+            throw new InvalidOperationException($"OpenAI API key not configured for '{configName}'");
+        }
+
+        // Validate ApiBase is configured
+        if (string.IsNullOrEmpty(_config.ApiBase))
+        {
+            throw new InvalidOperationException($"OpenAI API base URL not configured for '{configName}'");
+        }
+
+        // Validate Model is configured
+        if (string.IsNullOrEmpty(_config.Model))
+        {
+            throw new InvalidOperationException($"OpenAI model not configured for '{configName}'");
+        }
+
+        _defaultModel = _config.Model;
+
+        // Create OpenAI client
+        var openAiOptions = new OpenAIClientOptions
+        {
+            Endpoint = new Uri(_config.ApiBase)
+        };
+        if (!string.IsNullOrEmpty(_config.Organization))
+        {
+            openAiOptions.OrganizationId = _config.Organization;
+        }
+
+        _openAiClient = new OpenAIClient(new ApiKeyCredential(_config.ApiKey), openAiOptions);
+        _chatClient = _openAiClient.GetChatClient(_defaultModel);
+
+        // Create HTTP client for models endpoint
+        _httpClient = httpClientFactory?.CreateClient("OpenAI") ?? new HttpClient();
+        _httpClient.BaseAddress = new Uri(_config.ApiBase.TrimEnd('/') + "/");
+        _httpClient.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", _config.ApiKey);
+        if (!string.IsNullOrEmpty(_config.Organization))
+        {
+            _httpClient.DefaultRequestHeaders.Add("OpenAI-Organization", _config.Organization);
+        }
+
+        _logger.LogInformation("OpenAI provider initialized - Config: {ConfigName}, Model: {Model}", configName, _defaultModel);
+    }
+
+    /// <summary>
+    /// Initializes a new instance of the OpenAI provider (backward compatibility constructor)
     /// </summary>
     /// <param name="options">Llm options</param>
     /// <param name="logger">Logger</param>
@@ -60,10 +123,12 @@ public class OpenAIProvider : Andy.Model.Llm.ILlmProvider
                 throw new InvalidOperationException("OpenAI provider configuration not found. Ensure at least one provider configuration has Provider=\"openai\" or use the key \"openai\".");
             }
             _config = config;
+            _configName = "openai";
         }
         else
         {
             _config = openAiConfig.Value;
+            _configName = openAiConfig.Key;
         }
 
         if (string.IsNullOrEmpty(_config.ApiKey))

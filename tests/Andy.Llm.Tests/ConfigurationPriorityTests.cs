@@ -12,6 +12,7 @@ namespace Andy.Llm.Tests;
 /// <summary>
 /// Tests for configuration priority and merging behavior
 /// </summary>
+[Collection("EnvironmentVariable Tests")]  // Prevent parallel execution with IntegrationTests
 public class ConfigurationPriorityTests
 {
     [Fact]

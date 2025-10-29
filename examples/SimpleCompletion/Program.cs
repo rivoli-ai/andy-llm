@@ -53,7 +53,7 @@ public class SimpleCompletion
             logger.LogInformation("=== Example 2: Cerebras Completion ===");
             try
             {
-                var cerebrasProvider = factory.CreateProvider("cerebras");
+                var cerebrasProvider = factory.CreateProvider("cerebras/fast-large");
 
                 var userPrompt2 = "Explain quantum computing in one sentence.";
                 logger.LogInformation("User: {Prompt}", userPrompt2);

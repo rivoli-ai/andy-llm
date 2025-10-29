@@ -95,6 +95,9 @@ public class TelemetryExample
 
         var factory = serviceProvider.GetRequiredService<ILlmProviderFactory>();
         var llmClient = await factory.CreateAvailableProviderAsync();
+
+        logger.LogInformation("Using provider: {Provider}", llmClient.Name);
+
         var metrics = serviceProvider.GetRequiredService<LlmMetrics>();
         var telemetryLogger = serviceProvider.GetRequiredService<ILogger<TelemetryMiddleware>>();
         var telemetry = new TelemetryMiddleware(metrics, telemetryLogger);
@@ -142,6 +145,8 @@ public class TelemetryExample
         var metrics = serviceProvider.GetRequiredService<LlmMetrics>();
         var factory = serviceProvider.GetRequiredService<ILlmProviderFactory>();
         var llmClient = await factory.CreateAvailableProviderAsync();
+
+        logger.LogInformation("Using provider: {Provider}", llmClient.Name);
 
         // Record operation with automatic metrics
         try

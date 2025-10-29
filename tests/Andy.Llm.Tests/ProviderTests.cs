@@ -45,7 +45,7 @@ public class ProviderTests
         // Act & Assert - should not throw
         var provider = new OpenAIProvider(options, logger);
         Assert.NotNull(provider);
-        Assert.Equal("OpenAI", provider.Name);
+        Assert.Equal("openai", provider.Name);  // Name matches configuration key
     }
 
     /// <summary>
@@ -73,7 +73,7 @@ public class ProviderTests
         // Act & Assert - should not throw
         var provider = new CerebrasProvider(options, logger);
         Assert.NotNull(provider);
-        Assert.Equal("Cerebras", provider.Name);
+        Assert.Equal("cerebras", provider.Name);  // Name matches configuration key
     }
 
     /// <summary>
@@ -113,9 +113,9 @@ public class ProviderTests
 
         // Assert
         Assert.NotNull(openaiProvider);
-        Assert.Equal("OpenAI", openaiProvider.Name);
+        Assert.Equal("openai", openaiProvider.Name);  // Name matches configuration key
         Assert.NotNull(cerebrasProvider);
-        Assert.Equal("Cerebras", cerebrasProvider.Name);
+        Assert.Equal("cerebras", cerebrasProvider.Name);  // Name matches configuration key
     }
 
     /// <summary>

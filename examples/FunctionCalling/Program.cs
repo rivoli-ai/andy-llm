@@ -33,6 +33,8 @@ try
     var factory = serviceProvider.GetRequiredService<ILlmProviderFactory>();
     var llmProvider = await factory.CreateAvailableProviderAsync();
 
+    logger.LogInformation("Using provider: {Provider}\n", llmProvider.Name);
+
     // Define available tools
     var weatherTool = new ToolDeclaration
     {
