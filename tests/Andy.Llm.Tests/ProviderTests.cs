@@ -136,4 +136,72 @@ public class ProviderTests
         Assert.Throws<NotSupportedException>(() => factory.CreateProvider("unsupported"));
     }
 
+    /// <summary>
+    /// Tests that temperature in Config is properly nullable and defaults to null
+    /// </summary>
+    [Fact]
+    public void LlmRequest_Temperature_ShouldDefaultToNull()
+    {
+        // Arrange & Act - Create request without setting temperature
+        var request = new LlmRequest
+        {
+            Messages = new List<Message>
+            {
+                new Message { Role = Role.User, Content = "test" }
+            },
+            Config = new LlmClientConfig
+            {
+                MaxTokens = 100
+            }
+        };
+
+        // Assert - Temperature should be null
+        Assert.Null(request.Config.Temperature);
+        Assert.Null(request.Temperature);
+    }
+
+    /// <summary>
+    /// Tests that temperature can be explicitly set and is properly propagated
+    /// </summary>
+    [Fact]
+    public void LlmRequest_Temperature_ShouldPropagateWhenSet()
+    {
+        // Arrange & Act - Create request with explicit temperature
+        var request = new LlmRequest
+        {
+            Messages = new List<Message>
+            {
+                new Message { Role = Role.User, Content = "test" }
+            },
+            Config = new LlmClientConfig
+            {
+                Temperature = 0.5m,
+                MaxTokens = 100
+            }
+        };
+
+        // Assert - Temperature should match configured value
+        Assert.Equal(0.5m, request.Config.Temperature);
+        Assert.Equal(0.5m, request.Temperature);
+    }
+
+    /// <summary>
+    /// Tests that null temperature in Config results in null request temperature
+    /// </summary>
+    [Fact]
+    public void LlmRequest_Temperature_ShouldBeNullWhenConfigIsNull()
+    {
+        // Arrange & Act - Create request without Config
+        var request = new LlmRequest
+        {
+            Messages = new List<Message>
+            {
+                new Message { Role = Role.User, Content = "test" }
+            }
+        };
+
+        // Assert - Temperature should be null
+        Assert.Null(request.Temperature);
+    }
+
 }

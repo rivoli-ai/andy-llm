@@ -450,7 +450,10 @@ public class OllamaProvider : Andy.Model.Llm.ILlmProvider
 
         // Set options
         ollamaRequest.Options = new OllamaOptions();
-        ollamaRequest.Options.Temperature = (double)request.Temperature;
+        if (request.Temperature.HasValue)
+        {
+            ollamaRequest.Options.Temperature = (double)request.Temperature.Value;
+        }
         ollamaRequest.Options.NumPredict = request.MaxTokens;
 
         return ollamaRequest;
