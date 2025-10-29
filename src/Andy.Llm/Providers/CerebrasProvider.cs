@@ -243,6 +243,11 @@ public class CerebrasProvider : Andy.Model.Llm.ILlmProvider
             // Use completion.Model if available, otherwise fall back to configured default model
             var responseModel = !string.IsNullOrEmpty(completion.Model) ? completion.Model : _defaultModel;
 
+            _logger.LogDebug("Model selection - completion.Model: '{CompletionModel}', _defaultModel: '{DefaultModel}', responseModel: '{ResponseModel}'",
+                completion.Model ?? "null",
+                _defaultModel ?? "null",
+                responseModel ?? "null");
+
             return new LlmResponse
             {
                 AssistantMessage = new Message
