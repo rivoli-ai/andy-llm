@@ -524,7 +524,10 @@ public class CerebrasProvider : Andy.Model.Llm.ILlmProvider
         // Models that support function calling on Cerebras
         // Note: gpt-oss-120b may hallucinate tool calls not in the provided list
         // See: https://inference-docs.cerebras.ai/models/openai-oss
-        return modelId == "llama-3.3-70b" || modelId == "gpt-oss-120b";
+        // Note: qwen-3-coder-480b is added experimentally - may not have good function calling support
+        return modelId == "llama-3.3-70b"
+            || modelId == "gpt-oss-120b"
+            || modelId == "qwen-3-coder-480b";
     }
 
     private List<ChatMessage> ConvertMessages(LlmRequest request)
