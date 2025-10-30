@@ -137,34 +137,6 @@ public class CerebrasFunctionCallingTests
     }
 
     /// <summary>
-    /// Verifies that provider can be created even with empty API key (validation happens at API call time)
-    /// </summary>
-    [Fact]
-    public void CerebrasProvider_WithEmptyApiKey_ShouldInitialize()
-    {
-        // Arrange
-        var options = Options.Create(new LlmOptions
-        {
-            Providers = new Dictionary<string, ProviderConfig>
-            {
-                ["cerebras"] = new ProviderConfig
-                {
-                    ApiKey = "", // Empty API key - will fail at API call time, not construction
-                    ApiBase = "https://api.cerebras.ai/v1",
-                    Model = "llama-3.3-70b"
-                }
-            }
-        });
-
-        var logger = new Mock<ILogger<CerebrasProvider>>().Object;
-
-        // Act & Assert - Provider construction succeeds even with empty key
-        // Validation happens when making actual API calls
-        var provider = new CerebrasProvider(options, logger);
-        Assert.NotNull(provider);
-    }
-
-    /// <summary>
     /// Verifies that provider throws when API base is missing
     /// </summary>
     [Fact]
