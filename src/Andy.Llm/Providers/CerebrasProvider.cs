@@ -630,9 +630,10 @@ public class CerebrasProvider : Andy.Model.Llm.ILlmProvider
                 options.Tools.Add(functionTool);
             }
 
-            // Force the model to use tools when they are provided
-            options.ToolChoice = ChatToolChoice.CreateRequiredChoice();
-            _logger.LogDebug("Set ToolChoice to Required for model {Model}", modelInUse);
+            // Allow the model to choose when to use tools vs provide a final response
+            // Using Auto allows the model to decide when tools are needed
+            options.ToolChoice = ChatToolChoice.CreateAutoChoice();
+            _logger.LogDebug("Set ToolChoice to Auto for model {Model}", modelInUse);
         }
         else if (request.Tools?.Any() == true)
         {
