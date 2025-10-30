@@ -490,7 +490,10 @@ public class AzureOpenAIProvider : Andy.Model.Llm.ILlmProvider
     {
         var options = new ChatCompletionOptions();
 
-        options.Temperature = (float)request.Temperature;
+        if (request.Temperature.HasValue)
+        {
+            options.Temperature = (float)request.Temperature.Value;
+        }
         options.MaxOutputTokenCount = request.MaxTokens;
 
         // Add tools if provided
