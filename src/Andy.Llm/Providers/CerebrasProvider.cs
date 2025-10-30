@@ -462,6 +462,7 @@ public class CerebrasProvider : Andy.Model.Llm.ILlmProvider
         return modelId switch
         {
             "llama-3.3-70b" => "Meta's Llama 3.3 70B model - supports tool calling",
+            "gpt-oss-120b" => "GPT OSS 120B model - supports tool calling (may hallucinate tools)",
             "llama-3.1-70b" or "llama3.1-70b" => "Meta's Llama 3.1 70B model",
             "llama-3.1-8b" or "llama3.1-8b" => "Meta's Llama 3.1 8B model",
             var id when id.Contains("qwen", StringComparison.OrdinalIgnoreCase) => "Alibaba's Qwen family",
@@ -520,8 +521,10 @@ public class CerebrasProvider : Andy.Model.Llm.ILlmProvider
         {
             return false;
         }
-        // Only llama-3.3-70b supports function calling
-        return modelId == "llama-3.3-70b";
+        // Models that support function calling on Cerebras
+        // Note: gpt-oss-120b may hallucinate tool calls not in the provided list
+        // See: https://inference-docs.cerebras.ai/models/openai-oss
+        return modelId == "llama-3.3-70b" || modelId == "gpt-oss-120b";
     }
 
     private List<ChatMessage> ConvertMessages(LlmRequest request)
@@ -616,7 +619,7 @@ public class CerebrasProvider : Andy.Model.Llm.ILlmProvider
         var modelInUse = !string.IsNullOrEmpty(request.Config?.Model) ? request.Config.Model : _defaultModel;
 
         // Add tools only if the model supports function calling
-        // Only llama-3.3-70b supports tool calling on Cerebras
+        // llama-3.3-70b and gpt-oss-120b support tool calling on Cerebras
         if (request.Tools?.Any() == true && SupportsFunctionCalling(modelInUse))
         {
             _logger.LogDebug("Adding {ToolCount} tools for model {Model}", request.Tools.Count, modelInUse);
