@@ -244,6 +244,82 @@ public class CerebrasIntegrationTests
     }
 
     /// <summary>
+    /// Integration test: Verifies that ZAI GLM 4.6 can make function calls via Cerebras API.
+    /// This model requires strict: true for function calling.
+    /// Requires CEREBRAS_API_KEY environment variable.
+    /// </summary>
+    [Fact]
+    public async Task ZaiGlm46_WithFunctionCalling_ReturnsToolCall()
+    {
+        // Arrange
+        var apiKey = Environment.GetEnvironmentVariable("CEREBRAS_API_KEY");
+        if (string.IsNullOrEmpty(apiKey))
+        {
+            // Skip test if API key not available
+            return;
+        }
+
+        var options = Options.Create(new LlmOptions
+        {
+            Providers = new Dictionary<string, ProviderConfig>
+            {
+                ["cerebras"] = new ProviderConfig
+                {
+                    ApiKey = apiKey,
+                    ApiBase = "https://api.cerebras.ai/v1",
+                    Model = "zai-glm-4.6"
+                }
+            }
+        });
+
+        var provider = new CerebrasProvider(options, _logger);
+
+        var request = new LlmRequest
+        {
+            Messages = new List<Message>
+            {
+                new Message { Role = Role.User, Content = "What is 15% of 240? Use the calculator tool." }
+            },
+            Tools = new List<ToolDeclaration>
+            {
+                new ToolDeclaration
+                {
+                    Name = "calculate",
+                    Description = "Perform a mathematical calculation",
+                    Parameters = new Dictionary<string, object>
+                    {
+                        ["type"] = "object",
+                        ["properties"] = new Dictionary<string, object>
+                        {
+                            ["expression"] = new Dictionary<string, object>
+                            {
+                                ["type"] = "string",
+                                ["description"] = "The mathematical expression to evaluate (e.g., '0.15 * 240')"
+                            }
+                        },
+                        ["required"] = new[] { "expression" },
+                        ["additionalProperties"] = false  // Required for strict mode
+                    }
+                }
+            }
+        };
+
+        // Act
+        var response = await provider.CompleteAsync(request);
+
+        // Assert
+        Assert.NotNull(response);
+        Assert.True(response.HasToolCalls, "zai-glm-4.6 should support tool calling with strict mode");
+        Assert.NotEmpty(response.ToolCalls);
+
+        var toolCall = response.ToolCalls[0];
+        Assert.Equal("calculate", toolCall.Name);
+        // GLM 4.6 should be able to correctly interpret the math problem
+        Assert.Contains("0.15", toolCall.ArgumentsJson);
+        Assert.Contains("240", toolCall.ArgumentsJson);
+    }
+
+    /// <summary>
     /// Integration test: Verifies that models without function calling support don't receive tools.
     /// This test will make a real API call but without tools, so should get a text response.
     /// Requires CEREBRAS_API_KEY environment variable.

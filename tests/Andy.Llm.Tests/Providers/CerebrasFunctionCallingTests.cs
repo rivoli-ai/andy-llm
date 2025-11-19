@@ -163,6 +163,36 @@ public class CerebrasFunctionCallingTests
     }
 
     /// <summary>
+    /// Verifies that zai-glm-4.6 is initialized and marked as supporting function calling
+    /// </summary>
+    [Fact]
+    public void CerebrasProvider_WithZaiGlm46_ShouldInitialize()
+    {
+        // Arrange
+        var options = Options.Create(new LlmOptions
+        {
+            Providers = new Dictionary<string, ProviderConfig>
+            {
+                ["cerebras"] = new ProviderConfig
+                {
+                    ApiKey = "test-key",
+                    ApiBase = "https://api.cerebras.ai/v1",
+                    Model = "zai-glm-4.6"
+                }
+            }
+        });
+
+        var logger = new Mock<ILogger<CerebrasProvider>>().Object;
+
+        // Act
+        var provider = new CerebrasProvider(options, logger);
+
+        // Assert
+        Assert.NotNull(provider);
+        Assert.Equal("cerebras", provider.Name);
+    }
+
+    /// <summary>
     /// Verifies that provider throws when model is missing
     /// </summary>
     [Fact]

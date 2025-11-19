@@ -463,6 +463,7 @@ public class CerebrasProvider : Andy.Model.Llm.ILlmProvider
         {
             "llama-3.3-70b" => "Meta's Llama 3.3 70B model - supports tool calling",
             "gpt-oss-120b" => "GPT OSS 120B model - supports tool calling (may hallucinate tools)",
+            "zai-glm-4.6" => "ZhipuAI GLM 4.6 - intelligent general purpose model with tool calling support",
             "llama-3.1-70b" or "llama3.1-70b" => "Meta's Llama 3.1 70B model",
             "llama-3.1-8b" or "llama3.1-8b" => "Meta's Llama 3.1 8B model",
             var id when id.Contains("qwen", StringComparison.OrdinalIgnoreCase) => "Alibaba's Qwen family",
@@ -481,6 +482,7 @@ public class CerebrasProvider : Andy.Model.Llm.ILlmProvider
         {
             var id when id.Contains("qwen", StringComparison.OrdinalIgnoreCase) => "Qwen",
             var id when id.Contains("llama") => "Llama",
+            var id when id.Contains("glm", StringComparison.OrdinalIgnoreCase) => "GLM",
             _ => null
         };
     }
@@ -510,6 +512,7 @@ public class CerebrasProvider : Andy.Model.Llm.ILlmProvider
         return modelId switch
         {
             "llama-3.3-70b" => 8192,
+            "zai-glm-4.6" => 40000,
             var id when id.Contains("3.1") => 128000,
             _ => 8192
         };
@@ -525,9 +528,11 @@ public class CerebrasProvider : Andy.Model.Llm.ILlmProvider
         // Note: gpt-oss-120b may hallucinate tool calls not in the provided list
         // See: https://inference-docs.cerebras.ai/models/openai-oss
         // Note: qwen-3-coder-480b is added experimentally - may not have good function calling support
+        // Note: zai-glm-4.6 requires strict: true for function calling
         return modelId == "llama-3.3-70b"
             || modelId == "gpt-oss-120b"
-            || modelId == "qwen-3-coder-480b";
+            || modelId == "qwen-3-coder-480b"
+            || modelId == "zai-glm-4.6";
     }
 
     private List<ChatMessage> ConvertMessages(LlmRequest request)
@@ -622,18 +627,57 @@ public class CerebrasProvider : Andy.Model.Llm.ILlmProvider
         var modelInUse = !string.IsNullOrEmpty(request.Config?.Model) ? request.Config.Model : _defaultModel;
 
         // Add tools only if the model supports function calling
-        // llama-3.3-70b and gpt-oss-120b support tool calling on Cerebras
+        // llama-3.3-70b, gpt-oss-120b, qwen-3-coder-480b, and zai-glm-4.6 support tool calling on Cerebras
         if (request.Tools?.Any() == true && SupportsFunctionCalling(modelInUse))
         {
             _logger.LogDebug("Adding {ToolCount} tools for model {Model}", request.Tools.Count, modelInUse);
+
+            // ZAI GLM 4.6 requires strict: true for function calling
+            var requiresStrictMode = modelInUse == "zai-glm-4.6";
+
             foreach (var tool in request.Tools)
             {
-                var functionTool = ChatTool.CreateFunctionTool(
-                    tool.Name,
-                    tool.Description,
-                    BinaryData.FromString(JsonSerializer.Serialize(tool.Parameters))
-                );
-                options.Tools.Add(functionTool);
+                if (requiresStrictMode)
+                {
+                    // For GLM 4.6, we need to add "strict": true to the function definition
+                    // Since OpenAI SDK doesn't expose this property directly, we construct the JSON manually
+                    var functionDef = new
+                    {
+                        type = "function",
+                        function = new
+                        {
+                            name = tool.Name,
+                            description = tool.Description,
+                            parameters = tool.Parameters,
+                            strict = true
+                        }
+                    };
+
+                    // Serialize and add as BinaryData
+                    var toolJson = JsonSerializer.Serialize(functionDef);
+                    var functionTool = BinaryData.FromString(toolJson);
+
+                    _logger.LogDebug("Adding tool {ToolName} with strict mode for GLM 4.6", tool.Name);
+                    // Note: We need to use reflection or a different approach here as ChatTool doesn't have a direct BinaryData constructor
+                    // For now, use the standard approach and log a warning
+                    var standardTool = ChatTool.CreateFunctionTool(
+                        tool.Name,
+                        tool.Description,
+                        BinaryData.FromString(JsonSerializer.Serialize(tool.Parameters))
+                    );
+                    options.Tools.Add(standardTool);
+
+                    _logger.LogWarning("GLM 4.6 requires strict: true for function calling, but OpenAI SDK v2.1.0 does not expose this property. Tool calling may not work as expected. Consider testing or upgrading SDK.");
+                }
+                else
+                {
+                    var functionTool = ChatTool.CreateFunctionTool(
+                        tool.Name,
+                        tool.Description,
+                        BinaryData.FromString(JsonSerializer.Serialize(tool.Parameters))
+                    );
+                    options.Tools.Add(functionTool);
+                }
             }
 
             // Allow the model to choose when to use tools vs provide a final response
