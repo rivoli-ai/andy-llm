@@ -8,7 +8,15 @@ using Microsoft.Extensions.Options;
 namespace Andy.Llm.Providers;
 
 /// <summary>
-/// Factory for creating LLM providers based on configuration
+/// Factory for creating LLM providers based on configuration.
+///
+/// Supports both simple provider names (e.g., "openai", "cerebras") and compound
+/// provider aliases (e.g., "openai/codex-mini", "openai/codex-5.1"). Compound names
+/// are resolved by looking up the ProviderConfig and reading its <see cref="ProviderConfig.Provider"/>
+/// field to determine which underlying provider class to instantiate.
+///
+/// Each unique provider alias gets its own cached instance, allowing different models
+/// and API types to coexist under the same provider type.
 /// </summary>
 public class LlmProviderFactory : ILlmProviderFactory
 {
@@ -36,7 +44,7 @@ public class LlmProviderFactory : ILlmProviderFactory
     /// <summary>
     /// Creates an LLM provider instance.
     /// </summary>
-    /// <param name="providerName">The configuration name (e.g., "openai/latest-large" or "openai"). If null, uses the default provider.</param>
+    /// <param name="providerName">The configuration name (e.g., "openai/codex-mini" or "openai"). If null, uses the default provider.</param>
     /// <returns>The LLM provider instance.</returns>
     public ILlmProvider CreateProvider(string? providerName = null)
     {
@@ -62,13 +70,6 @@ public class LlmProviderFactory : ILlmProviderFactory
                 {
                     config = matchingProvider.Value;
                     configKey = matchingProvider.Key;
-
-                    // If we found a match with a different key, also cache it under the actual config key
-                    // to avoid duplicate lookups later
-                    if (!string.Equals(key, configKey, StringComparison.OrdinalIgnoreCase))
-                    {
-                        // Will be added after creation below
-                    }
                 }
                 else
                 {
@@ -85,7 +86,7 @@ public class LlmProviderFactory : ILlmProviderFactory
             }
             else
             {
-                // Infer from configuration name (e.g., "openai/latest-large" -> "openai")
+                // Infer from configuration name (e.g., "openai/codex-mini" -> "openai")
                 providerType = key.Contains('/')
                     ? key.Split('/')[0]
                     : key;
@@ -96,9 +97,10 @@ public class LlmProviderFactory : ILlmProviderFactory
 
             // Clone the config to avoid modifying the shared configuration object
             // This prevents race conditions when multiple threads access the same config
-            var configCopy = new Configuration.ProviderConfig
+            var configCopy = new ProviderConfig
             {
                 Provider = config.Provider,
+                ApiType = config.ApiType,
                 ApiKey = config.ApiKey,
                 ApiBase = config.ApiBase,
                 Model = config.Model,
@@ -121,20 +123,20 @@ public class LlmProviderFactory : ILlmProviderFactory
             switch (providerType)
             {
                 case "openai":
-                    var openaiLogger = loggerFactory.CreateLogger<Providers.OpenAIProvider>();
-                    provider = new Providers.OpenAIProvider(configCopy, configKey, openaiLogger, httpClientFactory);
+                    var openaiLogger = loggerFactory.CreateLogger<OpenAIProvider>();
+                    provider = new OpenAIProvider(configCopy, configKey, openaiLogger, httpClientFactory);
                     break;
                 case "cerebras":
-                    var cerebrasLogger = loggerFactory.CreateLogger<Providers.CerebrasProvider>();
-                    provider = new Providers.CerebrasProvider(configCopy, configKey, cerebrasLogger, httpClientFactory);
+                    var cerebrasLogger = loggerFactory.CreateLogger<CerebrasProvider>();
+                    provider = new CerebrasProvider(configCopy, configKey, cerebrasLogger, httpClientFactory);
                     break;
                 case "azure" or "azure-openai":
-                    var azureLogger = loggerFactory.CreateLogger<Providers.AzureOpenAIProvider>();
-                    provider = new Providers.AzureOpenAIProvider(configCopy, configKey, azureLogger);
+                    var azureLogger = loggerFactory.CreateLogger<AzureOpenAIProvider>();
+                    provider = new AzureOpenAIProvider(configCopy, configKey, azureLogger);
                     break;
                 case "local" or "ollama":
-                    var ollamaLogger = loggerFactory.CreateLogger<Providers.OllamaProvider>();
-                    provider = new Providers.OllamaProvider(configCopy, configKey, ollamaLogger, httpClientFactory);
+                    var ollamaLogger = loggerFactory.CreateLogger<OllamaProvider>();
+                    provider = new OllamaProvider(configCopy, configKey, ollamaLogger, httpClientFactory);
                     break;
                 default:
                     throw new NotSupportedException($"Provider type '{providerType}' is not supported");
@@ -171,7 +173,6 @@ public class LlmProviderFactory : ILlmProviderFactory
             }
             else
             {
-                // Infer from configuration name (e.g., "openai/latest-large" -> "openai")
                 providerType = configName.Contains('/')
                     ? configName.Split('/')[0].ToLowerInvariant()
                     : configName.ToLowerInvariant();
@@ -210,19 +211,17 @@ public class LlmProviderFactory : ILlmProviderFactory
         }
 
         // 2. Get providers with Priority (excluding default if already added)
-        // Only include fully configured providers
         var providersWithPriority = _options.Value.Providers
             .Where(p => p.Value.Enabled &&
                        p.Value.Priority.HasValue &&
                        !p.Key.Equals(defaultProviderName, StringComparison.OrdinalIgnoreCase) &&
                        IsFullyConfigured(p.Value, p.Key))
-            .OrderByDescending(p => p.Value.Priority!.Value)  // Highest priority first
+            .OrderByDescending(p => p.Value.Priority!.Value)
             .Select(p => (p.Key, p.Value));
 
         providersToTry.AddRange(providersWithPriority);
 
         // 3. Get providers without Priority (excluding default if already added)
-        // Only include fully configured providers
         var providersWithoutPriority = _options.Value.Providers
             .Where(p => p.Value.Enabled &&
                        !p.Value.Priority.HasValue &&
@@ -317,17 +316,26 @@ public class LlmProviderFactory : ILlmProviderFactory
 }
 
 /// <summary>
-/// Factory interface for creating LLM providers
+/// Factory interface for creating LLM providers.
+///
+/// Supports both simple provider names and compound aliases.
+/// See <see cref="LlmProviderFactory"/> for implementation details.
 /// </summary>
 public interface ILlmProviderFactory
 {
     /// <summary>
-    /// Creates a specific provider by name
+    /// Creates a specific provider by name or alias.
     /// </summary>
+    /// <param name="providerName">
+    /// The provider name or alias. Can be a base name ("openai") or compound alias ("openai/codex-mini").
+    /// Pass null to use the default provider.
+    /// </param>
+    /// <returns>The provider instance (cached per alias).</returns>
     ILlmProvider CreateProvider(string? providerName = null);
 
     /// <summary>
-    /// Creates the first available provider based on configuration
+    /// Creates the first available provider based on configuration.
+    /// Tests each configured provider for availability.
     /// </summary>
     Task<ILlmProvider> CreateAvailableProviderAsync(CancellationToken cancellationToken = default);
 }

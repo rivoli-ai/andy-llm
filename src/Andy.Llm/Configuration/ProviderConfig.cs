@@ -12,6 +12,15 @@ public class ProviderConfig
     public string? Provider { get; set; }
 
     /// <summary>
+    /// The API protocol type to use for this provider configuration.
+    /// Supported values:
+    /// - "chat-completions": Standard OpenAI Chat Completions API (/v1/chat/completions)
+    /// - "responses": OpenAI Responses API (/v1/responses) — required for Codex models
+    /// - null: Auto-detect based on model name (codex models → responses, others → chat-completions)
+    /// </summary>
+    public string? ApiType { get; set; }
+
+    /// <summary>
     /// API key for the provider
     /// </summary>
     public string? ApiKey { get; set; }

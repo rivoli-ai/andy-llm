@@ -159,38 +159,83 @@ Message
 
 Each provider follows this pattern:
 
-1. **Configuration Loading**: Read provider-specific settings
-2. **Client Initialization**: Create SDK clients with proper options
-3. **Request Translation**: Convert generic requests to provider-specific format
-4. **Response Translation**: Convert provider responses to generic format
-5. **Error Handling**: Wrap provider-specific errors in consistent exceptions
+1. **Configuration Loading**: Read provider-specific settings from `ProviderConfig`
+2. **Client Initialization**: Create SDK clients or HTTP clients with proper options
+3. **API Strategy Selection**: Choose the correct API protocol (e.g., Chat Completions vs Responses)
+4. **Request Translation**: Convert generic requests to provider-specific format
+5. **Response Translation**: Convert provider responses to generic format
+6. **Error Handling**: Wrap provider-specific errors in consistent exceptions
 
-### OpenAI Provider Example
+### Multi-Endpoint Support (Strategy Pattern)
+
+OpenAI now provides multiple API endpoints with different protocols. The provider uses a **strategy pattern** to handle this:
+
+```
+┌─────────────────────────────────────────────────────────┐
+│                     OpenAIProvider                        │
+│  • Shared: auth, HTTP client, model metadata             │
+│  • Delegates to strategy for API calls                   │
+└───────────────────────┬─────────────────────────────────┘
+                        │
+              ┌─────────┴─────────┐
+              ▼                   ▼
+┌──────────────────────┐ ┌──────────────────────┐
+│ ChatCompletionsStrategy│ │ ResponsesApiStrategy │
+│                      │ │                      │
+│ • /v1/chat/completions│ │ • /v1/responses      │
+│ • OpenAI SDK         │ │ • HttpClient direct  │
+│ • GPT-4, GPT-4o     │ │ • Codex models       │
+│ • Standard models    │ │ • Built-in tools     │
+└──────────────────────┘ └──────────────────────┘
+```
+
+**Strategy Selection** is determined by:
+1. Explicit `ProviderConfig.ApiType` setting (`"chat-completions"` or `"responses"`)
+2. Auto-detection from model name (models containing "codex" use Responses API)
+3. Default: Chat Completions API
+
+### Compound Provider Aliases
+
+The factory supports **compound provider aliases** like `"openai/codex-mini"`:
+
+```json
+{
+  "Llm": {
+    "DefaultProvider": "openai/codex-mini",
+    "Providers": {
+      "openai": { "Provider": "openai", "Model": "gpt-4o" },
+      "openai/codex-mini": { "Provider": "openai", "Model": "codex-mini-latest", "ApiType": "responses" },
+      "openai/codex-5.1": { "Provider": "openai", "Model": "gpt-5.1-codex" }
+    }
+  }
+}
+```
+
+- The dictionary **key** is the alias (e.g., `"openai/codex-mini"`)
+- The `Provider` field indicates the underlying provider **type** (e.g., `"openai"`)
+- Each alias gets its own cached provider instance with separate model/config
+
+### ProviderConfig Fields
 
 ```csharp
-public class OpenAIProvider : ILlmProvider
+public class ProviderConfig
 {
-    // 1. Configuration
-    private readonly ProviderConfig _config;
-    
-    // 2. SDK Client
-    private readonly ChatClient _chatClient;
-    
-    // 3. Request Translation
-    private List<ChatMessage> ConvertMessages(LlmRequest request) { }
-    
-    // 4. Response Translation
-    private LlmResponse ConvertResponse(ChatCompletion completion) { }
-    
-    // 5. Error Handling
-    catch (ClientResultException ex) => LogAndWrap(ex)
+    public string? Provider { get; set; }      // Provider type: "openai", "anthropic", etc.
+    public string? ApiType { get; set; }       // API protocol: "chat-completions", "responses"
+    public string? ApiKey { get; set; }        // Authentication key
+    public string? ApiBase { get; set; }       // Base URL for the API
+    public string? Model { get; set; }         // Default model for this config
+    public string? Organization { get; set; }  // OpenAI organization
+    public string? ApiVersion { get; set; }    // Azure API version
+    public string? DeploymentName { get; set; }// Azure deployment name
+    public bool Enabled { get; set; }          // Whether this provider is active
 }
 ```
 
 ### Current Provider Implementations
 
-1. **OpenAIProvider**: Uses official OpenAI SDK, full feature support
-2. **CerebrasProvider**: Fast inference using Cerebras Cloud SDK
+1. **OpenAIProvider**: Supports both Chat Completions and Responses API via strategy pattern
+2. **CerebrasProvider**: Fast inference using Cerebras Cloud SDK (OpenAI-compatible)
 3. **AzureOpenAIProvider**: Enterprise Azure OpenAI with deployment-based access
 4. **OllamaProvider**: Local LLM execution via HTTP API
 
@@ -199,9 +244,19 @@ public class OpenAIProvider : ILlmProvider
 To add a new provider:
 
 1. Implement `ILlmProvider` interface
-2. Register in DI container (ServiceCollectionExtensions)
-3. Update factory switch statement in LlmProviderFactory
-4. Add configuration mapping in ConfigureLlmFromEnvironment
+2. Register in DI container (`ServiceCollectionExtensions`)
+3. Add to the factory's `ResolveFromDI()` and `CreateProviderInstance()` methods
+4. Add the provider type name to `KnownProviderTypes`
+5. Add configuration mapping in `ConfigureLlmFromEnvironment`
+
+### Adding New API Strategies
+
+To add a new API protocol for an existing provider (e.g., a future OpenAI Agents API):
+
+1. Implement `IOpenAIApiStrategy` interface
+2. Add the new `ApiType` value to `ProviderConfig` documentation
+3. Update `OpenAIProvider.CreateStrategy()` to handle the new type
+4. Update `DetectApiType()` if auto-detection is needed
 
 ## Message Flow
 
@@ -385,6 +440,8 @@ Providers are initialized only when first requested, reducing startup time.
 3. **Provider Routing**: Smart routing based on request type
 4. **Cost Optimization**: Route to cheapest capable provider
 5. **Response Validation**: Ensure response quality
+6. **New API Strategies**: Support future API protocols (Agents API, etc.)
+7. **Additional Providers**: Anthropic, Google, Groq, Qwen, router APIs
 
 ## Testing Strategy
 

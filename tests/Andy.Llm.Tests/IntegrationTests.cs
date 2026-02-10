@@ -256,13 +256,13 @@ public class IntegrationTests : IClassFixture<IntegrationTests.IntegrationTestFi
                 options.DefaultProvider = "openai";
 
                 // Provide default configuration that will be merged with environment variables
-                options.Providers["openai"] = new Configuration.ProviderConfig
+                options.Providers["openai"] = new Andy.Llm.Configuration.ProviderConfig
                 {
                     ApiBase = "https://api.openai.com/v1",
                     Model = "gpt-4o-mini"
                 };
 
-                options.Providers["cerebras"] = new Configuration.ProviderConfig
+                options.Providers["cerebras"] = new Andy.Llm.Configuration.ProviderConfig
                 {
                     ApiBase = "https://api.cerebras.ai/v1",
                     Model = "llama3.1-8b"

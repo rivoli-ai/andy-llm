@@ -154,6 +154,8 @@ public static class ServiceCollectionExtensions
     /// Configures LLM options from environment variables.
     /// This method MERGES environment variable configuration with existing configuration from appsettings.json.
     /// Existing values in configuration take precedence (e.g., Model from appsettings.json won't be overridden).
+    /// Each created ProviderConfig includes the <see cref="ProviderConfig.Provider"/>
+    /// field for proper factory routing.
     /// </summary>
     public static IServiceCollection ConfigureLlmFromEnvironment(
         this IServiceCollection services)
@@ -220,6 +222,7 @@ public static class ServiceCollectionExtensions
             {
                 MergeProviderConfig("openai", new ProviderConfig
                 {
+                    Provider = "openai",
                     ApiKey = openAiKey,
                     ApiBase = openAiBase,
                     Model = openAiModel,
@@ -238,6 +241,7 @@ public static class ServiceCollectionExtensions
             {
                 MergeProviderConfig("azure", new ProviderConfig
                 {
+                    Provider = "azure",
                     ApiKey = azureKey,
                     ApiBase = azureEndpoint,
                     DeploymentName = azureDeployment,
@@ -255,9 +259,58 @@ public static class ServiceCollectionExtensions
             {
                 MergeProviderConfig("cerebras", new ProviderConfig
                 {
+                    Provider = "cerebras",
                     ApiKey = cerebrasKey,
                     ApiBase = cerebrasBase,
                     Model = cerebrasModel,
+                    Enabled = true
+                });
+            }
+
+            // Google configuration
+            var googleKey = Environment.GetEnvironmentVariable("GOOGLE_API_KEY");
+            var googleModel = Environment.GetEnvironmentVariable("GOOGLE_MODEL");
+
+            if (!string.IsNullOrEmpty(googleKey))
+            {
+                MergeProviderConfig("google", new ProviderConfig
+                {
+                    Provider = "google",
+                    ApiKey = googleKey,
+                    ApiBase = "https://generativelanguage.googleapis.com",
+                    Model = googleModel ?? "gemini-2.0-flash-exp",
+                    Enabled = true
+                });
+            }
+
+            // Groq configuration
+            var groqKey = Environment.GetEnvironmentVariable("GROQ_API_KEY");
+            var groqModel = Environment.GetEnvironmentVariable("GROQ_MODEL");
+
+            if (!string.IsNullOrEmpty(groqKey))
+            {
+                MergeProviderConfig("groq", new ProviderConfig
+                {
+                    Provider = "groq",
+                    ApiKey = groqKey,
+                    ApiBase = "https://api.groq.com/openai/v1",
+                    Model = groqModel ?? "llama-3.3-70b-versatile",
+                    Enabled = true
+                });
+            }
+
+            // Anthropic configuration
+            var anthropicKey = Environment.GetEnvironmentVariable("ANTHROPIC_API_KEY");
+            var anthropicModel = Environment.GetEnvironmentVariable("ANTHROPIC_MODEL");
+
+            if (!string.IsNullOrEmpty(anthropicKey))
+            {
+                MergeProviderConfig("anthropic", new ProviderConfig
+                {
+                    Provider = "anthropic",
+                    ApiKey = anthropicKey,
+                    ApiBase = "https://api.anthropic.com",
+                    Model = anthropicModel ?? "claude-3-5-haiku-20241022",
                     Enabled = true
                 });
             }
@@ -270,6 +323,7 @@ public static class ServiceCollectionExtensions
             {
                 MergeProviderConfig("ollama", new ProviderConfig
                 {
+                    Provider = "ollama",
                     ApiBase = ollamaBase,
                     Model = ollamaModel,
                     Enabled = true
