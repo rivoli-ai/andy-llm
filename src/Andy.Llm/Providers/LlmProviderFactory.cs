@@ -311,6 +311,16 @@ public class LlmProviderFactory : ILlmProviderFactory
                 if (string.IsNullOrEmpty(config.Model) || IsPlaceholder(config.Model))
                     config.Model = Environment.GetEnvironmentVariable("OLLAMA_MODEL");
                 break;
+
+            case "gateway":
+            case "andy-models":
+                if (string.IsNullOrEmpty(config.ApiKey) || IsPlaceholder(config.ApiKey))
+                    config.ApiKey = Environment.GetEnvironmentVariable("ANDY_MODELS_API_KEY");
+                if (string.IsNullOrEmpty(config.ApiBase) || IsPlaceholder(config.ApiBase))
+                    config.ApiBase = Environment.GetEnvironmentVariable("ANDY_MODELS_API_BASE");
+                if (string.IsNullOrEmpty(config.Model) || IsPlaceholder(config.Model))
+                    config.Model = Environment.GetEnvironmentVariable("ANDY_MODELS_MODEL");
+                break;
         }
     }
 }
