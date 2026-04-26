@@ -49,11 +49,8 @@ internal class ChatCompletionsStrategy : IOpenAIApiStrategy
             if (response?.Value == null)
             {
                 _logger.LogError("OpenAI Chat Completions API returned null response");
-                return new LlmResponse
-                {
-                    AssistantMessage = new Message { Role = Role.Assistant, Content = "OpenAI API returned null response" },
-                    FinishReason = "error"
-                };
+                throw new InvalidOperationException(
+                    "OpenAI Chat Completions returned a null response with no SDK exception.");
             }
 
             var completion = response.Value;
@@ -110,14 +107,22 @@ internal class ChatCompletionsStrategy : IOpenAIApiStrategy
                 Model = completion.Model
             };
         }
+        catch (InvalidOperationException)
+        {
+            // Already shaped for the contract (e.g. the null-response guard
+            // above); re-throw rather than wrap and lose the original.
+            throw;
+        }
         catch (Exception ex)
         {
+            // See CerebrasProvider for rationale. Surface API failures so
+            // SimpleAgent (and AQ3's headless runner) can distinguish a
+            // transport error from a real model response, instead of
+            // writing the error string to the agent output file as if it
+            // were the answer.
             _logger.LogError(ex, "Error during OpenAI Chat Completions: {Message}", ex.Message);
-            return new LlmResponse
-            {
-                AssistantMessage = new Message { Role = Role.Assistant, Content = $"OpenAI Error: {ex.Message}" },
-                FinishReason = "error"
-            };
+            throw new InvalidOperationException(
+                $"OpenAI Chat Completions request failed: {ex.Message}", ex);
         }
     }
 
