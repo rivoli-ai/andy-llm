@@ -223,11 +223,9 @@ public class CerebrasProvider : Andy.Model.Llm.ILlmProvider
 
             if (response?.Value == null)
             {
-                return new LlmResponse
-                {
-                    AssistantMessage = new Message { Role = Role.Assistant, Content = "" },
-                    FinishReason = "error"
-                };
+                throw new InvalidOperationException(
+                    "Cerebras chat completion returned a null response with no SDK exception. "
+                        + "Treat as a transport failure rather than synthesising an empty assistant message.");
             }
 
             var completion = response.Value;
@@ -268,21 +266,17 @@ public class CerebrasProvider : Andy.Model.Llm.ILlmProvider
         }
         catch (ClientResultException ex)
         {
+            // Surface API failures (401, 402, 429, 5xx, ...) to the caller
+            // instead of synthesising a fake assistant response. Downstream
+            // orchestrators (Andy.Engine.SimpleAgent, andy-cli's headless
+            // agent runner) cannot otherwise distinguish a real model
+            // refusal from a transport failure, which used to cause
+            // payment/quota errors to be written to output files as if they
+            // were the agent's answer. Matches AzureOpenAIProvider's
+            // RequestFailedException → InvalidOperationException convention.
             _logger.LogError(ex, "Cerebras API error: Status={Status}, Message={Message}", ex.Status, ex.Message);
-            return new LlmResponse
-            {
-                AssistantMessage = new Message { Role = Role.Assistant, Content = $"Cerebras API error: {ex.Message}" },
-                FinishReason = "error"
-            };
-        }
-        catch (Exception ex)
-        {
-            _logger.LogError(ex, "Error during Cerebras completion");
-            return new LlmResponse
-            {
-                AssistantMessage = new Message { Role = Role.Assistant, Content = "" },
-                FinishReason = "error"
-            };
+            throw new InvalidOperationException(
+                $"Cerebras request failed (status {ex.Status}): {ex.Message}", ex);
         }
     }
 

@@ -185,8 +185,14 @@ public class ResponsesApiStrategyTests
     }
 
     [Fact]
-    public async Task CompleteAsync_HttpError_ReturnsErrorResponse()
+    public async Task CompleteAsync_HttpError_ThrowsInvalidOperationException()
     {
+        // Pre-fix behaviour: returned a synthesised LlmResponse with the
+        // error in Content and FinishReason="error", which downstream
+        // (Andy.Engine.SimpleAgent → andy-cli AQ3) would treat as a
+        // successful agent response and write to the output file. The
+        // contract is now: surface the failure so callers can distinguish
+        // a transport error from a real model response.
         var handler = new MockHttpHandler(HttpStatusCode.NotFound, "{\"error\":{\"message\":\"Model not found\"}}");
         var strategy = CreateStrategy(handler);
 
@@ -195,10 +201,27 @@ public class ResponsesApiStrategyTests
             Messages = new List<Message> { new Message { Role = Role.User, Content = "Hello" } }
         };
 
-        var response = await strategy.CompleteAsync(request);
+        var ex = await Assert.ThrowsAsync<InvalidOperationException>(() => strategy.CompleteAsync(request));
+        Assert.Contains("404", ex.Message);
+        Assert.Contains("Model not found", ex.Message);
+    }
 
-        Assert.Equal("error", response.FinishReason);
-        Assert.Contains("NotFound", response.AssistantMessage.Content);
+    [Fact]
+    public async Task CompleteAsync_TransportException_ThrowsInvalidOperationException()
+    {
+        // SDK-layer / network exceptions are wrapped so callers receive a
+        // single exception type per the AzureOpenAIProvider convention.
+        var handler = new ThrowingHttpHandler(new HttpRequestException("dns failure"));
+        var strategy = CreateStrategy(handler);
+
+        var request = new LlmRequest
+        {
+            Messages = new List<Message> { new Message { Role = Role.User, Content = "Hello" } }
+        };
+
+        var ex = await Assert.ThrowsAsync<InvalidOperationException>(() => strategy.CompleteAsync(request));
+        Assert.Contains("dns failure", ex.Message);
+        Assert.IsType<HttpRequestException>(ex.InnerException);
     }
 
     [Fact]
@@ -386,6 +409,19 @@ public class ResponsesApiStrategyTests
                 Content = new StringContent(_responseBody, Encoding.UTF8, "application/json")
             });
         }
+    }
+
+    /// <summary>
+    /// HTTP handler that throws a fixed exception. Used to verify the
+    /// transport-failure path wraps lower-layer exceptions into
+    /// InvalidOperationException per the provider contract.
+    /// </summary>
+    private class ThrowingHttpHandler : HttpMessageHandler
+    {
+        private readonly Exception _ex;
+        public ThrowingHttpHandler(Exception ex) { _ex = ex; }
+        protected override Task<HttpResponseMessage> SendAsync(HttpRequestMessage request, CancellationToken cancellationToken)
+            => Task.FromException<HttpResponseMessage>(_ex);
     }
 
     /// <summary>

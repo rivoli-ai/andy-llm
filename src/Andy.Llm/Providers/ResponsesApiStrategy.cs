@@ -78,29 +78,26 @@ internal class ResponsesApiStrategy : IOpenAIApiStrategy
             if (!httpResponse.IsSuccessStatusCode)
             {
                 _logger.LogError("Responses API error {StatusCode}: {Body}", httpResponse.StatusCode, responseBody);
-                return new LlmResponse
-                {
-                    AssistantMessage = new Message
-                    {
-                        Role = Role.Assistant,
-                        Content = $"OpenAI Responses API Error ({httpResponse.StatusCode}): {responseBody}"
-                    },
-                    FinishReason = "error"
-                };
+                throw new InvalidOperationException(
+                    $"OpenAI Responses API request failed (status {(int)httpResponse.StatusCode} {httpResponse.StatusCode}): {responseBody}");
             }
 
             _logger.LogDebug("Responses API response: {Response}", responseBody);
 
             return ParseResponse(responseBody);
         }
+        catch (InvalidOperationException)
+        {
+            // Status-code path above already shaped this; re-throw verbatim.
+            throw;
+        }
         catch (Exception ex)
         {
+            // See CerebrasProvider for rationale. Surface failures rather
+            // than synthesising a fake assistant response.
             _logger.LogError(ex, "Error during OpenAI Responses API call: {Message}", ex.Message);
-            return new LlmResponse
-            {
-                AssistantMessage = new Message { Role = Role.Assistant, Content = $"OpenAI Responses API Error: {ex.Message}" },
-                FinishReason = "error"
-            };
+            throw new InvalidOperationException(
+                $"OpenAI Responses API request failed: {ex.Message}", ex);
         }
     }
 
