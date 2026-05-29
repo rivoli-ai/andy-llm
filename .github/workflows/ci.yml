@@ -8,6 +8,9 @@ on:
 
 env:
   DOTNET_VERSION: '8.0.x'
+  # Force JS actions onto Node 24 even if an action still declares Node 20
+  # (e.g. actions/upload-artifact). Matches the runner default from 2026-06-16.
+  FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: 'true'
 
 jobs:
   build-and-test:
@@ -17,10 +20,10 @@ jobs:
         os: [ubuntu-latest, windows-latest, macos-latest]
     
     steps:
-    - uses: actions/checkout@v4
+    - uses: actions/checkout@v5
     
     - name: Setup .NET
-      uses: actions/setup-dotnet@v4
+      uses: actions/setup-dotnet@v5
       with:
         dotnet-version: ${{ env.DOTNET_VERSION }}
     

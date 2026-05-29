@@ -319,16 +319,23 @@ public class TelemetryTests : IDisposable
     [Fact]
     public void CancellationTokenExtensions_CreateLinkedTokenSourceWithTimeout_ShouldCancelAfterTimeout()
     {
-        // Arrange
+        // Arrange. Use a comfortably long timeout so the "not yet cancelled"
+        // check below is safe even if this thread is briefly descheduled.
         var originalCts = new CancellationTokenSource();
-        var timeout = TimeSpan.FromMilliseconds(50);
+        var timeout = TimeSpan.FromMilliseconds(200);
 
         // Act
         using var linkedCts = originalCts.Token.CreateLinkedTokenSourceWithTimeout(timeout);
 
-        // Assert
+        // Assert: not cancelled immediately...
         Assert.False(linkedCts.Token.IsCancellationRequested);
-        Thread.Sleep(100);
+
+        // ...but cancelled once the timeout elapses. Block on the token's wait
+        // handle with generous slack rather than a fixed Thread.Sleep, which is
+        // racy under timer/thread-pool latency on loaded CI runners.
+        Assert.True(
+            linkedCts.Token.WaitHandle.WaitOne(TimeSpan.FromSeconds(5)),
+            "Linked token should be cancelled after its timeout elapses");
         Assert.True(linkedCts.Token.IsCancellationRequested);
 
         originalCts.Cancel();

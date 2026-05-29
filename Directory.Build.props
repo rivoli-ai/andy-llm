@@ -21,7 +21,7 @@
     <Version>0.1.9</Version>
     <Description>Andy.Llm — Large Language Model integration library for .NET.</Description>
     <PackageRequireLicenseAcceptance>false</PackageRequireLicenseAcceptance>
-    <PackageReadmeFile Condition="Exists('README.md')">README.md</PackageReadmeFile>
+    <PackageReadmeFile Condition="Exists('$(MSBuildThisFileDirectory)README.md')">README.md</PackageReadmeFile>
   </PropertyGroup>
 
   <ItemGroup>
