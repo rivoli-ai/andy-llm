@@ -21,6 +21,10 @@ export AZURE_OPENAI_ENDPOINT="https://your-resource.openai.azure.com/"
 export AZURE_OPENAI_KEY="your-key-here"
 export AZURE_OPENAI_DEPLOYMENT="your-deployment"
 dotnet run --project FunctionCalling
+
+# OpenRouter (uses a FREE model by default — no cost)
+export OPENROUTER_API_KEY="sk-or-..."   # https://openrouter.ai/keys
+dotnet run --project OpenRouter
 ```
 
 ## Examples Overview
@@ -54,6 +58,15 @@ Advanced streaming example demonstrating:
 - Error handling with retries
 - Function calls in streaming mode
 - Live statistics during streaming
+
+### OpenRouter
+Demonstrates the OpenRouter unified gateway using a **free** model
+(`openai/gpt-oss-20b:free`), so it runs at zero cost with only an
+`OPENROUTER_API_KEY`. Shows:
+- Simple completion and streaming
+- Tool/function calling
+- Model discovery via `ListModelsAsync`
+- The `provider/model` id convention (keep the slashed id in `Model`)
 
 ### MultiProvider
 Compares responses from multiple providers:

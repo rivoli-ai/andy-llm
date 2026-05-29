@@ -96,7 +96,7 @@ public class MultiProvider
         logger.LogInformation("\n=== Example 2: Using Specific Providers ===");
         logger.LogInformation("Note: Cerebras runs open-source models like Llama (Meta) at high speed");
 
-        var providers = new[] { "openai/latest-small", "cerebras/fast-large", "azure/production", "ollama/local" };
+        var providers = new[] { "openai/latest-small", "cerebras/fast-large", "openrouter/free", "azure/production", "ollama/local" };
 
         foreach (var providerName in providers)
         {
