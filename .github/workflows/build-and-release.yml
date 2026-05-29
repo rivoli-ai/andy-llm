@@ -11,6 +11,9 @@ on:
 env:
   DOTNET_VERSION: '8.0.x'
   NUGET_SOURCE: 'https://api.nuget.org/v3/index.json'
+  # Force JS actions onto Node 24 even if an action still declares Node 20
+  # (e.g. actions/upload-artifact). Matches the runner default from 2026-06-16.
+  FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: 'true'
 
 jobs:
   build:
