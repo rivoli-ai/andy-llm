@@ -105,6 +105,8 @@ public static class ServiceCollectionExtensions
         services.AddSingleton<CerebrasProvider>();
         services.AddSingleton<AzureOpenAIProvider>();
         services.AddSingleton<OllamaProvider>();
+        services.AddSingleton<AnthropicProvider>();
+        services.AddSingleton<OpenRouterProvider>();
 
         // Register HttpClientFactory for providers that need it
         services.AddHttpClient();
@@ -129,6 +131,8 @@ public static class ServiceCollectionExtensions
         services.AddSingleton<CerebrasProvider>();
         services.AddSingleton<AzureOpenAIProvider>();
         services.AddSingleton<OllamaProvider>();
+        services.AddSingleton<AnthropicProvider>();
+        services.AddSingleton<OpenRouterProvider>();
 
         // Register HttpClientFactory for providers that need it
         services.AddHttpClient();
@@ -188,17 +192,34 @@ public static class ServiceCollectionExtensions
                         var existing = kvp.Value;
                         // Merge: override null, empty, or placeholder values (like "${OPENAI_API_KEY}") from environment
                         if (string.IsNullOrEmpty(existing.ApiKey) || IsPlaceholder(existing.ApiKey))
+                        {
                             existing.ApiKey = envConfig.ApiKey;
+                        }
+
                         if (string.IsNullOrEmpty(existing.ApiBase) || IsPlaceholder(existing.ApiBase))
+                        {
                             existing.ApiBase = envConfig.ApiBase;
+                        }
+
                         if (string.IsNullOrEmpty(existing.Model) || IsPlaceholder(existing.Model))
+                        {
                             existing.Model = envConfig.Model;
+                        }
+
                         if (string.IsNullOrEmpty(existing.Organization) || IsPlaceholder(existing.Organization))
+                        {
                             existing.Organization = envConfig.Organization;
+                        }
+
                         if (string.IsNullOrEmpty(existing.ApiVersion) || IsPlaceholder(existing.ApiVersion))
+                        {
                             existing.ApiVersion = envConfig.ApiVersion;
+                        }
+
                         if (string.IsNullOrEmpty(existing.DeploymentName) || IsPlaceholder(existing.DeploymentName))
+                        {
                             existing.DeploymentName = envConfig.DeploymentName;
+                        }
                         // CRITICAL: Keep existing Enabled and Priority values - NEVER override from environment!
                     }
                 }
@@ -311,6 +332,23 @@ public static class ServiceCollectionExtensions
                     ApiKey = anthropicKey,
                     ApiBase = "https://api.anthropic.com",
                     Model = anthropicModel ?? "claude-3-5-haiku-20241022",
+                    Enabled = true
+                });
+            }
+
+            // OpenRouter configuration
+            var openRouterKey = Environment.GetEnvironmentVariable("OPENROUTER_API_KEY");
+            var openRouterBase = Environment.GetEnvironmentVariable("OPENROUTER_API_BASE");
+            var openRouterModel = Environment.GetEnvironmentVariable("OPENROUTER_MODEL");
+
+            if (!string.IsNullOrEmpty(openRouterKey))
+            {
+                MergeProviderConfig("openrouter", new ProviderConfig
+                {
+                    Provider = "openrouter",
+                    ApiKey = openRouterKey,
+                    ApiBase = openRouterBase ?? OpenRouterProvider.DefaultApiBase,
+                    Model = openRouterModel,
                     Enabled = true
                 });
             }

@@ -41,6 +41,8 @@ Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "StructuredOutput", "example
 EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "ToolCallingStructured", "examples\ToolCallingStructured\ToolCallingStructured.csproj", "{D58DA704-4302-4020-8F0F-48D66E962FEC}"
 EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "OpenRouter", "examples\OpenRouter\OpenRouter.csproj", "{A19B0D66-5E51-436C-8872-328E9EF9582C}"
+EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
 		Debug|Any CPU = Debug|Any CPU
@@ -243,6 +245,18 @@ Global
 		{D58DA704-4302-4020-8F0F-48D66E962FEC}.Release|x64.Build.0 = Release|Any CPU
 		{D58DA704-4302-4020-8F0F-48D66E962FEC}.Release|x86.ActiveCfg = Release|Any CPU
 		{D58DA704-4302-4020-8F0F-48D66E962FEC}.Release|x86.Build.0 = Release|Any CPU
+		{A19B0D66-5E51-436C-8872-328E9EF9582C}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{A19B0D66-5E51-436C-8872-328E9EF9582C}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{A19B0D66-5E51-436C-8872-328E9EF9582C}.Debug|x64.ActiveCfg = Debug|Any CPU
+		{A19B0D66-5E51-436C-8872-328E9EF9582C}.Debug|x64.Build.0 = Debug|Any CPU
+		{A19B0D66-5E51-436C-8872-328E9EF9582C}.Debug|x86.ActiveCfg = Debug|Any CPU
+		{A19B0D66-5E51-436C-8872-328E9EF9582C}.Debug|x86.Build.0 = Debug|Any CPU
+		{A19B0D66-5E51-436C-8872-328E9EF9582C}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{A19B0D66-5E51-436C-8872-328E9EF9582C}.Release|Any CPU.Build.0 = Release|Any CPU
+		{A19B0D66-5E51-436C-8872-328E9EF9582C}.Release|x64.ActiveCfg = Release|Any CPU
+		{A19B0D66-5E51-436C-8872-328E9EF9582C}.Release|x64.Build.0 = Release|Any CPU
+		{A19B0D66-5E51-436C-8872-328E9EF9582C}.Release|x86.ActiveCfg = Release|Any CPU
+		{A19B0D66-5E51-436C-8872-328E9EF9582C}.Release|x86.Build.0 = Release|Any CPU
 	EndGlobalSection
 	GlobalSection(SolutionProperties) = preSolution
 		HideSolutionNode = FALSE
@@ -264,5 +278,6 @@ Global
 		{0C995A4E-8DBA-43E3-908C-86F231803272} = {B36A84DF-456D-A817-6EDD-3EC3E7F6E11F}
 		{27D60AAE-2EC3-4411-95DF-4E6A707DE43C} = {B36A84DF-456D-A817-6EDD-3EC3E7F6E11F}
 		{D58DA704-4302-4020-8F0F-48D66E962FEC} = {B36A84DF-456D-A817-6EDD-3EC3E7F6E11F}
+		{A19B0D66-5E51-436C-8872-328E9EF9582C} = {B36A84DF-456D-A817-6EDD-3EC3E7F6E11F}
 	EndGlobalSection
 EndGlobal

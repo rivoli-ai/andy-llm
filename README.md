@@ -188,7 +188,9 @@ The library supports human-readable hierarchical configuration names for better 
 }
 ```
 
-Configuration names can use any format. The `Provider` property specifies the underlying provider type (openai, cerebras, azure, ollama). If omitted, the provider type is inferred from the configuration name prefix (e.g., "openai/latest-large" infers "openai").
+Configuration names can use any format. The `Provider` property specifies the underlying provider type (openai, cerebras, azure, ollama, anthropic, openrouter). If omitted, the provider type is inferred from the configuration name prefix (e.g., "openai/latest-large" infers "openai").
+
+> **OpenRouter note:** OpenRouter model ids contain a slash (e.g. `anthropic/claude-sonnet-4.6`). Always put that id in the `Model` field and keep `Provider` set to `"openrouter"` — never encode the model id in the config key, since keys are split on `/` for routing. See [docs/openrouter-provider.md](docs/openrouter-provider.md).
 
 ### Provider Priority
 
@@ -283,6 +285,15 @@ The library supports configuration through environment variables for all major p
 - `AZURE_OPENAI_DEPLOYMENT` - Your deployment name
 - `AZURE_OPENAI_API_VERSION` - API version (default: 2024-02-15-preview)
 
+#### OpenRouter
+- `OPENROUTER_API_KEY` - Your OpenRouter API key (from https://openrouter.ai/keys)
+- `OPENROUTER_API_BASE` - API base URL (optional; defaults to `https://openrouter.ai/api/v1`)
+- `OPENROUTER_MODEL` - Default `provider/model` slug (e.g. `openai/gpt-oss-20b:free`, `anthropic/claude-sonnet-4.6`)
+- `OPENROUTER_HTTP_REFERER` - Optional `HTTP-Referer` header for OpenRouter's app leaderboard
+- `OPENROUTER_X_TITLE` - Optional `X-Title` header for OpenRouter's app leaderboard
+
+OpenRouter exposes free, tool-capable models (e.g. `openai/gpt-oss-20b:free`) — great for trying the library at zero cost. See [docs/openrouter-provider.md](docs/openrouter-provider.md).
+
 #### Local/Ollama
 - `OLLAMA_API_BASE` - Your local endpoint (required, e.g., http://localhost:11434)
 - `OLLAMA_MODEL` - Model to use (required, e.g., llama2)
@@ -290,7 +301,7 @@ The library supports configuration through environment variables for all major p
 ## Features
 
 ### Core Capabilities
-- **Multi-Provider Support**: OpenAI, Cerebras, Azure OpenAI, Ollama, Anthropic
+- **Multi-Provider Support**: OpenAI, Cerebras, Azure OpenAI, Ollama, Anthropic, OpenRouter (unified gateway to 100s of models)
 - **Streaming Responses**: Real-time token streaming
 - **Function/Tool Calling**: OpenAI-compatible function calling with structured outputs
 - **Structured Outputs**: JSON Schema validation and type-safe responses

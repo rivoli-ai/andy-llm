@@ -107,6 +107,7 @@ public class LlmProviderFactory : ILlmProviderFactory
                 Organization = config.Organization,
                 DeploymentName = config.DeploymentName,
                 ApiVersion = config.ApiVersion,
+                AdditionalSettings = config.AdditionalSettings,
                 Enabled = config.Enabled,
                 Priority = config.Priority
             };
@@ -137,6 +138,14 @@ public class LlmProviderFactory : ILlmProviderFactory
                 case "local" or "ollama":
                     var ollamaLogger = loggerFactory.CreateLogger<OllamaProvider>();
                     provider = new OllamaProvider(configCopy, configKey, ollamaLogger, httpClientFactory);
+                    break;
+                case "anthropic":
+                    var anthropicLogger = loggerFactory.CreateLogger<AnthropicProvider>();
+                    provider = new AnthropicProvider(configCopy, configKey, anthropicLogger, httpClientFactory);
+                    break;
+                case "openrouter":
+                    var openRouterLogger = loggerFactory.CreateLogger<OpenRouterProvider>();
+                    provider = new OpenRouterProvider(configCopy, configKey, openRouterLogger, httpClientFactory);
                     break;
                 default:
                     throw new NotSupportedException($"Provider type '{providerType}' is not supported");
@@ -274,52 +283,144 @@ public class LlmProviderFactory : ILlmProviderFactory
         {
             case "openai":
                 if (string.IsNullOrEmpty(config.ApiKey) || IsPlaceholder(config.ApiKey))
+                {
                     config.ApiKey = Environment.GetEnvironmentVariable("OPENAI_API_KEY");
+                }
+
                 if (string.IsNullOrEmpty(config.ApiBase) || IsPlaceholder(config.ApiBase))
+                {
                     config.ApiBase = Environment.GetEnvironmentVariable("OPENAI_API_BASE");
+                }
+
                 if (string.IsNullOrEmpty(config.Model) || IsPlaceholder(config.Model))
+                {
                     config.Model = Environment.GetEnvironmentVariable("OPENAI_MODEL");
+                }
+
                 if (string.IsNullOrEmpty(config.Organization) || IsPlaceholder(config.Organization))
+                {
                     config.Organization = Environment.GetEnvironmentVariable("OPENAI_ORGANIZATION");
+                }
+
                 break;
 
             case "cerebras":
                 if (string.IsNullOrEmpty(config.ApiKey) || IsPlaceholder(config.ApiKey))
+                {
                     config.ApiKey = Environment.GetEnvironmentVariable("CEREBRAS_API_KEY");
+                }
+
                 if (string.IsNullOrEmpty(config.ApiBase) || IsPlaceholder(config.ApiBase))
+                {
                     config.ApiBase = Environment.GetEnvironmentVariable("CEREBRAS_API_BASE");
+                }
+
                 if (string.IsNullOrEmpty(config.Model) || IsPlaceholder(config.Model))
+                {
                     config.Model = Environment.GetEnvironmentVariable("CEREBRAS_MODEL");
+                }
+
                 break;
 
             case "azure":
             case "azure-openai":
                 if (string.IsNullOrEmpty(config.ApiKey) || IsPlaceholder(config.ApiKey))
+                {
                     config.ApiKey = Environment.GetEnvironmentVariable("AZURE_OPENAI_KEY");
+                }
+
                 if (string.IsNullOrEmpty(config.ApiBase) || IsPlaceholder(config.ApiBase))
+                {
                     config.ApiBase = Environment.GetEnvironmentVariable("AZURE_OPENAI_ENDPOINT");
+                }
+
                 if (string.IsNullOrEmpty(config.DeploymentName) || IsPlaceholder(config.DeploymentName))
+                {
                     config.DeploymentName = Environment.GetEnvironmentVariable("AZURE_OPENAI_DEPLOYMENT");
+                }
+
                 if (string.IsNullOrEmpty(config.ApiVersion) || IsPlaceholder(config.ApiVersion))
+                {
                     config.ApiVersion = Environment.GetEnvironmentVariable("AZURE_OPENAI_API_VERSION");
+                }
+
                 break;
 
             case "local":
             case "ollama":
                 if (string.IsNullOrEmpty(config.ApiBase) || IsPlaceholder(config.ApiBase))
+                {
                     config.ApiBase = Environment.GetEnvironmentVariable("OLLAMA_API_BASE") ?? "http://localhost:11434";
+                }
+
                 if (string.IsNullOrEmpty(config.Model) || IsPlaceholder(config.Model))
+                {
                     config.Model = Environment.GetEnvironmentVariable("OLLAMA_MODEL");
+                }
+
+                break;
+
+            case "anthropic":
+                if (string.IsNullOrEmpty(config.ApiKey) || IsPlaceholder(config.ApiKey))
+                {
+                    config.ApiKey = Environment.GetEnvironmentVariable("ANTHROPIC_API_KEY")
+                                    ?? Environment.GetEnvironmentVariable("ANDY_LLM_ANTHROPIC_API_KEY");
+                }
+
+                if (string.IsNullOrEmpty(config.ApiBase) || IsPlaceholder(config.ApiBase))
+                {
+                    config.ApiBase = Environment.GetEnvironmentVariable("ANTHROPIC_API_BASE")
+                                     ?? AnthropicProvider.DefaultApiBase;
+                }
+
+                if (string.IsNullOrEmpty(config.Model) || IsPlaceholder(config.Model))
+                {
+                    config.Model = Environment.GetEnvironmentVariable("ANTHROPIC_MODEL");
+                }
+
+                if (string.IsNullOrEmpty(config.ApiVersion) || IsPlaceholder(config.ApiVersion))
+                {
+                    config.ApiVersion = Environment.GetEnvironmentVariable("ANTHROPIC_API_VERSION");
+                }
+
+                break;
+
+            case "openrouter":
+                if (string.IsNullOrEmpty(config.ApiKey) || IsPlaceholder(config.ApiKey))
+                {
+                    config.ApiKey = Environment.GetEnvironmentVariable("OPENROUTER_API_KEY");
+                }
+
+                if (string.IsNullOrEmpty(config.ApiBase) || IsPlaceholder(config.ApiBase))
+                {
+                    config.ApiBase = Environment.GetEnvironmentVariable("OPENROUTER_API_BASE")
+                                     ?? OpenRouterProvider.DefaultApiBase;
+                }
+
+                if (string.IsNullOrEmpty(config.Model) || IsPlaceholder(config.Model))
+                {
+                    config.Model = Environment.GetEnvironmentVariable("OPENROUTER_MODEL");
+                }
+
                 break;
 
             case "gateway":
             case "andy-models":
                 if (string.IsNullOrEmpty(config.ApiKey) || IsPlaceholder(config.ApiKey))
+                {
                     config.ApiKey = Environment.GetEnvironmentVariable("ANDY_MODELS_API_KEY");
+                }
+
                 if (string.IsNullOrEmpty(config.ApiBase) || IsPlaceholder(config.ApiBase))
+                {
                     config.ApiBase = Environment.GetEnvironmentVariable("ANDY_MODELS_API_BASE");
+                }
+
                 if (string.IsNullOrEmpty(config.Model) || IsPlaceholder(config.Model))
+                {
                     config.Model = Environment.GetEnvironmentVariable("ANDY_MODELS_MODEL");
+                }
+
                 break;
         }
     }
