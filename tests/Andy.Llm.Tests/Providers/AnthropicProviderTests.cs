@@ -313,6 +313,122 @@ public class AnthropicProviderTests
     }
 
     [Fact]
+    public async Task CompleteAsync_CacheSystemPrompt_AttachesEphemeralBreakpointToSystemBlock()
+    {
+        HttpRequestMessage? captured = null;
+        var (provider, _) = BuildProvider(_logger.Object, (req, _) =>
+        {
+            captured = req;
+            return new HttpResponseMessage(HttpStatusCode.OK)
+            {
+                Content = new StringContent(@"{
+                    ""content"":[{""type"":""text"",""text"":""ok""}],
+                    ""usage"":{""input_tokens"":1,""output_tokens"":1}
+                }", Encoding.UTF8, "application/json")
+            };
+        });
+
+        await provider.CompleteAsync(new LlmRequest
+        {
+            Messages = new List<Message> { new() { Role = Role.User, Content = "Hi" } },
+            SystemPrompt = "You are a long, stable, cacheable system prompt.",
+            CacheSystemPrompt = true,
+            Config = new LlmClientConfig { Model = "claude-sonnet-4-5-20250929" }
+        });
+
+        var body = await captured!.Content!.ReadAsStringAsync();
+        using var doc = JsonDocument.Parse(body);
+
+        // System prompt is rendered as a content-block array, and the (only)
+        // block carries cache_control: {"type":"ephemeral"}.
+        var system = doc.RootElement.GetProperty("system");
+        Assert.Equal(JsonValueKind.Array, system.ValueKind);
+        var sysBlock = system[0];
+        Assert.Equal("text", sysBlock.GetProperty("type").GetString());
+        Assert.Equal("You are a long, stable, cacheable system prompt.", sysBlock.GetProperty("text").GetString());
+        var cc = sysBlock.GetProperty("cache_control");
+        Assert.Equal("ephemeral", cc.GetProperty("type").GetString());
+
+        // Sanity: the raw body literally contains the marker.
+        Assert.Contains("cache_control", body);
+        Assert.Contains("ephemeral", body);
+    }
+
+    [Fact]
+    public async Task CompleteAsync_NoCacheMarker_OmitsCacheControlAndKeepsStringSystem()
+    {
+        HttpRequestMessage? captured = null;
+        var (provider, _) = BuildProvider(_logger.Object, (req, _) =>
+        {
+            captured = req;
+            return new HttpResponseMessage(HttpStatusCode.OK)
+            {
+                Content = new StringContent(@"{
+                    ""content"":[{""type"":""text"",""text"":""ok""}],
+                    ""usage"":{""input_tokens"":1,""output_tokens"":1}
+                }", Encoding.UTF8, "application/json")
+            };
+        });
+
+        await provider.CompleteAsync(new LlmRequest
+        {
+            Messages = new List<Message> { new() { Role = Role.User, Content = "Hi" } },
+            SystemPrompt = "You are a stable system prompt.",
+            // CacheSystemPrompt defaults to false; no message carries a marker.
+            Config = new LlmClientConfig { Model = "claude-sonnet-4-5-20250929" }
+        });
+
+        var body = await captured!.Content!.ReadAsStringAsync();
+        using var doc = JsonDocument.Parse(body);
+
+        // Default behavior unchanged: system remains a plain string and no
+        // cache_control breakpoint appears anywhere in the body.
+        var system = doc.RootElement.GetProperty("system");
+        Assert.Equal(JsonValueKind.String, system.ValueKind);
+        Assert.Equal("You are a stable system prompt.", system.GetString());
+        Assert.DoesNotContain("cache_control", body);
+        Assert.DoesNotContain("ephemeral", body);
+    }
+
+    [Fact]
+    public async Task CompleteAsync_MessageCacheControl_AttachesBreakpointToLastContentBlock()
+    {
+        HttpRequestMessage? captured = null;
+        var (provider, _) = BuildProvider(_logger.Object, (req, _) =>
+        {
+            captured = req;
+            return new HttpResponseMessage(HttpStatusCode.OK)
+            {
+                Content = new StringContent(@"{
+                    ""content"":[{""type"":""text"",""text"":""ok""}],
+                    ""usage"":{""input_tokens"":1,""output_tokens"":1}
+                }", Encoding.UTF8, "application/json")
+            };
+        });
+
+        await provider.CompleteAsync(new LlmRequest
+        {
+            Messages = new List<Message>
+            {
+                new() { Role = Role.User, Content = "Stable turn", CacheControl = CacheControl.Ephemeral },
+                new() { Role = Role.User, Content = "Fresh turn" }
+            },
+            Config = new LlmClientConfig { Model = "claude-sonnet-4-5-20250929" }
+        });
+
+        var body = await captured!.Content!.ReadAsStringAsync();
+        using var doc = JsonDocument.Parse(body);
+        var messages = doc.RootElement.GetProperty("messages");
+
+        // The marked message's last content block carries the breakpoint...
+        var markedBlock = messages[0].GetProperty("content")[0];
+        Assert.Equal("ephemeral", markedBlock.GetProperty("cache_control").GetProperty("type").GetString());
+
+        // ...and the unmarked message has none.
+        Assert.False(messages[1].GetProperty("content")[0].TryGetProperty("cache_control", out _));
+    }
+
+    [Fact]
     public async Task CompleteAsync_4xx_ThrowsWithBodyDetail()
     {
         var (provider, _) = BuildProvider(_logger.Object, (_, _) =>

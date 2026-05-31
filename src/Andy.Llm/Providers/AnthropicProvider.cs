@@ -406,6 +406,14 @@ public class AnthropicProvider : Andy.Model.Llm.ILlmProvider
                 continue;
             }
 
+            // If the caller marked this message as a cache breakpoint, attach
+            // cache_control to its last content block. Anthropic caches the
+            // prefix up to and including the marked block.
+            if (msg.CacheControl is { } cc)
+            {
+                blocks[^1].CacheControl = new AnthropicCacheControl { Type = cc.Type };
+            }
+
             anthropicMessages.Add(new AnthropicMessage
             {
                 Role = msg.Role == Role.Assistant ? "assistant" : "user",
@@ -413,11 +421,36 @@ public class AnthropicProvider : Andy.Model.Llm.ILlmProvider
             });
         }
 
+        // The system prompt is normally serialized as a bare string. When the
+        // caller opts into prompt caching for it, we must render it as a single
+        // text content block so the cache_control breakpoint has somewhere to
+        // live (Anthropic rejects cache_control on a string system field).
+        object? systemField = null;
+        if (!string.IsNullOrEmpty(systemPrompt))
+        {
+            if (request.CacheSystemPrompt)
+            {
+                systemField = new List<AnthropicContentBlock>
+                {
+                    new()
+                    {
+                        Type = "text",
+                        Text = systemPrompt,
+                        CacheControl = new AnthropicCacheControl { Type = "ephemeral" }
+                    }
+                };
+            }
+            else
+            {
+                systemField = systemPrompt;
+            }
+        }
+
         var body = new AnthropicMessagesRequest
         {
             Model = request.Model ?? throw new InvalidOperationException("LlmRequest.Model is required for Anthropic"),
             MaxTokens = request.MaxTokens > 0 ? request.MaxTokens : DefaultMaxTokens,
-            System = string.IsNullOrEmpty(systemPrompt) ? null : systemPrompt,
+            System = systemField,
             Messages = anthropicMessages,
             Stream = stream
         };
@@ -773,9 +806,14 @@ internal class AnthropicMessagesRequest
     [JsonPropertyName("max_tokens")]
     public int MaxTokens { get; set; }
 
+    // Anthropic accepts the system prompt either as a plain string or as an
+    // array of content blocks. We need the block form whenever a cache
+    // breakpoint must be attached (cache_control lives on a block, not on a
+    // bare string), so this is typed as object? and populated with either a
+    // string or a List<AnthropicContentBlock> by BuildRequest.
     [JsonPropertyName("system")]
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
-    public string? System { get; set; }
+    public object? System { get; set; }
 
     [JsonPropertyName("messages")]
     public required List<AnthropicMessage> Messages { get; set; }
@@ -829,6 +867,18 @@ internal class AnthropicContentBlock
     [JsonPropertyName("content")]
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
     public string? Content { get; set; }
+
+    // Prompt-caching breakpoint. When set, Anthropic caches the prefix up to
+    // and including this block. Serialized as {"type":"ephemeral"}.
+    [JsonPropertyName("cache_control")]
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public AnthropicCacheControl? CacheControl { get; set; }
+}
+
+internal class AnthropicCacheControl
+{
+    [JsonPropertyName("type")]
+    public required string Type { get; set; }
 }
 
 internal class AnthropicTool
