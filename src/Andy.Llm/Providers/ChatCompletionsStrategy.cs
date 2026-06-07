@@ -2,6 +2,7 @@ using System.ClientModel;
 using System.Runtime.CompilerServices;
 using System.Text.Json;
 using Andy.Llm.Configuration;
+using Andy.Llm.Parsing;
 using Andy.Model.Llm;
 using Andy.Model.Model;
 using Andy.Model.Tooling;
@@ -208,7 +209,7 @@ internal class ChatCompletionsStrategy : IOpenAIApiStrategy
                         {
                             Id = accumulated.Id ?? $"call_{Guid.NewGuid():N}"[..8],
                             Name = accumulated.Name,
-                            ArgumentsJson = accumulated.Arguments ?? "{}"
+                            ArgumentsJson = ToolArgumentJsonRepair.Normalize(accumulated.Arguments)
                         };
 
                         yield return new LlmStreamResponse
@@ -238,7 +239,7 @@ internal class ChatCompletionsStrategy : IOpenAIApiStrategy
                         {
                             Id = accumulated.Id ?? $"call_{Guid.NewGuid():N}"[..8],
                             Name = accumulated.Name,
-                            ArgumentsJson = accumulated.Arguments ?? "{}"
+                            ArgumentsJson = ToolArgumentJsonRepair.Normalize(accumulated.Arguments)
                         };
 
                         yield return new LlmStreamResponse
@@ -401,7 +402,7 @@ internal class ChatCompletionsStrategy : IOpenAIApiStrategy
                 {
                     Id = toolCall.Id,
                     Name = toolCall.FunctionName ?? "",
-                    ArgumentsJson = toolCall.FunctionArguments?.ToString() ?? "{}"
+                    ArgumentsJson = ToolArgumentJsonRepair.Normalize(toolCall.FunctionArguments?.ToString())
                 });
             }
         }

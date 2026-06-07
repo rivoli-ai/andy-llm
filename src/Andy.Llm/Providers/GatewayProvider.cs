@@ -4,6 +4,7 @@ using System.Text;
 using System.Text.Json;
 using System.Text.Json.Nodes;
 using Andy.Llm.Configuration;
+using Andy.Llm.Parsing;
 using Andy.Model.Llm;
 using Andy.Model.Model;
 using Andy.Model.Tooling;
@@ -244,7 +245,7 @@ public class GatewayProvider : Andy.Model.Llm.ILlmProvider
             {
                 Id = acc.Id ?? Guid.NewGuid().ToString("N"),
                 Name = acc.Name ?? string.Empty,
-                ArgumentsJson = acc.Arguments.Length == 0 ? "{}" : acc.Arguments.ToString()
+                ArgumentsJson = ToolArgumentJsonRepair.Normalize(acc.Arguments.ToString())
             };
             yield return new LlmStreamResponse
             {
@@ -386,7 +387,7 @@ public class GatewayProvider : Andy.Model.Llm.ILlmProvider
             var id = tc?["id"]?.GetValue<string?>() ?? Guid.NewGuid().ToString("N");
             var name = tc?["function"]?["name"]?.GetValue<string?>() ?? string.Empty;
             var args = tc?["function"]?["arguments"]?.GetValue<string?>() ?? "{}";
-            list.Add(new ToolCall { Id = id, Name = name, ArgumentsJson = args });
+            list.Add(new ToolCall { Id = id, Name = name, ArgumentsJson = ToolArgumentJsonRepair.Normalize(args) });
         }
         return list;
     }

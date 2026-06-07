@@ -6,6 +6,7 @@ using System.Text.Json;
 using System.Text.Json.Nodes;
 using System.Text.Json.Serialization;
 using Andy.Llm.Configuration;
+using Andy.Llm.Parsing;
 using Andy.Model.Llm;
 using Andy.Model.Model;
 using Andy.Model.Tooling;
@@ -333,7 +334,7 @@ public class AnthropicProvider : Andy.Model.Llm.ILlmProvider
                 {
                     Id = kvp.Value.Id ?? string.Empty,
                     Name = kvp.Value.Name ?? string.Empty,
-                    ArgumentsJson = string.IsNullOrEmpty(kvp.Value.InputJson) ? "{}" : kvp.Value.InputJson
+                    ArgumentsJson = ToolArgumentJsonRepair.Normalize(kvp.Value.InputJson)
                 })
                 .ToList()
             : null;
@@ -641,7 +642,7 @@ public class AnthropicProvider : Andy.Model.Llm.ILlmProvider
                             Id = block.Id ?? string.Empty,
                             Name = block.Name ?? string.Empty,
                             ArgumentsJson = block.Input.HasValue && block.Input.Value.ValueKind != JsonValueKind.Undefined
-                                ? block.Input.Value.GetRawText()
+                                ? ToolArgumentJsonRepair.Normalize(block.Input.Value.GetRawText())
                                 : "{}"
                         });
                         break;

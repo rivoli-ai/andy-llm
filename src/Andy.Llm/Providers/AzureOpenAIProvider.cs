@@ -1,6 +1,7 @@
 using System.ClientModel;
 using Andy.Llm.Providers;
 using Andy.Llm.Configuration;
+using Andy.Llm.Parsing;
 using Andy.Model.Llm;
 using Andy.Model.Model;
 using Andy.Model.Tooling;
@@ -538,7 +539,7 @@ public class AzureOpenAIProvider : Andy.Model.Llm.ILlmProvider
                     {
                         Name = toolCall.FunctionName ?? "",
                         Id = toolCall.Id,
-                        ArgumentsJson = toolCall.FunctionArguments?.ToString() ?? "{}"
+                        ArgumentsJson = ToolArgumentJsonRepair.Normalize(toolCall.FunctionArguments?.ToString())
                     });
                 }
             }

@@ -7,6 +7,7 @@ using System.Text.Json;
 using System.Text.Json.Serialization;
 using Andy.Llm.Providers;
 using Andy.Llm.Configuration;
+using Andy.Llm.Parsing;
 using Andy.Model.Llm;
 using Andy.Model.Model;
 using Andy.Model.Tooling;
@@ -367,7 +368,7 @@ public class CerebrasProvider : Andy.Model.Llm.ILlmProvider
                         {
                             Id = accumulated.Id ?? $"call_{Guid.NewGuid():N}".Substring(0, 8),
                             Name = accumulated.Name,
-                            ArgumentsJson = accumulated.Arguments ?? "{}"
+                            ArgumentsJson = ToolArgumentJsonRepair.Normalize(accumulated.Arguments)
                         };
 
                         yield return new LlmStreamResponse
@@ -699,7 +700,7 @@ public class CerebrasProvider : Andy.Model.Llm.ILlmProvider
                 {
                     Id = toolCall.Id,
                     Name = toolCall.FunctionName ?? "",
-                    ArgumentsJson = toolCall.FunctionArguments?.ToString() ?? "{}"
+                    ArgumentsJson = ToolArgumentJsonRepair.Normalize(toolCall.FunctionArguments?.ToString())
                 });
             }
         }
