@@ -37,6 +37,20 @@ public static partial class ToolArgumentJsonRepair
     }
 
     /// <summary>
+    /// Normalizes raw tool-call arguments to a JSON object string that is always safe to parse.
+    /// Already-valid JSON objects are returned unchanged (in canonical compact form); malformed
+    /// arguments are repaired when possible. Blank input, or input that cannot be recovered into a
+    /// JSON object (for example a bare scalar such as <c>1</c> or a JSON array), yields <c>"{}"</c>.
+    /// Never throws — callers can hand the result straight to a JSON parser.
+    /// </summary>
+    public static string Normalize(string? raw)
+    {
+        if (string.IsNullOrWhiteSpace(raw))
+            return "{}";
+        return TryRepair(raw, out var json) ? json : "{}";
+    }
+
+    /// <summary>
     /// Best-effort parse of tool-call arguments into a dictionary. Returns an empty dictionary
     /// when the input is blank or unrecoverable.
     /// </summary>

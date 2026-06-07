@@ -132,4 +132,70 @@ public class ToolArgumentJsonRepairTests
         Assert.Equal("{}", json);
         Assert.Empty(ToolArgumentJsonRepair.ParseArguments("{}"));
     }
+
+    // ---- Normalize: the provider-facing guarantee (always a valid JSON object string) ----
+
+    [Theory]
+    [InlineData(null)]
+    [InlineData("")]
+    [InlineData("   ")]
+    [InlineData("\n\t ")]
+    public void Normalize_Blank_Yields_Empty_Object(string? raw)
+    {
+        Assert.Equal("{}", ToolArgumentJsonRepair.Normalize(raw));
+    }
+
+    [Theory]
+    [InlineData("1")]                          // the bare-"1" execute_command bug
+    [InlineData("42")]
+    [InlineData("\"dotnet test\"")]            // a bare JSON string
+    [InlineData("[1, 2, 3]")]                  // a top-level array
+    [InlineData("true")]
+    [InlineData("null")]
+    [InlineData("not json at all")]
+    [InlineData("I cannot complete this request.")]
+    public void Normalize_NonObject_Or_Garbage_Yields_Empty_Object(string raw)
+    {
+        Assert.Equal("{}", ToolArgumentJsonRepair.Normalize(raw));
+    }
+
+    [Fact]
+    public void Normalize_Result_Is_Always_Parseable_As_Object()
+    {
+        foreach (var raw in new string?[] { null, "", "1", "garbage", "[1,2]", "{bad}" })
+        {
+            var normalized = ToolArgumentJsonRepair.Normalize(raw);
+            using var doc = JsonDocument.Parse(normalized);
+            Assert.Equal(JsonValueKind.Object, doc.RootElement.ValueKind);
+        }
+    }
+
+    [Fact]
+    public void Normalize_Valid_Object_Is_Preserved()
+    {
+        var normalized = ToolArgumentJsonRepair.Normalize("{\"command\":\"dotnet test\",\"working_directory\":\".\"}");
+        using var doc = JsonDocument.Parse(normalized);
+        Assert.Equal("dotnet test", doc.RootElement.GetProperty("command").GetString());
+        Assert.Equal(".", doc.RootElement.GetProperty("working_directory").GetString());
+    }
+
+    [Fact]
+    public void Normalize_Repairs_Malformed_Object()
+    {
+        // Fenced, single-quoted, trailing comma - a realistic weak-model emission.
+        var raw = "```json\n{'command': 'dotnet test',}\n```";
+        var normalized = ToolArgumentJsonRepair.Normalize(raw);
+        using var doc = JsonDocument.Parse(normalized);
+        Assert.Equal("dotnet test", doc.RootElement.GetProperty("command").GetString());
+    }
+
+    [Fact]
+    public void Normalize_Unwraps_Double_Encoded_Object()
+    {
+        // Some models double-encode the arguments object as a JSON string.
+        var raw = "\"{\\\"command\\\": \\\"ls\\\"}\"";
+        var normalized = ToolArgumentJsonRepair.Normalize(raw);
+        using var doc = JsonDocument.Parse(normalized);
+        Assert.Equal("ls", doc.RootElement.GetProperty("command").GetString());
+    }
 }

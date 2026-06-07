@@ -3,6 +3,7 @@ using System.Runtime.CompilerServices;
 using System.Text;
 using System.Text.Json;
 using System.Text.Json.Serialization;
+using Andy.Llm.Parsing;
 using Andy.Model.Llm;
 using Andy.Model.Model;
 using Andy.Model.Tooling;
@@ -348,7 +349,7 @@ internal class ResponsesApiStrategy : IOpenAIApiStrategy
                             {
                                 Id = callId ?? $"call_{Guid.NewGuid():N}"[..12],
                                 Name = name,
-                                ArgumentsJson = arguments ?? "{}"
+                                ArgumentsJson = ToolArgumentJsonRepair.Normalize(arguments)
                             });
                         }
                         break;
@@ -483,7 +484,7 @@ internal class ResponsesApiStrategy : IOpenAIApiStrategy
                                     {
                                         Id = callId,
                                         Name = name,
-                                        ArgumentsJson = finalArgs ?? "{}"
+                                        ArgumentsJson = ToolArgumentJsonRepair.Normalize(finalArgs)
                                     }
                                 }
                             },
