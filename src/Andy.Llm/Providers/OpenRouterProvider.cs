@@ -466,8 +466,10 @@ public class OpenRouterProvider : Andy.Model.Llm.ILlmProvider
         };
 
         // Tool results are emitted as one `role: tool` message per result,
-        // following the OpenAI convention.
-        if (message.ToolResults.Count > 0)
+        // following the OpenAI convention. Guard against a null collection: Message defaults
+        // these to new(), but a caller can construct one with null, and a NullReferenceException
+        // here is opaque ("Object reference not set...") and aborts the whole request.
+        if (message.ToolResults is { Count: > 0 })
         {
             foreach (var tr in message.ToolResults)
             {
@@ -487,7 +489,7 @@ public class OpenRouterProvider : Andy.Model.Llm.ILlmProvider
             ["content"] = message.Content
         };
 
-        if (message.ToolCalls.Count > 0)
+        if (message.ToolCalls is { Count: > 0 })
         {
             var calls = new JsonArray();
             foreach (var call in message.ToolCalls)
