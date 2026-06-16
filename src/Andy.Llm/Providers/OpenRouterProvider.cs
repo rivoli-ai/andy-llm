@@ -321,8 +321,13 @@ public class OpenRouterProvider : Andy.Model.Llm.ILlmProvider
                 continue;
             }
 
-            var delta = chunk["choices"]?[0]?["delta"];
-            var chunkFinish = chunk["choices"]?[0]?["finish_reason"]?.GetValue<string?>();
+            // `choices` can legitimately be an empty array on keep-alive and usage-only chunks
+            // (OpenRouter mirrors the OpenAI stream shape). `?[0]` only guards a null `choices`,
+            // not an empty one — indexing `[0]` on an empty JsonArray throws
+            // ArgumentOutOfRangeException — so take the first element only when one exists.
+            var firstChoice = chunk["choices"] is JsonArray choices && choices.Count > 0 ? choices[0] : null;
+            var delta = firstChoice?["delta"];
+            var chunkFinish = firstChoice?["finish_reason"]?.GetValue<string?>();
             if (!string.IsNullOrEmpty(chunkFinish))
             {
                 finishReason = chunkFinish;
