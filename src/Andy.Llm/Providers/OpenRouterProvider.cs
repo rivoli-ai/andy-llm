@@ -321,8 +321,13 @@ public class OpenRouterProvider : Andy.Model.Llm.ILlmProvider
                 continue;
             }
 
-            var delta = chunk["choices"]?[0]?["delta"];
-            var chunkFinish = chunk["choices"]?[0]?["finish_reason"]?.GetValue<string?>();
+            // `choices` can legitimately be an empty array on keep-alive and usage-only chunks
+            // (OpenRouter mirrors the OpenAI stream shape). `?[0]` only guards a null `choices`,
+            // not an empty one — indexing `[0]` on an empty JsonArray throws
+            // ArgumentOutOfRangeException — so take the first element only when one exists.
+            var firstChoice = chunk["choices"] is JsonArray choices && choices.Count > 0 ? choices[0] : null;
+            var delta = firstChoice?["delta"];
+            var chunkFinish = firstChoice?["finish_reason"]?.GetValue<string?>();
             if (!string.IsNullOrEmpty(chunkFinish))
             {
                 finishReason = chunkFinish;
@@ -480,8 +485,10 @@ public class OpenRouterProvider : Andy.Model.Llm.ILlmProvider
         };
 
         // Tool results are emitted as one `role: tool` message per result,
-        // following the OpenAI convention.
-        if (message.ToolResults.Count > 0)
+        // following the OpenAI convention. Guard against a null collection: Message defaults
+        // these to new(), but a caller can construct one with null, and a NullReferenceException
+        // here is opaque ("Object reference not set...") and aborts the whole request.
+        if (message.ToolResults is { Count: > 0 })
         {
             foreach (var tr in message.ToolResults)
             {
@@ -501,7 +508,7 @@ public class OpenRouterProvider : Andy.Model.Llm.ILlmProvider
             ["content"] = message.Content
         };
 
-        if (message.ToolCalls.Count > 0)
+        if (message.ToolCalls is { Count: > 0 })
         {
             var calls = new JsonArray();
             foreach (var call in message.ToolCalls)

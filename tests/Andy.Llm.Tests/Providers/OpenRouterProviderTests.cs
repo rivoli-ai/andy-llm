@@ -344,6 +344,74 @@ public class OpenRouterProviderTests
     }
 
     [Fact]
+    public async Task StreamCompleteAsync_EmptyChoicesChunk_DoesNotThrow()
+    {
+        // OpenRouter (mirroring OpenAI) can emit chunks whose `choices` array is empty —
+        // keep-alive frames and a trailing usage-only frame. Indexing `[0]` on those must not
+        // throw ArgumentOutOfRangeException; the content deltas around them must still flow.
+        var (provider, handler) = Build();
+        var sse =
+            "data: {\"choices\":[]}\n\n" +
+            "data: {\"choices\":[{\"delta\":{\"role\":\"assistant\",\"content\":\"hi\"}}]}\n\n" +
+            "data: {\"choices\":[],\"usage\":{\"prompt_tokens\":3,\"completion_tokens\":1,\"total_tokens\":4}}\n\n" +
+            "data: [DONE]\n\n";
+        handler.Enqueue(new HttpResponseMessage(HttpStatusCode.OK)
+        {
+            Content = new StringContent(sse, Encoding.UTF8, "text/event-stream")
+        });
+
+        var chunks = new List<LlmStreamResponse>();
+        await foreach (var chunk in provider.StreamCompleteAsync(new LlmRequest
+        {
+            Messages = new[] { new Message { Role = Role.User, Content = "hi" } }
+        }))
+        {
+            chunks.Add(chunk);
+        }
+
+        var content = string.Concat(chunks.Where(c => c.Delta is not null).Select(c => c.Delta!.Content));
+        Assert.Equal("hi", content);
+
+        var terminal = chunks.Last();
+        Assert.True(terminal.IsComplete);
+        Assert.NotNull(terminal.Usage);
+        Assert.Equal(4, terminal.Usage!.TotalTokens);
+    }
+
+    [Theory]
+    [InlineData("{\"usage\":{\"prompt_tokens\":1,\"completion_tokens\":0,\"total_tokens\":1}}")] // no `choices` key at all
+    [InlineData("{\"choices\":null}")]                                                          // explicit null
+    [InlineData("{\"choices\":{}}")]                                                            // wrong type (object, not array)
+    public async Task StreamCompleteAsync_MalformedChoices_DoesNotThrow_AndKeepsContent(string oddChunk)
+    {
+        // The `choices` field may be absent, null, or (defensively) the wrong JSON type on a
+        // chunk. None of these may throw, and a normal content delta on a neighbouring chunk
+        // must still be yielded.
+        var (provider, handler) = Build();
+        var sse =
+            $"data: {oddChunk}\n\n" +
+            "data: {\"choices\":[{\"delta\":{\"content\":\"ok\"}}]}\n\n" +
+            "data: [DONE]\n\n";
+        handler.Enqueue(new HttpResponseMessage(HttpStatusCode.OK)
+        {
+            Content = new StringContent(sse, Encoding.UTF8, "text/event-stream")
+        });
+
+        var chunks = new List<LlmStreamResponse>();
+        await foreach (var chunk in provider.StreamCompleteAsync(new LlmRequest
+        {
+            Messages = new[] { new Message { Role = Role.User, Content = "hi" } }
+        }))
+        {
+            chunks.Add(chunk);
+        }
+
+        var content = string.Concat(chunks.Where(c => c.Delta is not null).Select(c => c.Delta!.Content));
+        Assert.Equal("ok", content);
+        Assert.True(chunks.Last().IsComplete);
+    }
+
+    [Fact]
     public async Task StreamCompleteAsync_NonSuccess_YieldsErrorFrame()
     {
         var (provider, handler) = Build();
