@@ -129,6 +129,104 @@ public class OpenRouterProviderTests
         Assert.Contains("\"messages\":[", sent.Body);
     }
 
+    // --- ExtraBody passthrough: OpenRouter provider routing, model fallbacks, and arbitrary fields ---
+
+    private static void EnqueueOk(FakeHandler handler) =>
+        handler.Enqueue(new HttpResponseMessage(HttpStatusCode.OK)
+        {
+            Content = new StringContent(
+                """{"choices":[{"message":{"role":"assistant","content":"ok"},"finish_reason":"stop"}]}""",
+                Encoding.UTF8, "application/json")
+        });
+
+    [Fact]
+    public async Task ExtraBody_ProviderRouting_AppearsVerbatimInBody()
+    {
+        var (provider, handler) = Build();
+        EnqueueOk(handler);
+        await provider.CompleteAsync(new LlmRequest
+        {
+            Messages = new[] { new Message { Role = Role.User, Content = "hi" } },
+            ExtraBody = new Dictionary<string, object?>
+            {
+                ["provider"] = new Dictionary<string, object?>
+                {
+                    ["order"] = new[] { "deepinfra/turbo" },
+                    ["allow_fallbacks"] = false
+                }
+            }
+        });
+        var body = Assert.Single(handler.Calls).Body;
+        // Specific-provider routing: the nested object serializes as JSON (not ToString()).
+        Assert.Contains("\"provider\":{", body);
+        Assert.Contains("\"order\":[\"deepinfra/turbo\"]", body);
+        Assert.Contains("\"allow_fallbacks\":false", body);
+    }
+
+    [Fact]
+    public async Task ExtraBody_ModelsFallbackArray_AppearsInBody()
+    {
+        var (provider, handler) = Build();
+        EnqueueOk(handler);
+        await provider.CompleteAsync(new LlmRequest
+        {
+            Messages = new[] { new Message { Role = Role.User, Content = "hi" } },
+            ExtraBody = new Dictionary<string, object?>
+            {
+                ["models"] = new[] { "deepseek/deepseek-r1", "openai/gpt-5" }
+            }
+        });
+        var body = Assert.Single(handler.Calls).Body;
+        Assert.Contains("\"models\":[\"deepseek/deepseek-r1\",\"openai/gpt-5\"]", body);
+    }
+
+    [Fact]
+    public async Task ExtraBody_ArbitraryScalarField_AppearsInBody()
+    {
+        var (provider, handler) = Build();
+        EnqueueOk(handler);
+        await provider.CompleteAsync(new LlmRequest
+        {
+            Messages = new[] { new Message { Role = Role.User, Content = "hi" } },
+            ExtraBody = new Dictionary<string, object?>
+            {
+                ["reasoning"] = new Dictionary<string, object?> { ["effort"] = "high" }
+            }
+        });
+        var body = Assert.Single(handler.Calls).Body;
+        Assert.Contains("\"reasoning\":{\"effort\":\"high\"}", body);
+    }
+
+    [Fact]
+    public async Task ExtraBody_Absent_BodyUnchanged()
+    {
+        var (provider, handler) = Build();
+        EnqueueOk(handler);
+        await provider.CompleteAsync(new LlmRequest
+        {
+            Messages = new[] { new Message { Role = Role.User, Content = "hi" } }
+        });
+        var body = Assert.Single(handler.Calls).Body;
+        Assert.DoesNotContain("\"provider\":", body);
+        Assert.DoesNotContain("\"models\":", body);
+    }
+
+    [Fact]
+    public async Task ExtraBody_WinsOnCollisionWithStandardField()
+    {
+        var (provider, handler) = Build();
+        EnqueueOk(handler);
+        await provider.CompleteAsync(new LlmRequest
+        {
+            Messages = new[] { new Message { Role = Role.User, Content = "hi" } },
+            Config = new LlmClientConfig { Temperature = 0.9m },
+            ExtraBody = new Dictionary<string, object?> { ["temperature"] = 0.1 }
+        });
+        var body = Assert.Single(handler.Calls).Body;
+        Assert.Contains("\"temperature\":0.1", body);
+        Assert.DoesNotContain("0.9", body);
+    }
+
     [Fact]
     public async Task CompleteAsync_RequestDefaultsModelFromConfigWhenMissing()
     {

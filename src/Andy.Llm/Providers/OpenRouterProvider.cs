@@ -456,6 +456,20 @@ public class OpenRouterProvider : Andy.Model.Llm.ILlmProvider
             obj["tools"] = toolsArray;
         }
 
+        // Merge caller-supplied provider-specific fields verbatim — OpenRouter's `provider` routing,
+        // `models` fallback array, `reasoning`, `transforms`, `response_format`, and any other
+        // request-body field. Serialized as-is so nested dictionaries/arrays keep their shape.
+        // ExtraBody wins on key collisions: the caller set it explicitly.
+        if (request.ExtraBody is { } extra)
+        {
+            foreach (var kvp in extra)
+            {
+                obj[kvp.Key] = kvp.Value is null
+                    ? null
+                    : JsonSerializer.SerializeToNode(kvp.Value);
+            }
+        }
+
         return obj;
     }
 
