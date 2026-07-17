@@ -96,14 +96,34 @@ public static class ResiliencePolicies
     {
         options ??= new ResilienceOptions();
 
-        var retryPolicy = GetRetryPolicy(logger, options.MaxRetryAttempts);
-        var circuitBreakerPolicy = GetCircuitBreakerPolicy(
-            logger,
-            options.CircuitBreakerThreshold,
-            options.CircuitBreakerDuration);
-        var timeoutPolicy = GetTimeoutPolicy(options.Timeout);
+        var policies = new List<IAsyncPolicy<HttpResponseMessage>>();
 
-        return Policy.WrapAsync(retryPolicy, circuitBreakerPolicy, timeoutPolicy);
+        if (options.EnableRetry)
+        {
+            policies.Add(GetRetryPolicy(logger, options.MaxRetryAttempts));
+        }
+
+        if (options.EnableCircuitBreaker)
+        {
+            policies.Add(GetCircuitBreakerPolicy(
+                logger,
+                options.CircuitBreakerThreshold,
+                options.CircuitBreakerDuration));
+        }
+
+        if (options.EnableTimeout)
+        {
+            policies.Add(GetTimeoutPolicy(options.Timeout));
+        }
+
+        if (policies.Count == 0)
+        {
+            return Policy.NoOpAsync<HttpResponseMessage>();
+        }
+
+        return policies.Count == 1
+            ? policies[0]
+            : Policy.WrapAsync(policies.ToArray());
     }
 
     /// <summary>

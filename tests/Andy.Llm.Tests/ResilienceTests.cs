@@ -158,6 +158,223 @@ public class ResilienceTests
     }
 
     [Fact]
+    public async Task GetCombinedPolicy_WhenRetryDisabled_ShouldNotRetry()
+    {
+        // Arrange
+        var options = new ResilienceOptions
+        {
+            MaxRetryAttempts = 3,
+            EnableRetry = false,
+            EnableCircuitBreaker = true,
+            EnableTimeout = true
+        };
+
+        var policy = ResiliencePolicies.GetCombinedPolicy(_mockLogger.Object, options);
+        var attemptCount = 0;
+        var mockHandler = new MockHttpMessageHandler();
+
+        mockHandler.SetupSequence()
+            .ReturnsResponse(HttpStatusCode.InternalServerError)
+            .ReturnsResponse(HttpStatusCode.OK, "Success");
+
+        var httpClient = new HttpClient(mockHandler);
+
+        // Act
+        var response = await policy.ExecuteAsync(async () =>
+        {
+            attemptCount++;
+            return await httpClient.GetAsync("http://test.com");
+        });
+
+        // Assert - no retry occurred, first (failing) response is returned
+        Assert.Equal(HttpStatusCode.InternalServerError, response.StatusCode);
+        Assert.Equal(1, attemptCount);
+    }
+
+    [Fact]
+    public async Task GetCombinedPolicy_WhenRetryEnabled_ShouldRetry()
+    {
+        // Arrange
+        var options = new ResilienceOptions
+        {
+            MaxRetryAttempts = 3,
+            EnableRetry = true,
+            EnableCircuitBreaker = false,
+            EnableTimeout = false
+        };
+
+        var policy = ResiliencePolicies.GetCombinedPolicy(_mockLogger.Object, options);
+        var attemptCount = 0;
+        var mockHandler = new MockHttpMessageHandler();
+
+        mockHandler.SetupSequence()
+            .ReturnsResponse(HttpStatusCode.InternalServerError)
+            .ReturnsResponse(HttpStatusCode.OK, "Success");
+
+        var httpClient = new HttpClient(mockHandler);
+
+        // Act
+        var response = await policy.ExecuteAsync(async () =>
+        {
+            attemptCount++;
+            return await httpClient.GetAsync("http://test.com");
+        });
+
+        // Assert - retried once, then succeeded
+        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+        Assert.Equal(2, attemptCount);
+    }
+
+    [Fact]
+    public async Task GetCombinedPolicy_WhenCircuitBreakerDisabled_ShouldNotBreakCircuit()
+    {
+        // Arrange
+        var options = new ResilienceOptions
+        {
+            CircuitBreakerThreshold = 2,
+            CircuitBreakerDuration = TimeSpan.FromMilliseconds(100),
+            EnableRetry = false,
+            EnableCircuitBreaker = false,
+            EnableTimeout = false
+        };
+
+        var policy = ResiliencePolicies.GetCombinedPolicy(_mockLogger.Object, options);
+        var mockHandler = new MockHttpMessageHandler();
+        mockHandler.AlwaysReturn(HttpStatusCode.InternalServerError);
+        var httpClient = new HttpClient(mockHandler);
+
+        // Act - repeatedly fail well beyond the threshold
+        for (int i = 0; i < 5; i++)
+        {
+            var response = await policy.ExecuteAsync(async () =>
+                await httpClient.GetAsync("http://test.com"));
+
+            // Assert - always the underlying failure, never a broken-circuit exception
+            Assert.Equal(HttpStatusCode.InternalServerError, response.StatusCode);
+        }
+    }
+
+    [Fact]
+    public async Task GetCombinedPolicy_WhenCircuitBreakerEnabled_ShouldBreakCircuit()
+    {
+        // Arrange
+        var options = new ResilienceOptions
+        {
+            CircuitBreakerThreshold = 2,
+            CircuitBreakerDuration = TimeSpan.FromMilliseconds(100),
+            EnableRetry = false,
+            EnableCircuitBreaker = true,
+            EnableTimeout = false
+        };
+
+        var policy = ResiliencePolicies.GetCombinedPolicy(_mockLogger.Object, options);
+        var mockHandler = new MockHttpMessageHandler();
+        mockHandler.AlwaysReturn(HttpStatusCode.InternalServerError);
+        var httpClient = new HttpClient(mockHandler);
+
+        // Act - trigger the circuit breaker
+        for (int i = 0; i < 2; i++)
+        {
+            try
+            {
+                await policy.ExecuteAsync(async () =>
+                    await httpClient.GetAsync("http://test.com"));
+            }
+            catch { }
+        }
+
+        // Assert - circuit should now be open
+        await Assert.ThrowsAsync<BrokenCircuitException<HttpResponseMessage>>(async () =>
+        {
+            await policy.ExecuteAsync(async () =>
+                await httpClient.GetAsync("http://test.com"));
+        });
+    }
+
+    [Fact]
+    public async Task GetCombinedPolicy_WhenTimeoutDisabled_ShouldNotTimeout()
+    {
+        // Arrange
+        var options = new ResilienceOptions
+        {
+            Timeout = TimeSpan.FromMilliseconds(50),
+            EnableRetry = false,
+            EnableCircuitBreaker = false,
+            EnableTimeout = false
+        };
+
+        var policy = ResiliencePolicies.GetCombinedPolicy(_mockLogger.Object, options);
+
+        // Act - a call that exceeds the configured timeout completes normally
+        var response = await policy.ExecuteAsync(async () =>
+        {
+            await Task.Delay(150);
+            return new HttpResponseMessage(HttpStatusCode.OK);
+        });
+
+        // Assert
+        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+    }
+
+    [Fact]
+    public async Task GetCombinedPolicy_WhenTimeoutEnabled_ShouldTimeout()
+    {
+        // Arrange
+        var options = new ResilienceOptions
+        {
+            Timeout = TimeSpan.FromMilliseconds(50),
+            EnableRetry = false,
+            EnableCircuitBreaker = false,
+            EnableTimeout = true
+        };
+
+        var policy = ResiliencePolicies.GetCombinedPolicy(_mockLogger.Object, options);
+
+        // Act & Assert
+        await Assert.ThrowsAsync<TimeoutRejectedException>(async () =>
+        {
+            await policy.ExecuteAsync(async (ct) =>
+            {
+                await Task.Delay(200, ct);
+                return new HttpResponseMessage(HttpStatusCode.OK);
+            }, CancellationToken.None);
+        });
+    }
+
+    [Fact]
+    public async Task GetCombinedPolicy_WhenAllDisabled_ShouldBePassThrough()
+    {
+        // Arrange
+        var options = new ResilienceOptions
+        {
+            MaxRetryAttempts = 3,
+            CircuitBreakerThreshold = 1,
+            Timeout = TimeSpan.FromMilliseconds(10),
+            EnableRetry = false,
+            EnableCircuitBreaker = false,
+            EnableTimeout = false
+        };
+
+        var policy = ResiliencePolicies.GetCombinedPolicy(_mockLogger.Object, options);
+        var attemptCount = 0;
+        var mockHandler = new MockHttpMessageHandler();
+        mockHandler.AlwaysReturn(HttpStatusCode.InternalServerError);
+        var httpClient = new HttpClient(mockHandler);
+
+        // Act - even a slow, always-failing call passes straight through untouched
+        var response = await policy.ExecuteAsync(async () =>
+        {
+            attemptCount++;
+            await Task.Delay(50);
+            return await httpClient.GetAsync("http://test.com");
+        });
+
+        // Assert - no retry, no timeout, failure surfaced as-is
+        Assert.Equal(HttpStatusCode.InternalServerError, response.StatusCode);
+        Assert.Equal(1, attemptCount);
+    }
+
+    [Fact]
     public async Task GetGenericRetryPolicy_ShouldRetryBasedOnPredicate()
     {
         // Arrange
