@@ -92,10 +92,18 @@ public class HybridLlmParser : ILlmResponseParser
         var structuredDetectionComplete = false;
         var initialChunks = new List<string>();
 
+        // Enumerate the input stream manually so it is consumed exactly once.
+        // When the format is detected as text we hand the REMAINDER of this same
+        // enumerator (concatenated with the already-consumed chunks) to the text
+        // parser instead of re-enumerating the original source.
+        await using var enumerator = chunks.GetAsyncEnumerator(cancellationToken);
+
         try
         {
-            await foreach (var chunk in chunks.WithCancellation(cancellationToken))
+            while (await enumerator.MoveNextAsync())
             {
+                var chunk = enumerator.Current;
+
                 if (!structuredDetectionComplete)
                 {
                     buffer.Append(chunk);
@@ -119,8 +127,9 @@ public class HybridLlmParser : ILlmResponseParser
                             // Switch to text streaming
                             _logger?.LogDebug("Detected text format in stream, delegating to text parser");
 
-                            // Create a new enumerable that includes buffered chunks
-                            var combinedChunks = CreateCombinedChunks(initialChunks, chunks, cancellationToken);
+                            // Combine the already-consumed chunks with the remainder of the
+                            // SAME enumerator so the input is never enumerated twice.
+                            var combinedChunks = CreateCombinedChunks(initialChunks, enumerator, cancellationToken);
                             return await _textParser.ParseStreamingAsync(combinedChunks, context, cancellationToken);
                         }
                     }
@@ -170,11 +179,13 @@ public class HybridLlmParser : ILlmResponseParser
     }
 
     /// <summary>
-    /// Creates a combined async enumerable from buffered chunks and remaining stream
+    /// Creates a combined async enumerable from the already-consumed buffered chunks
+    /// and the remainder of the original stream's enumerator. The enumerator is advanced
+    /// in place (never re-created), so the source stream is enumerated exactly once.
     /// </summary>
     private async IAsyncEnumerable<string> CreateCombinedChunks(
         List<string> bufferedChunks,
-        IAsyncEnumerable<string> remainingChunks,
+        IAsyncEnumerator<string> remainingChunks,
         [System.Runtime.CompilerServices.EnumeratorCancellation] CancellationToken cancellationToken)
     {
         // Yield buffered chunks first
@@ -183,10 +194,12 @@ public class HybridLlmParser : ILlmResponseParser
             yield return chunk;
         }
 
-        // Then yield remaining chunks
-        await foreach (var chunk in remainingChunks.WithCancellation(cancellationToken))
+        // Then yield the remainder of the same enumerator. The enumerator itself is
+        // owned (and disposed) by the caller, so we only advance it here.
+        while (await remainingChunks.MoveNextAsync())
         {
-            yield return chunk;
+            cancellationToken.ThrowIfCancellationRequested();
+            yield return remainingChunks.Current;
         }
     }
 
@@ -284,18 +297,64 @@ public class HybridLlmParser : ILlmResponseParser
         try
         {
             // Try to detect if this looks like structured JSON containing tool calls
-            if (IsStructuredResponseFormat(input))
+            if (!IsStructuredResponseFormat(input))
             {
-                return ParseStructuredJson(input);
+                return null;
             }
 
-            return null;
+            // Prefer the caller-supplied structured factory. Only fall back to the
+            // built-in JSON parsing when the factory cannot produce a response.
+            var fromFactory = TryCreateFromStructuredFactory(input);
+            if (fromFactory != null)
+            {
+                return fromFactory;
+            }
+
+            return ParseStructuredJson(input);
         }
         catch (Exception ex)
         {
             _logger?.LogDebug(ex, "Failed to parse as structured response, treating as text");
             return null;
         }
+    }
+
+    /// <summary>
+    /// Builds a structured response using the injected <see cref="IStructuredResponseFactory"/>,
+    /// routing to the provider-specific factory method based on the detected format.
+    /// Returns null when the factory produces no usable response so the caller can
+    /// fall back to the built-in parsing.
+    /// </summary>
+    private StructuredLlmResponse? TryCreateFromStructuredFactory(string input)
+    {
+        try
+        {
+            return IsAnthropicStructuredFormat(input)
+                ? _structuredFactory.CreateFromAnthropic(input)
+                : _structuredFactory.CreateFromOpenAI(input);
+        }
+        catch (Exception ex)
+        {
+            _logger?.LogDebug(ex, "Structured factory could not create a response, using built-in parsing");
+            return null;
+        }
+    }
+
+    /// <summary>
+    /// Determines whether the input looks like an Anthropic-style structured response,
+    /// which the factory handles differently from OpenAI/generic formats.
+    /// </summary>
+    private static bool IsAnthropicStructuredFormat(string input)
+    {
+        if (string.IsNullOrWhiteSpace(input))
+        {
+            return false;
+        }
+
+        var trimmed = input.Trim();
+        return trimmed.Contains("\"tool_use\"") ||
+               trimmed.Contains("\"stop_reason\"") ||
+               trimmed.Contains("\"input_tokens\"");
     }
 
     /// <summary>
