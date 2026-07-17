@@ -9,11 +9,13 @@ using Xunit;
 namespace Andy.Llm.Tests.Providers;
 
 /// <summary>
-/// Integration tests for the OpenRouter provider that make real API calls.
-/// These tests require the <c>OPENROUTER_API_KEY</c> environment variable to be
-/// set; when it is absent every test no-ops (returns early) so the suite stays
-/// green on machines without credentials, matching the convention used by
-/// <see cref="CerebrasIntegrationTests"/>.
+/// Live integration tests for the OpenRouter provider that make real API calls.
+/// These tests are opt-in only: they run when the <c>ANDY_LLM_RUN_LIVE_TESTS</c>
+/// environment variable is set to a truthy value (<c>1</c>/<c>true</c>) AND an
+/// <c>OPENROUTER_API_KEY</c> is present. A plain <c>dotnet test</c> run — even on
+/// a machine that has <c>OPENROUTER_API_KEY</c> exported — skips them, so a
+/// developer's local credentials can never turn a unit run red. Without the
+/// opt-in every test no-ops (returns early) so the suite stays green.
 ///
 /// The default model is a free, tool-capable OpenRouter model
 /// (<c>openai/gpt-oss-20b:free</c>) so the tests cost nothing to
@@ -21,10 +23,11 @@ namespace Andy.Llm.Tests.Providers;
 /// exercise a different model (use a <c>provider/model</c> slug, e.g.
 /// <c>qwen/qwen3-next-80b-a3b-instruct:free</c> or <c>anthropic/claude-sonnet-4.6</c>).
 ///
-/// OpenRouter's free pool is shared and frequently rate-limited (HTTP 429) or
-/// retires <c>:free</c> slugs (HTTP 404). Those are upstream capacity/catalog
-/// conditions, not provider bugs, so the tests treat them as "inconclusive" and
-/// no-op rather than failing — keeping CI deterministic on a free tier.
+/// OpenRouter responses are non-deterministic: the shared free pool is
+/// frequently rate-limited (HTTP 429), retires <c>:free</c> slugs (HTTP 404),
+/// and a key with no remaining credit reports insufficient quota (HTTP 402).
+/// Those are upstream capacity/catalog/billing conditions, not provider bugs, so
+/// the tests treat them as "inconclusive" and no-op rather than failing.
 /// </summary>
 public class OpenRouterIntegrationTests
 {
@@ -36,11 +39,39 @@ public class OpenRouterIntegrationTests
         Environment.GetEnvironmentVariable("OPENROUTER_MODEL") ?? DefaultFreeModel;
 
     /// <summary>
-    /// True when the message reflects an upstream free-tier condition we can't
-    /// control: rate limiting (429) or a deprecated/removed free model (404).
+    /// True only when the live tests have been explicitly opted into via
+    /// <c>ANDY_LLM_RUN_LIVE_TESTS</c> (set to <c>1</c> or <c>true</c>) and an
+    /// <c>OPENROUTER_API_KEY</c> is available. The mere presence of the API key
+    /// is deliberately not enough — otherwise local credentials would cause the
+    /// default <c>dotnet test</c> run to hit the network.
+    /// </summary>
+    private static bool LiveTestsEnabled
+    {
+        get
+        {
+            if (string.IsNullOrEmpty(ApiKey))
+            {
+                return false;
+            }
+
+            var flag = Environment.GetEnvironmentVariable("ANDY_LLM_RUN_LIVE_TESTS");
+            if (string.IsNullOrEmpty(flag))
+            {
+                return false;
+            }
+
+            return flag == "1" || (bool.TryParse(flag, out var enabled) && enabled);
+        }
+    }
+
+    /// <summary>
+    /// True when the message reflects an upstream condition we can't control:
+    /// rate limiting (429), a deprecated/removed free model (404), or a key with
+    /// no remaining quota/credit (402).
     /// </summary>
     private static bool IsUpstreamUnavailable(string? message) =>
-        message != null && (message.Contains("429") || message.Contains("404"));
+        message != null &&
+        (message.Contains("402") || message.Contains("404") || message.Contains("429"));
 
     private static OpenRouterProvider CreateProvider()
     {
@@ -57,9 +88,9 @@ public class OpenRouterIntegrationTests
     [Fact]
     public async Task IsAvailableAsync_WithRealKey_ReturnsTrue()
     {
-        if (string.IsNullOrEmpty(ApiKey))
+        if (!LiveTestsEnabled)
         {
-            return; // skipped without credentials
+            return; // opt-in only (ANDY_LLM_RUN_LIVE_TESTS + OPENROUTER_API_KEY)
         }
 
         var provider = CreateProvider();
@@ -72,9 +103,9 @@ public class OpenRouterIntegrationTests
     [Fact]
     public async Task CompleteAsync_SimplePrompt_ReturnsText()
     {
-        if (string.IsNullOrEmpty(ApiKey))
+        if (!LiveTestsEnabled)
         {
-            return;
+            return; // opt-in only (ANDY_LLM_RUN_LIVE_TESTS + OPENROUTER_API_KEY)
         }
 
         var provider = CreateProvider();
@@ -104,9 +135,9 @@ public class OpenRouterIntegrationTests
     [Fact]
     public async Task StreamCompleteAsync_SimplePrompt_YieldsContentAndTerminalFrame()
     {
-        if (string.IsNullOrEmpty(ApiKey))
+        if (!LiveTestsEnabled)
         {
-            return;
+            return; // opt-in only (ANDY_LLM_RUN_LIVE_TESTS + OPENROUTER_API_KEY)
         }
 
         var provider = CreateProvider();
@@ -147,9 +178,9 @@ public class OpenRouterIntegrationTests
     [Fact]
     public async Task CompleteAsync_WithTools_ReturnsToolCall()
     {
-        if (string.IsNullOrEmpty(ApiKey))
+        if (!LiveTestsEnabled)
         {
-            return;
+            return; // opt-in only (ANDY_LLM_RUN_LIVE_TESTS + OPENROUTER_API_KEY)
         }
 
         var provider = CreateProvider();
