@@ -467,6 +467,84 @@ data: [DONE]";
         Assert.Contains(result.Children.OfType<ToolCallNode>(), t => t.ToolName == "custom_tool");
     }
 
+    [Fact]
+    public void Parse_SseWithRealFactory_RoutesToTextParserNotRawNode()
+    {
+        // Arrange - use the REAL StructuredResponseFactory. Unlike a null-returning
+        // mock, the real factory never returns null: on a JSON parse failure it
+        // swallows the error and echoes the raw input back as TextContent. A
+        // structured-LOOKING but non-JSON SSE stream (accepted by
+        // IsStructuredResponseFormat) must therefore still be routed to the text
+        // parser rather than emitted verbatim as a single raw plain-text node.
+        var textParser = new Mock<ILlmResponseParser>();
+        var realFactory = new StructuredResponseFactory();
+        var parser = new HybridLlmParser(textParser.Object, realFactory);
+
+        var sseResponse = @"event: message
+data: {""content"": ""hello"", ""tool_calls"": []}
+
+event: done
+data: [DONE]";
+
+        // A distinctive result so we can prove the text parser produced the output.
+        var textParserResult = new ResponseNode();
+        textParserResult.Children.Add(new TextNode { Content = "hello" });
+        textParserResult.Children.Add(new ToolCallNode { ToolName = "extracted_by_text_parser" });
+
+        textParser
+            .Setup(p => p.Parse(sseResponse, It.IsAny<ParserContext?>()))
+            .Returns(textParserResult);
+
+        // Act
+        var result = parser.Parse(sseResponse);
+
+        // Assert - the SSE stream was handed to the text parser exactly once, and its
+        // (structured) output was used verbatim.
+        textParser.Verify(p => p.Parse(sseResponse, It.IsAny<ParserContext?>()), Times.Once);
+        Assert.Same(textParserResult, result);
+        Assert.Contains(result.Children.OfType<ToolCallNode>(), t => t.ToolName == "extracted_by_text_parser");
+
+        // Guard against the regression: the raw SSE payload must NOT be passed
+        // through as one plain-text node by the factory.
+        Assert.DoesNotContain(result.Children.OfType<TextNode>(), n => n.Content == sseResponse);
+    }
+
+    [Fact]
+    public void Parse_GenuineJsonWithRealFactory_GoesThroughFactory()
+    {
+        // Arrange - real factory, genuine OpenAI JSON. Issue #16's requirement is
+        // that real structured JSON still flows through the injected factory. The
+        // real factory stamps Provider = "openai"; the built-in fallback would use
+        // "structured", so the provider proves which path handled the input.
+        var textParser = new Mock<ILlmResponseParser>();
+        var realFactory = new StructuredResponseFactory();
+        var parser = new HybridLlmParser(textParser.Object, realFactory);
+
+        var openAiJson = @"{
+            ""choices"": [{
+                ""message"": {
+                    ""content"": ""working on it"",
+                    ""tool_calls"": [{
+                        ""id"": ""call_1"",
+                        ""type"": ""function"",
+                        ""function"": { ""name"": ""lookup"", ""arguments"": ""{}"" }
+                    }]
+                },
+                ""finish_reason"": ""tool_calls""
+            }],
+            ""model"": ""gpt-4""
+        }";
+
+        // Act
+        var result = parser.Parse(openAiJson);
+
+        // Assert - the real factory handled it (Provider "openai", not "structured"),
+        // and the text parser was never involved.
+        Assert.Equal("openai", result.ModelProvider);
+        Assert.Contains(result.Children.OfType<ToolCallNode>(), t => t.ToolName == "lookup");
+        textParser.Verify(p => p.Parse(It.IsAny<string>(), It.IsAny<ParserContext?>()), Times.Never);
+    }
+
     private static async IAsyncEnumerable<string> ToAsyncEnumerable(IEnumerable<string> items)
     {
         foreach (var item in items)
