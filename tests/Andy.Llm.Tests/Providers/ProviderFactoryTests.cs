@@ -302,4 +302,54 @@ public class ProviderFactoryTests
         Assert.Equal("codex-mini-latest", mini.DefaultModel);
         Assert.Equal("gpt-5.1-codex", v51.DefaultModel);
     }
+
+    [Fact]
+    public void CreateProvider_Gateway_ReturnsGatewayProvider()
+    {
+        var services = new ServiceCollection();
+        services.AddLogging();
+        services.AddLlmServices(options =>
+        {
+            options.Providers["gateway"] = new ProviderConfig
+            {
+                Provider = "gateway",
+                ApiKey = TestApiKey,
+                ApiBase = "https://gateway.example.com",
+                Model = "anthropic/claude-sonnet-4-5"
+            };
+        });
+
+        var sp = services.BuildServiceProvider();
+        var factory = sp.GetRequiredService<ILlmProviderFactory>();
+
+        var provider = factory.CreateProvider("gateway");
+        Assert.NotNull(provider);
+        Assert.IsType<GatewayProvider>(provider);
+        Assert.Equal("gateway", provider.Name);
+    }
+
+    [Fact]
+    public void CreateProvider_AndyModels_ReturnsGatewayProvider()
+    {
+        var services = new ServiceCollection();
+        services.AddLogging();
+        services.AddLlmServices(options =>
+        {
+            options.Providers["andy-models"] = new ProviderConfig
+            {
+                Provider = "andy-models",
+                ApiKey = TestApiKey,
+                ApiBase = "https://gateway.example.com",
+                Model = "anthropic/claude-sonnet-4-5"
+            };
+        });
+
+        var sp = services.BuildServiceProvider();
+        var factory = sp.GetRequiredService<ILlmProviderFactory>();
+
+        var provider = factory.CreateProvider("andy-models");
+        Assert.NotNull(provider);
+        Assert.IsType<GatewayProvider>(provider);
+        Assert.Equal("andy-models", provider.Name);
+    }
 }
