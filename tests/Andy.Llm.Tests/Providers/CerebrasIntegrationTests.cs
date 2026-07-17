@@ -12,7 +12,9 @@ namespace Andy.Llm.Tests.Providers;
 
 /// <summary>
 /// Integration tests for Cerebras provider that make real API calls.
-/// These tests require CEREBRAS_API_KEY environment variable to be set.
+/// These tests require RUN_INTEGRATION_TESTS to be enabled AND a CEREBRAS_API_KEY
+/// environment variable to be set; otherwise they are skipped so that an invalid or
+/// unquota'd CI credential cannot fail the default unit run.
 /// </summary>
 public class CerebrasIntegrationTests
 {
@@ -33,9 +35,11 @@ public class CerebrasIntegrationTests
     {
         // Arrange
         var apiKey = Environment.GetEnvironmentVariable("CEREBRAS_API_KEY");
-        if (string.IsNullOrEmpty(apiKey))
+        if (!TestConfiguration.ShouldRunIntegrationTests() || string.IsNullOrEmpty(apiKey))
         {
-            // Skip test if API key not available
+            // Skip live test unless integration tests are explicitly enabled (RUN_INTEGRATION_TESTS)
+            // and a Cerebras API key is available. Prevents a valid-but-unquota'd/invalid CI key
+            // from failing the default unit run (mirrors the OpenRouter live-test gating).
             return;
         }
 
@@ -107,9 +111,11 @@ public class CerebrasIntegrationTests
     {
         // Arrange
         var apiKey = Environment.GetEnvironmentVariable("CEREBRAS_API_KEY");
-        if (string.IsNullOrEmpty(apiKey))
+        if (!TestConfiguration.ShouldRunIntegrationTests() || string.IsNullOrEmpty(apiKey))
         {
-            // Skip test if API key not available
+            // Skip live test unless integration tests are explicitly enabled (RUN_INTEGRATION_TESTS)
+            // and a Cerebras API key is available. Prevents a valid-but-unquota'd/invalid CI key
+            // from failing the default unit run (mirrors the OpenRouter live-test gating).
             return;
         }
 
@@ -180,9 +186,11 @@ public class CerebrasIntegrationTests
     {
         // Arrange
         var apiKey = Environment.GetEnvironmentVariable("CEREBRAS_API_KEY");
-        if (string.IsNullOrEmpty(apiKey))
+        if (!TestConfiguration.ShouldRunIntegrationTests() || string.IsNullOrEmpty(apiKey))
         {
-            // Skip test if API key not available
+            // Skip live test unless integration tests are explicitly enabled (RUN_INTEGRATION_TESTS)
+            // and a Cerebras API key is available. Prevents a valid-but-unquota'd/invalid CI key
+            // from failing the default unit run (mirrors the OpenRouter live-test gating).
             return;
         }
 
@@ -253,9 +261,11 @@ public class CerebrasIntegrationTests
     {
         // Arrange
         var apiKey = Environment.GetEnvironmentVariable("CEREBRAS_API_KEY");
-        if (string.IsNullOrEmpty(apiKey))
+        if (!TestConfiguration.ShouldRunIntegrationTests() || string.IsNullOrEmpty(apiKey))
         {
-            // Skip test if API key not available
+            // Skip live test unless integration tests are explicitly enabled (RUN_INTEGRATION_TESTS)
+            // and a Cerebras API key is available. Prevents a valid-but-unquota'd/invalid CI key
+            // from failing the default unit run (mirrors the OpenRouter live-test gating).
             return;
         }
 
@@ -329,9 +339,11 @@ public class CerebrasIntegrationTests
     {
         // Arrange
         var apiKey = Environment.GetEnvironmentVariable("CEREBRAS_API_KEY");
-        if (string.IsNullOrEmpty(apiKey))
+        if (!TestConfiguration.ShouldRunIntegrationTests() || string.IsNullOrEmpty(apiKey))
         {
-            // Skip test if API key not available
+            // Skip live test unless integration tests are explicitly enabled (RUN_INTEGRATION_TESTS)
+            // and a Cerebras API key is available. Prevents a valid-but-unquota'd/invalid CI key
+            // from failing the default unit run (mirrors the OpenRouter live-test gating).
             return;
         }
 
