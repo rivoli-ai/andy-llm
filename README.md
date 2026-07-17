@@ -31,23 +31,44 @@ dotnet add package Andy.Llm
 ### Basic Usage
 
 ```csharp
-using Andy.Llm;
-using Andy.Llm.Models;
+using Andy.Model.Llm;
+using Andy.Model.Model;
+using Andy.Llm.Extensions;
+using Andy.Llm.Providers;
+using Microsoft.Extensions.DependencyInjection;
 
-// Simple API key initialization
-var client = new LlmClient("your-api-key");
+// Configure providers from environment variables (e.g. OPENAI_API_KEY, OPENAI_MODEL)
+var services = new ServiceCollection();
+services.ConfigureLlmFromEnvironment();
+var serviceProvider = services.BuildServiceProvider();
 
-// Send a message and get response
-var response = await client.GetResponseAsync("Hello, how are you?");
-Console.WriteLine(response);
+// Resolve the provider factory and pick the first available provider
+var factory = serviceProvider.GetRequiredService<ILlmProviderFactory>();
+var provider = await factory.CreateAvailableProviderAsync();
+
+// Send a message and get a response
+var request = new LlmRequest
+{
+    Messages = new List<Message>
+    {
+        new Message { Role = Role.User, Content = "Hello, how are you?" }
+    },
+    Config = new LlmClientConfig { Model = "gpt-4o-mini" }
+};
+
+var response = await provider.CompleteAsync(request);
+Console.WriteLine(response.Content);
 ```
 
 ### Structured Output with JSON Schema
 
-```csharp
-using Andy.Llm.Models;
+> **Note:** First-class schema enforcement on the request (dedicated `ResponseFormat`, `JsonSchema`, and `StrictMode` fields) is not yet implemented — it is tracked as a TODO in [examples/StructuredOutput](examples/StructuredOutput/). Today you request JSON by instructing the model through a system message and then parse the response with the parsing utilities (see [Hybrid Parsing](#hybrid-parsing-for-any-response-format) below).
 
-// Define a JSON schema for structured output
+```csharp
+using Andy.Model.Llm;
+using Andy.Model.Model;
+
+// Describe the desired JSON shape in a system instruction
 var schema = @"{
     ""type"": ""object"",
     ""properties"": {
@@ -58,20 +79,22 @@ var schema = @"{
     ""required"": [""name"", ""age""]
 }";
 
-// Request structured output
 var request = new LlmRequest
 {
-    Messages = new List<Message> 
-    { 
-        Message.CreateUser("Generate a person profile") 
+    Messages = new List<Message>
+    {
+        new Message
+        {
+            Role = Role.System,
+            Content = "Respond with valid JSON matching this schema:\n" + schema
+        },
+        new Message { Role = Role.User, Content = "Generate a person profile" }
     },
-    ResponseFormat = ResponseFormat.JsonSchema,
-    JsonSchema = schema,
-    StrictMode = true
+    Config = new LlmClientConfig { Model = "gpt-4o-mini" }
 };
 
-var response = await client.CompleteAsync(request);
-// Response will be valid JSON matching the schema
+var response = await provider.CompleteAsync(request);
+// response.Content contains the JSON produced by the model
 ```
 
 ### Hybrid Parsing for Any Response Format
@@ -112,6 +135,7 @@ foreach (var node in ast.Children)
 
 ```csharp
 using Andy.Llm.Extensions;
+using Andy.Llm.Providers;
 using Microsoft.Extensions.DependencyInjection;
 
 var services = new ServiceCollection();
@@ -141,7 +165,8 @@ services.AddLlmServices(options =>
 });
 
 var serviceProvider = services.BuildServiceProvider();
-var llmClient = serviceProvider.GetRequiredService<LlmClient>();
+var factory = serviceProvider.GetRequiredService<ILlmProviderFactory>();
+var provider = factory.CreateProvider("openai/latest-small");
 ```
 
 ## Configuration
@@ -324,16 +349,22 @@ var request = new LlmRequest
 {
     Messages = new List<Message>
     {
-        Message.CreateText(MessageRole.User, "Write a story")
+        new Message { Role = Role.User, Content = "Write a story" }
     },
-    Stream = true
+    Config = new LlmClientConfig { Model = "gpt-4o-mini" }
 };
 
-await foreach (var chunk in client.StreamCompleteAsync(request))
+// Streaming is exposed through the provider's StreamCompleteAsync method
+await foreach (var chunk in provider.StreamCompleteAsync(request))
 {
     if (!string.IsNullOrEmpty(chunk.TextDelta))
     {
         Console.Write(chunk.TextDelta);
+    }
+
+    if (chunk.IsComplete)
+    {
+        Console.WriteLine($"\n[Finished: {chunk.FinishReason}]");
     }
 }
 ```
@@ -341,26 +372,26 @@ await foreach (var chunk in client.StreamCompleteAsync(request))
 ### Tool Calling with Structured Outputs
 
 ```csharp
-// Define tools with JSON schemas
+// Define tools with JSON schemas (parameters use a JSON-schema dictionary)
 var tools = new List<ToolDeclaration>
 {
     new ToolDeclaration
     {
         Name = "get_weather",
         Description = "Get weather for a location",
-        Parameters = new ToolParameters
+        Parameters = new Dictionary<string, object>
         {
-            Type = "object",
-            Properties = new Dictionary<string, ParameterSchema>
+            ["type"] = "object",
+            ["properties"] = new Dictionary<string, object>
             {
-                ["location"] = new ParameterSchema { Type = "string" },
-                ["units"] = new ParameterSchema 
-                { 
-                    Type = "string", 
-                    Enum = new[] { "celsius", "fahrenheit" } 
+                ["location"] = new Dictionary<string, object> { ["type"] = "string" },
+                ["units"] = new Dictionary<string, object>
+                {
+                    ["type"] = "string",
+                    ["enum"] = new[] { "celsius", "fahrenheit" }
                 }
             },
-            Required = new[] { "location" }
+            ["required"] = new[] { "location" }
         }
     }
 };
@@ -370,31 +401,25 @@ var request = new LlmRequest
 {
     Messages = messages,
     Tools = tools,
-    ToolChoice = ToolChoice.Auto // Let model decide when to use tools
+    Config = new LlmClientConfig { Model = "gpt-4o-mini" }
 };
 
-// Parse response with automatic tool detection
-var response = await client.CompleteAsync(request);
-var ast = hybridParser.Parse(response.Content);
+// The model decides when to call a tool; inspect the returned tool calls
+var response = await provider.CompleteAsync(request);
 
-// Execute tool calls from AST
-foreach (var toolCall in ast.Children.OfType<ToolCallNode>())
+// Execute any tool calls the model requested
+foreach (var toolCall in response.ToolCalls)
 {
-    if (toolCall.ParseError == null)
-    {
-        var result = await ExecuteTool(toolCall.ToolName, toolCall.Arguments);
-        // Send result back to LLM for final response
-    }
+    var result = await ExecuteTool(toolCall.Name, toolCall.ArgumentsJson);
+    // Send result back to the model for a final response
 }
 ```
 
 ### Function/Tool Calling
 
 ```csharp
-var context = new ConversationContext();
-
 // Define available tools
-context.AvailableTools.Add(new ToolDeclaration
+var weatherTool = new ToolDeclaration
 {
     Name = "get_weather",
     Description = "Get current weather for a location",
@@ -403,32 +428,68 @@ context.AvailableTools.Add(new ToolDeclaration
         ["type"] = "object",
         ["properties"] = new Dictionary<string, object>
         {
-            ["location"] = new { type = "string", description = "City and state" }
+            ["location"] = new Dictionary<string, object>
+            {
+                ["type"] = "string",
+                ["description"] = "City and state"
+            }
         },
         ["required"] = new[] { "location" }
     }
-});
+};
 
-// Use in conversation
-context.AddUserMessage("What's the weather in New York?");
-var request = context.CreateRequest();
-var response = await client.CompleteAsync(request);
-
-// Handle function calls
-if (response.FunctionCalls.Any())
+// Build the conversation and request
+var messages = new List<Message>
 {
-    foreach (var call in response.FunctionCalls)
+    new Message { Role = Role.User, Content = "What's the weather in New York?" }
+};
+
+var request = new LlmRequest
+{
+    Messages = messages,
+    Tools = new List<ToolDeclaration> { weatherTool },
+    Config = new LlmClientConfig { Model = "gpt-4o-mini" }
+};
+
+var response = await provider.CompleteAsync(request);
+
+// Handle tool calls
+if (response.ToolCalls != null && response.ToolCalls.Any())
+{
+    // Record the assistant turn that requested the tools
+    messages.Add(new Message
     {
-        // Execute function and add result to context
-        var result = ExecuteFunction(call);
-        context.AddToolResponse(call.Name, call.Id, result);
+        Role = Role.Assistant,
+        Content = response.Content ?? string.Empty,
+        ToolCalls = response.ToolCalls
+    });
+
+    foreach (var call in response.ToolCalls)
+    {
+        // Execute the tool and append the result as a tool message
+        var result = ExecuteTool(call.Name, call.ArgumentsJson);
+        messages.Add(new Message
+        {
+            Role = Role.Tool,
+            Content = result,
+            ToolResults = new List<ToolResult>
+            {
+                new ToolResult
+                {
+                    CallId = call.Id,
+                    Name = call.Name,
+                    ResultJson = result,
+                    IsError = false
+                }
+            }
+        });
     }
 }
 ```
 
 ### Recent API Additions
 
-- `LlmRequest.Functions`: alias of `Tools` for function/tool declaration.
+- `LlmResponse.ToolCalls` / `LlmResponse.FunctionCalls`: tool and function calls requested by the model.
 - `FunctionCall.ArgumentsJson`: preserves raw JSON arguments from providers.
 - `LlmStreamResponse.FinishReason`: reason for stream completion on final chunk.
 
@@ -439,20 +500,23 @@ See `docs/implementation.md` for implementation details and current status.
 ### Conversation Management
 
 ```csharp
-var context = new ConversationContext
+// Track the conversation as a list of messages, starting with a system instruction
+var messages = new List<Message>
 {
-    SystemInstruction = "You are a helpful assistant.",
-    MaxContextMessages = 50,
-    MaxContextCharacters = 100000
+    new Message { Role = Role.System, Content = "You are a helpful assistant." }
 };
 
 // Build conversation
-context.AddUserMessage("Hello!");
-context.AddAssistantMessage("Hi! How can I help you?");
-context.AddUserMessage("Tell me about AI");
+messages.Add(new Message { Role = Role.User, Content = "Hello!" });
+messages.Add(new Message { Role = Role.Assistant, Content = "Hi! How can I help you?" });
+messages.Add(new Message { Role = Role.User, Content = "Tell me about AI" });
 
-// Context automatically manages token limits
-var request = context.CreateRequest();
+// Trim older turns yourself to stay within the model's context window
+var request = new LlmRequest
+{
+    Messages = messages,
+    Config = new LlmClientConfig { Model = "gpt-4o-mini" }
+};
 ```
 
 ### Multi-Provider Support
