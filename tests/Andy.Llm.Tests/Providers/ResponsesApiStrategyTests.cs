@@ -386,6 +386,201 @@ public class ResponsesApiStrategyTests
 
     #endregion
 
+    #region StreamCompleteAsync Tests
+
+    [Fact]
+    public async Task StreamCompleteAsync_Completed_PopulatesUsageFromNestedResponse()
+    {
+        // The Responses API nests usage under the "response" object of the
+        // terminal response.completed event, not at the event root.
+        var sse = BuildSse(
+            ("response.output_text.delta", new { type = "response.output_text.delta", delta = "Hello" }),
+            ("response.output_text.delta", new { type = "response.output_text.delta", delta = " world" }),
+            ("response.completed", new
+            {
+                type = "response.completed",
+                response = new
+                {
+                    id = "resp_123",
+                    status = "completed",
+                    usage = new { input_tokens = 42, output_tokens = 17, total_tokens = 59 }
+                }
+            }));
+
+        var handler = new MockHttpHandler(HttpStatusCode.OK, sse);
+        var strategy = CreateStrategy(handler);
+
+        var responses = await CollectStreamAsync(strategy);
+
+        var terminal = responses.Last();
+        Assert.True(terminal.IsComplete);
+        Assert.Equal("stop", terminal.FinishReason);
+        Assert.NotNull(terminal.Usage);
+        Assert.Equal(42, terminal.Usage!.PromptTokens);
+        Assert.Equal(17, terminal.Usage.CompletionTokens);
+        Assert.Equal(59, terminal.Usage.TotalTokens);
+
+        // Text deltas are still emitted along the way.
+        var text = string.Concat(responses.Where(r => r.Delta?.Content != null).Select(r => r.Delta!.Content));
+        Assert.Equal("Hello world", text);
+    }
+
+    [Fact]
+    public async Task StreamCompleteAsync_Completed_TotalTokensFallsBackToSum()
+    {
+        // When total_tokens is absent, it should fall back to the input+output sum.
+        var sse = BuildSse(
+            ("response.completed", new
+            {
+                type = "response.completed",
+                response = new
+                {
+                    id = "resp_nototal",
+                    status = "completed",
+                    usage = new { input_tokens = 8, output_tokens = 4 }
+                }
+            }));
+
+        var handler = new MockHttpHandler(HttpStatusCode.OK, sse);
+        var strategy = CreateStrategy(handler);
+
+        var terminal = (await CollectStreamAsync(strategy)).Last();
+
+        Assert.NotNull(terminal.Usage);
+        Assert.Equal(8, terminal.Usage!.PromptTokens);
+        Assert.Equal(4, terminal.Usage.CompletionTokens);
+        Assert.Equal(12, terminal.Usage.TotalTokens);
+    }
+
+    [Fact]
+    public async Task StreamCompleteAsync_Failed_ReturnsErrorFinishReason()
+    {
+        var sse = BuildSse(
+            ("response.failed", new
+            {
+                type = "response.failed",
+                response = new
+                {
+                    id = "resp_fail",
+                    status = "failed",
+                    error = new { code = "server_error", message = "The model failed to generate a response." }
+                }
+            }));
+
+        var handler = new MockHttpHandler(HttpStatusCode.OK, sse);
+        var strategy = CreateStrategy(handler);
+
+        var terminal = (await CollectStreamAsync(strategy)).Last();
+
+        Assert.True(terminal.IsComplete);
+        Assert.Equal("error", terminal.FinishReason);
+        Assert.NotNull(terminal.Delta);
+        Assert.Equal("The model failed to generate a response.", terminal.Delta!.Content);
+    }
+
+    [Fact]
+    public async Task StreamCompleteAsync_IncompleteMaxTokens_ReturnsLengthFinishReason()
+    {
+        var sse = BuildSse(
+            ("response.incomplete", new
+            {
+                type = "response.incomplete",
+                response = new
+                {
+                    id = "resp_inc",
+                    status = "incomplete",
+                    incomplete_details = new { reason = "max_output_tokens" },
+                    usage = new { input_tokens = 100, output_tokens = 50, total_tokens = 150 }
+                }
+            }));
+
+        var handler = new MockHttpHandler(HttpStatusCode.OK, sse);
+        var strategy = CreateStrategy(handler);
+
+        var terminal = (await CollectStreamAsync(strategy)).Last();
+
+        Assert.True(terminal.IsComplete);
+        Assert.Equal("length", terminal.FinishReason);
+        Assert.NotNull(terminal.Usage);
+        Assert.Equal(100, terminal.Usage!.PromptTokens);
+        Assert.Equal(50, terminal.Usage.CompletionTokens);
+        Assert.Equal(150, terminal.Usage.TotalTokens);
+    }
+
+    [Fact]
+    public async Task StreamCompleteAsync_IncompleteOtherReason_ReturnsIncompleteFinishReason()
+    {
+        var sse = BuildSse(
+            ("response.incomplete", new
+            {
+                type = "response.incomplete",
+                response = new
+                {
+                    id = "resp_inc2",
+                    status = "incomplete",
+                    incomplete_details = new { reason = "content_filter" }
+                }
+            }));
+
+        var handler = new MockHttpHandler(HttpStatusCode.OK, sse);
+        var strategy = CreateStrategy(handler);
+
+        var terminal = (await CollectStreamAsync(strategy)).Last();
+
+        Assert.True(terminal.IsComplete);
+        Assert.Equal("incomplete", terminal.FinishReason);
+    }
+
+    [Fact]
+    public async Task StreamCompleteAsync_TopLevelErrorEvent_ReturnsErrorFinishReason()
+    {
+        var sse = BuildSse(
+            ("error", new { type = "error", code = "rate_limit_exceeded", message = "Rate limit reached." }));
+
+        var handler = new MockHttpHandler(HttpStatusCode.OK, sse);
+        var strategy = CreateStrategy(handler);
+
+        var terminal = (await CollectStreamAsync(strategy)).Last();
+
+        Assert.True(terminal.IsComplete);
+        Assert.Equal("error", terminal.FinishReason);
+        Assert.NotNull(terminal.Delta);
+        Assert.Equal("Rate limit reached.", terminal.Delta!.Content);
+    }
+
+    private static async Task<List<LlmStreamResponse>> CollectStreamAsync(ResponsesApiStrategy strategy)
+    {
+        var request = new LlmRequest
+        {
+            Messages = new List<Message> { new Message { Role = Role.User, Content = "Hi" } }
+        };
+
+        var results = new List<LlmStreamResponse>();
+        await foreach (var chunk in strategy.StreamCompleteAsync(request))
+        {
+            results.Add(chunk);
+        }
+        return results;
+    }
+
+    /// <summary>
+    /// Builds a Server-Sent Events body matching the Responses API wire format:
+    /// each event is an "event: &lt;type&gt;" line followed by a "data: &lt;json&gt;" line.
+    /// </summary>
+    private static string BuildSse(params (string EventType, object Payload)[] events)
+    {
+        var sb = new StringBuilder();
+        foreach (var (eventType, payload) in events)
+        {
+            sb.Append("event: ").Append(eventType).Append('\n');
+            sb.Append("data: ").Append(JsonSerializer.Serialize(payload)).Append('\n');
+            sb.Append('\n');
+        }
+        return sb.ToString();
+    }
+
+    #endregion
+
     #region Helpers
 
     /// <summary>
