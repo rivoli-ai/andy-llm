@@ -7,6 +7,7 @@ using Microsoft.Extensions.Logging;
 using Moq;
 using Xunit;
 using System.Diagnostics.Metrics;
+using System.Runtime.CompilerServices;
 
 namespace Andy.Llm.Tests;
 
@@ -379,6 +380,121 @@ public class TelemetryTests : IDisposable
         // Assert
         await Assert.ThrowsAsync<OperationCanceledException>(async () => await task);
         Assert.Equal(3, executedIterations); // Should execute 0, 1, 2 before cancellation
+    }
+
+    [Fact]
+    public async Task ExecuteStreamingWithTelemetry_WhenEnumerationThrows_ShouldNotDriveActiveRequestsNegative()
+    {
+        // Arrange - use a uniquely named meter so the listener only observes this test's gauge.
+        var meterName = "Andy.Llm.Test." + Guid.NewGuid().ToString("N");
+        using var metrics = new LlmMetrics(meterName);
+        var middleware = new TelemetryMiddleware(metrics, _mockLogger.Object);
+
+        using var listener = CreateActiveRequestsListener(meterName, out var netActive);
+
+        async IAsyncEnumerable<string> ThrowingStream(
+            [EnumeratorCancellation] CancellationToken ct = default)
+        {
+            yield return "first";
+            await Task.Yield();
+            throw new InvalidOperationException("stream failed mid-enumeration");
+        }
+
+        // Act & Assert
+        await Assert.ThrowsAsync<InvalidOperationException>(async () =>
+        {
+            await foreach (var _ in middleware.ExecuteStreamingWithTelemetryAsync<string>(
+                "openai", "gpt-4", "TestStream", ct => ThrowingStream(ct)))
+            {
+            }
+        });
+
+        // The gauge must return to baseline (net zero), never negative.
+        Assert.Equal(0, Interlocked.Read(ref netActive.Value));
+    }
+
+    [Fact]
+    public async Task ExecuteStreamingWithTelemetry_WhenEnumeratorCreationThrows_ShouldNotLeakActiveRequests()
+    {
+        // Arrange
+        var meterName = "Andy.Llm.Test." + Guid.NewGuid().ToString("N");
+        using var metrics = new LlmMetrics(meterName);
+        var middleware = new TelemetryMiddleware(metrics, _mockLogger.Object);
+
+        using var listener = CreateActiveRequestsListener(meterName, out var netActive);
+
+        // Factory throws synchronously when invoked, before any enumerator exists.
+        IAsyncEnumerable<string> FailingFactory(CancellationToken ct)
+            => throw new InvalidOperationException("cannot create enumerator");
+
+        // Act & Assert
+        await Assert.ThrowsAsync<InvalidOperationException>(async () =>
+        {
+            await foreach (var _ in middleware.ExecuteStreamingWithTelemetryAsync<string>(
+                "openai", "gpt-4", "TestStream", FailingFactory))
+            {
+            }
+        });
+
+        // No leak: the increment must be matched by exactly one decrement.
+        Assert.Equal(0, Interlocked.Read(ref netActive.Value));
+    }
+
+    [Fact]
+    public async Task ExecuteStreamingWithTelemetry_WhenSuccessful_ShouldReturnActiveRequestsToBaseline()
+    {
+        // Arrange
+        var meterName = "Andy.Llm.Test." + Guid.NewGuid().ToString("N");
+        using var metrics = new LlmMetrics(meterName);
+        var middleware = new TelemetryMiddleware(metrics, _mockLogger.Object);
+
+        using var listener = CreateActiveRequestsListener(meterName, out var netActive);
+
+        async IAsyncEnumerable<string> HappyStream(
+            [EnumeratorCancellation] CancellationToken ct = default)
+        {
+            yield return "a";
+            await Task.Yield();
+            yield return "b";
+        }
+
+        // Act
+        var items = new List<string>();
+        await foreach (var item in middleware.ExecuteStreamingWithTelemetryAsync<string>(
+            "openai", "gpt-4", "TestStream", ct => HappyStream(ct)))
+        {
+            items.Add(item);
+        }
+
+        // Assert
+        Assert.Equal(new[] { "a", "b" }, items);
+        Assert.Equal(0, Interlocked.Read(ref netActive.Value));
+    }
+
+    /// <summary>
+    /// Creates and starts a MeterListener that accumulates the net delta of the
+    /// "llm.active_requests" up-down counter for the specified meter. The running sum
+    /// is exposed via the out box so tests can assert the gauge returns to baseline.
+    /// </summary>
+    private static MeterListener CreateActiveRequestsListener(string meterName, out StrongBox<long> netActive)
+    {
+        var box = new StrongBox<long>(0);
+        netActive = box;
+
+        var listener = new MeterListener();
+        listener.InstrumentPublished = (instrument, l) =>
+        {
+            if (instrument.Meter.Name == meterName && instrument.Name == "llm.active_requests")
+            {
+                l.EnableMeasurementEvents(instrument);
+            }
+        };
+        listener.SetMeasurementEventCallback<long>((instrument, measurement, tags, state) =>
+        {
+            Interlocked.Add(ref box.Value, measurement);
+        });
+        listener.Start();
+        return listener;
     }
 
     public void Dispose()
