@@ -372,6 +372,10 @@ await foreach (var chunk in provider.StreamCompleteAsync(request))
 ### Tool Calling with Structured Outputs
 
 ```csharp
+using Andy.Model.Llm;
+using Andy.Model.Model;
+using Andy.Model.Tooling;
+
 // Define tools with JSON schemas (parameters use a JSON-schema dictionary)
 var tools = new List<ToolDeclaration>
 {
@@ -418,6 +422,10 @@ foreach (var toolCall in response.ToolCalls)
 ### Function/Tool Calling
 
 ```csharp
+using Andy.Model.Llm;
+using Andy.Model.Model;
+using Andy.Model.Tooling;
+
 // Define available tools
 var weatherTool = new ToolDeclaration
 {
