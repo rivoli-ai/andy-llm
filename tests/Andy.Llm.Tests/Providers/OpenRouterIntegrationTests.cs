@@ -10,8 +10,9 @@ namespace Andy.Llm.Tests.Providers;
 
 /// <summary>
 /// Live integration tests for the OpenRouter provider that make real API calls.
-/// These tests are opt-in only: they run when the <c>ANDY_LLM_RUN_LIVE_TESTS</c>
-/// environment variable is set to a truthy value (<c>1</c>/<c>true</c>) AND an
+/// These tests are opt-in only: they run when the shared
+/// <c>RUN_INTEGRATION_TESTS</c> convention is enabled (see
+/// <see cref="TestConfiguration.ShouldRunIntegrationTests"/>) AND an
 /// <c>OPENROUTER_API_KEY</c> is present. A plain <c>dotnet test</c> run — even on
 /// a machine that has <c>OPENROUTER_API_KEY</c> exported — skips them, so a
 /// developer's local credentials can never turn a unit run red. Without the
@@ -39,35 +40,28 @@ public class OpenRouterIntegrationTests
         Environment.GetEnvironmentVariable("OPENROUTER_MODEL") ?? DefaultFreeModel;
 
     /// <summary>
-    /// True only when the live tests have been explicitly opted into via
-    /// <c>ANDY_LLM_RUN_LIVE_TESTS</c> (set to <c>1</c> or <c>true</c>) and an
-    /// <c>OPENROUTER_API_KEY</c> is available. The mere presence of the API key
-    /// is deliberately not enough — otherwise local credentials would cause the
-    /// default <c>dotnet test</c> run to hit the network.
+    /// True only when an <c>OPENROUTER_API_KEY</c> is available AND integration
+    /// tests are explicitly opted into via the shared <c>RUN_INTEGRATION_TESTS</c>
+    /// convention (<see cref="TestConfiguration.ShouldRunIntegrationTests"/>). The
+    /// mere presence of the API key is deliberately not enough — otherwise local
+    /// credentials would cause the default <c>dotnet test</c> run to hit the
+    /// network. The opt-in flag itself is parsed leniently (trimmed, accepting
+    /// <c>1</c>/<c>true</c>) by <see cref="TestConfiguration.IsTruthy"/>.
     /// </summary>
-    private static bool LiveTestsEnabled
-    {
-        get
-        {
-            if (string.IsNullOrEmpty(ApiKey))
-            {
-                return false;
-            }
-
-            var flag = Environment.GetEnvironmentVariable("ANDY_LLM_RUN_LIVE_TESTS");
-            if (string.IsNullOrEmpty(flag))
-            {
-                return false;
-            }
-
-            return flag == "1" || (bool.TryParse(flag, out var enabled) && enabled);
-        }
-    }
+    private static bool LiveTestsEnabled =>
+        !string.IsNullOrEmpty(ApiKey) && TestConfiguration.ShouldRunIntegrationTests();
 
     /// <summary>
     /// True when the message reflects an upstream condition we can't control:
     /// rate limiting (429), a deprecated/removed free model (404), or a key with
     /// no remaining quota/credit (402).
+    ///
+    /// Matching is on the status-code substring because the provider surfaces
+    /// these conditions only as exception/error message text — the call sites
+    /// here have no structured <c>HttpResponseMessage.StatusCode</c> to key off
+    /// without a broader provider change. This is intentionally loose: a stray
+    /// "402"/"404"/"429" elsewhere in a body or id could match. Accepted as a
+    /// deliberate trade-off to keep this test-only helper narrow.
     /// </summary>
     private static bool IsUpstreamUnavailable(string? message) =>
         message != null &&
@@ -90,7 +84,7 @@ public class OpenRouterIntegrationTests
     {
         if (!LiveTestsEnabled)
         {
-            return; // opt-in only (ANDY_LLM_RUN_LIVE_TESTS + OPENROUTER_API_KEY)
+            return; // opt-in only (RUN_INTEGRATION_TESTS + OPENROUTER_API_KEY)
         }
 
         var provider = CreateProvider();
@@ -105,7 +99,7 @@ public class OpenRouterIntegrationTests
     {
         if (!LiveTestsEnabled)
         {
-            return; // opt-in only (ANDY_LLM_RUN_LIVE_TESTS + OPENROUTER_API_KEY)
+            return; // opt-in only (RUN_INTEGRATION_TESTS + OPENROUTER_API_KEY)
         }
 
         var provider = CreateProvider();
@@ -137,7 +131,7 @@ public class OpenRouterIntegrationTests
     {
         if (!LiveTestsEnabled)
         {
-            return; // opt-in only (ANDY_LLM_RUN_LIVE_TESTS + OPENROUTER_API_KEY)
+            return; // opt-in only (RUN_INTEGRATION_TESTS + OPENROUTER_API_KEY)
         }
 
         var provider = CreateProvider();
@@ -180,7 +174,7 @@ public class OpenRouterIntegrationTests
     {
         if (!LiveTestsEnabled)
         {
-            return; // opt-in only (ANDY_LLM_RUN_LIVE_TESTS + OPENROUTER_API_KEY)
+            return; // opt-in only (RUN_INTEGRATION_TESTS + OPENROUTER_API_KEY)
         }
 
         var provider = CreateProvider();

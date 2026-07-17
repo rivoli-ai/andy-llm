@@ -42,13 +42,35 @@ public static class TestConfiguration
     {
         // Check environment variable first
         var envFlag = Environment.GetEnvironmentVariable("RUN_INTEGRATION_TESTS");
-        if (!string.IsNullOrEmpty(envFlag))
+        if (!string.IsNullOrWhiteSpace(envFlag))
         {
-            return bool.TryParse(envFlag, out var result) && result;
+            return IsTruthy(envFlag);
         }
 
         // Check configuration
         return Configuration.GetValue<bool>("LlmTestSettings:RunIntegrationTests", false);
+    }
+
+    /// <summary>
+    /// Interprets an opt-in environment flag as a boolean. The value is trimmed
+    /// first so a trailing space or newline (e.g. <c>"1\n"</c> emitted by some
+    /// shells/CI systems) still counts, and both <c>"1"</c> and
+    /// <c>"true"</c>/<c>"false"</c> are accepted case-insensitively.
+    /// </summary>
+    public static bool IsTruthy(string? value)
+    {
+        if (string.IsNullOrWhiteSpace(value))
+        {
+            return false;
+        }
+
+        var trimmed = value.Trim();
+        if (bool.TryParse(trimmed, out var parsed))
+        {
+            return parsed;
+        }
+
+        return trimmed == "1";
     }
 
     /// <summary>
@@ -76,9 +98,9 @@ public static class TestConfiguration
     {
         // Check environment variable
         var envFlag = Environment.GetEnvironmentVariable($"TEST_{provider.ToUpper()}_ENABLED");
-        if (!string.IsNullOrEmpty(envFlag))
+        if (!string.IsNullOrWhiteSpace(envFlag))
         {
-            return bool.TryParse(envFlag, out var result) && result;
+            return IsTruthy(envFlag);
         }
 
         // Check configuration
