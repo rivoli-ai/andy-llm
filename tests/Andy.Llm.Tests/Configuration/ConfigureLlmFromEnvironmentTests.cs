@@ -11,6 +11,7 @@ namespace Andy.Llm.Tests.Configuration;
 /// Verifies that environment variables create provider entries with the correct
 /// Provider field and don't override existing configuration.
 /// </summary>
+[Collection("EnvironmentVariable Tests")]
 public class ConfigureLlmFromEnvironmentTests
 {
     [Fact]
@@ -94,5 +95,53 @@ public class ConfigureLlmFromEnvironmentTests
         Assert.True(options.Providers.ContainsKey("openai/codex-mini"));
         Assert.Equal("codex-mini-latest", options.Providers["openai/codex-mini"].Model);
         Assert.Equal("responses", options.Providers["openai/codex-mini"].ApiType);
+    }
+
+    [Fact]
+    public void ConfigureLlmFromEnvironment_DoesNotRegisterUnsupportedGoogleProvider()
+    {
+        var originalGoogleKey = Environment.GetEnvironmentVariable("GOOGLE_API_KEY");
+        try
+        {
+            // Only GOOGLE_API_KEY is set — the factory has no case for "google",
+            // so it must NOT be added to the provider options.
+            Environment.SetEnvironmentVariable("GOOGLE_API_KEY", "test-google-key");
+
+            var services = new ServiceCollection();
+            services.ConfigureLlmFromEnvironment();
+
+            var sp = services.BuildServiceProvider();
+            var options = sp.GetRequiredService<IOptions<LlmOptions>>().Value;
+
+            Assert.False(options.Providers.ContainsKey("google"));
+        }
+        finally
+        {
+            Environment.SetEnvironmentVariable("GOOGLE_API_KEY", originalGoogleKey);
+        }
+    }
+
+    [Fact]
+    public void ConfigureLlmFromEnvironment_DoesNotRegisterUnsupportedGroqProvider()
+    {
+        var originalGroqKey = Environment.GetEnvironmentVariable("GROQ_API_KEY");
+        try
+        {
+            // Only GROQ_API_KEY is set — the factory has no case for "groq",
+            // so it must NOT be added to the provider options.
+            Environment.SetEnvironmentVariable("GROQ_API_KEY", "test-groq-key");
+
+            var services = new ServiceCollection();
+            services.ConfigureLlmFromEnvironment();
+
+            var sp = services.BuildServiceProvider();
+            var options = sp.GetRequiredService<IOptions<LlmOptions>>().Value;
+
+            Assert.False(options.Providers.ContainsKey("groq"));
+        }
+        finally
+        {
+            Environment.SetEnvironmentVariable("GROQ_API_KEY", originalGroqKey);
+        }
     }
 }

@@ -288,38 +288,6 @@ public static class ServiceCollectionExtensions
                 });
             }
 
-            // Google configuration
-            var googleKey = Environment.GetEnvironmentVariable("GOOGLE_API_KEY");
-            var googleModel = Environment.GetEnvironmentVariable("GOOGLE_MODEL");
-
-            if (!string.IsNullOrEmpty(googleKey))
-            {
-                MergeProviderConfig("google", new ProviderConfig
-                {
-                    Provider = "google",
-                    ApiKey = googleKey,
-                    ApiBase = "https://generativelanguage.googleapis.com",
-                    Model = googleModel ?? "gemini-2.0-flash-exp",
-                    Enabled = true
-                });
-            }
-
-            // Groq configuration
-            var groqKey = Environment.GetEnvironmentVariable("GROQ_API_KEY");
-            var groqModel = Environment.GetEnvironmentVariable("GROQ_MODEL");
-
-            if (!string.IsNullOrEmpty(groqKey))
-            {
-                MergeProviderConfig("groq", new ProviderConfig
-                {
-                    Provider = "groq",
-                    ApiKey = groqKey,
-                    ApiBase = "https://api.groq.com/openai/v1",
-                    Model = groqModel ?? "llama-3.3-70b-versatile",
-                    Enabled = true
-                });
-            }
-
             // Anthropic configuration
             var anthropicKey = Environment.GetEnvironmentVariable("ANTHROPIC_API_KEY");
             var anthropicModel = Environment.GetEnvironmentVariable("ANTHROPIC_MODEL");
