@@ -453,6 +453,56 @@ public class ResponsesApiStrategyTests
     }
 
     [Fact]
+    public async Task StreamCompleteAsync_ToolCall_ReturnsToolCallsFinishReason()
+    {
+        // When the stream produced a function/tool call, the terminal
+        // response.completed frame must report "tool_calls" (mirroring the
+        // non-streaming ParseResponse path) so agent loops keyed off FinishReason
+        // do not drop streamed tool calls.
+        var sse = BuildSse(
+            ("response.function_call_arguments.delta", new
+            {
+                type = "response.function_call_arguments.delta",
+                call_id = "call_abc",
+                delta = "{\"city\":"
+            }),
+            ("response.function_call_arguments.done", new
+            {
+                type = "response.function_call_arguments.done",
+                call_id = "call_abc",
+                name = "get_weather",
+                arguments = "{\"city\":\"Paris\"}"
+            }),
+            ("response.completed", new
+            {
+                type = "response.completed",
+                response = new
+                {
+                    id = "resp_tool",
+                    status = "completed",
+                    usage = new { input_tokens = 12, output_tokens = 6, total_tokens = 18 }
+                }
+            }));
+
+        var handler = new MockHttpHandler(HttpStatusCode.OK, sse);
+        var strategy = CreateStrategy(handler);
+
+        var responses = await CollectStreamAsync(strategy);
+
+        var terminal = responses.Last();
+        Assert.True(terminal.IsComplete);
+        Assert.Equal("tool_calls", terminal.FinishReason);
+
+        // The streamed tool call must be present in the emitted chunks.
+        var toolCall = responses
+            .SelectMany(r => r.Delta?.ToolCalls ?? new List<ToolCall>())
+            .Single();
+        Assert.Equal("call_abc", toolCall.Id);
+        Assert.Equal("get_weather", toolCall.Name);
+        Assert.Contains("Paris", toolCall.ArgumentsJson);
+    }
+
+    [Fact]
     public async Task StreamCompleteAsync_Failed_ReturnsErrorFinishReason()
     {
         var sse = BuildSse(

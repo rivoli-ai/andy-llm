@@ -141,7 +141,7 @@ internal class ResponsesApiStrategy : IOpenAIApiStrategy
         using var reader = new StreamReader(stream);
 
         var accumulatedText = new StringBuilder();
-        var toolCalls = new Dictionary<string, AccumulatedFunctionCall>();
+        var streamState = new StreamState();
 
         while (!reader.EndOfStream && !cancellationToken.IsCancellationRequested)
         {
@@ -161,7 +161,7 @@ internal class ResponsesApiStrategy : IOpenAIApiStrategy
 
                 var data = dataLine["data: ".Length..];
 
-                foreach (var chunk in ProcessStreamEvent(eventType, data, toolCalls))
+                foreach (var chunk in ProcessStreamEvent(eventType, data, streamState))
                 {
                     yield return chunk;
                 }
@@ -411,8 +411,10 @@ internal class ResponsesApiStrategy : IOpenAIApiStrategy
     private IEnumerable<LlmStreamResponse> ProcessStreamEvent(
         string eventType,
         string data,
-        Dictionary<string, AccumulatedFunctionCall> toolCalls)
+        StreamState streamState)
     {
+        var toolCalls = streamState.PendingCalls;
+
         switch (eventType)
         {
             case "response.output_text.delta":
@@ -473,6 +475,11 @@ internal class ResponsesApiStrategy : IOpenAIApiStrategy
                             toolCalls.Remove(callId);
                         }
 
+                        // Record that the stream produced a tool/function call so the
+                        // terminal response.completed frame can report "tool_calls"
+                        // (mirrors the non-streaming ParseResponse logic).
+                        streamState.ToolCallsEmitted = true;
+
                         yield return new LlmStreamResponse
                         {
                             Delta = new Message
@@ -497,12 +504,15 @@ internal class ResponsesApiStrategy : IOpenAIApiStrategy
             case "response.completed":
                 // Terminal event. Usage lives under the nested "response" object
                 // (response.usage), not at the root of the event payload.
+                // When the stream produced one or more tool/function calls, report
+                // "tool_calls" so agent loops that key execution off FinishReason do
+                // not drop them (mirrors the non-streaming ParseResponse logic).
                 using (var doc = JsonDocument.Parse(data))
                 {
                     yield return new LlmStreamResponse
                     {
                         IsComplete = true,
-                        FinishReason = "stop",
+                        FinishReason = streamState.ToolCallsEmitted ? "tool_calls" : "stop",
                         Usage = ExtractStreamUsage(doc.RootElement)
                     };
                 }
@@ -741,6 +751,17 @@ internal class ResponsesApiStrategy : IOpenAIApiStrategy
         public string CallId { get; set; } = "";
         public string Name { get; set; } = "";
         public string Arguments { get; set; } = "";
+    }
+
+    /// <summary>
+    /// Per-stream mutable state carried across SSE events. Tracks in-flight
+    /// function-call argument accumulation and whether any tool/function call
+    /// was emitted, so the terminal frame can report the correct finish reason.
+    /// </summary>
+    private sealed class StreamState
+    {
+        public Dictionary<string, AccumulatedFunctionCall> PendingCalls { get; } = new();
+        public bool ToolCallsEmitted { get; set; }
     }
 
     #endregion
