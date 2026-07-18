@@ -167,21 +167,14 @@ public class TelemetryMiddleware
 
         var itemCount = 0;
         var firstItemLatency = 0L;
-        Exception? caughtException = null;
 
-        try
-        {
-            _metrics.RecordRequest(provider, model, $"{operationName}.stream");
-        }
-        catch (Exception ex)
-        {
-            caughtException = ex;
-        }
-
-        if (caughtException != null)
+        // Records error telemetry for a failed streaming operation. The active-request
+        // gauge is intentionally left untouched here; the single decrement happens in the
+        // outer finally so a failure cannot drive the gauge negative.
+        void RecordStreamFailure(Exception ex)
         {
             var latency = stopwatch.ElapsedMilliseconds;
-            var errorType = caughtException.GetType().Name;
+            var errorType = ex.GetType().Name;
 
             _metrics.RecordError(provider, model, errorType);
             _metrics.RecordLatency(provider, model, latency, false);
@@ -189,81 +182,81 @@ public class TelemetryMiddleware
             activity?.SetTag("llm.latency_ms", latency);
             activity?.SetTag("llm.item_count", itemCount);
             activity?.SetTag("llm.error.type", errorType);
-            activity?.SetStatus(ActivityStatusCode.Error, caughtException.Message);
+            activity?.SetStatus(ActivityStatusCode.Error, ex.Message);
 
-            var sanitizedMessage = SensitiveDataSanitizer.Sanitize(caughtException.Message);
+            var sanitizedMessage = SensitiveDataSanitizer.Sanitize(ex.Message);
             _logger?.LogError(
                 "Streaming LLM operation failed: {Operation} after {Latency}ms and {ItemCount} items. Error: {ErrorType} - {Message}",
                 operationName, latency, itemCount, errorType, sanitizedMessage);
-
-            _metrics.DecrementActiveRequests(provider);
-            stopwatch.Stop();
-            throw caughtException;
         }
-
-        var enumerator = operation(cancellationToken).WithCancellation(cancellationToken).GetAsyncEnumerator();
 
         try
         {
-            while (true)
+            // Enumerator creation lives inside the protected region so that a synchronous
+            // failure (from RecordRequest or from creating the enumerator) still records
+            // error telemetry and is covered by the single decrement in the outer finally.
+            System.Runtime.CompilerServices.ConfiguredCancelableAsyncEnumerable<T>.Enumerator enumerator;
+            try
             {
-                T item;
-                try
-                {
-                    if (!await enumerator.MoveNextAsync())
-                    {
-                        break;
-                    }
-
-                    item = enumerator.Current;
-                }
-                catch (Exception ex)
-                {
-                    var latency = stopwatch.ElapsedMilliseconds;
-                    var errorType = ex.GetType().Name;
-
-                    _metrics.RecordError(provider, model, errorType);
-                    _metrics.RecordLatency(provider, model, latency, false);
-
-                    activity?.SetTag("llm.latency_ms", latency);
-                    activity?.SetTag("llm.item_count", itemCount);
-                    activity?.SetTag("llm.error.type", errorType);
-                    activity?.SetStatus(ActivityStatusCode.Error, ex.Message);
-
-                    var sanitizedMessage = SensitiveDataSanitizer.Sanitize(ex.Message);
-                    _logger?.LogError(
-                        "Streaming LLM operation failed: {Operation} after {Latency}ms and {ItemCount} items. Error: {ErrorType} - {Message}",
-                        operationName, latency, itemCount, errorType, sanitizedMessage);
-
-                    _metrics.DecrementActiveRequests(provider);
-                    stopwatch.Stop();
-                    throw;
-                }
-
-                if (itemCount == 0)
-                {
-                    firstItemLatency = stopwatch.ElapsedMilliseconds;
-                    activity?.SetTag("llm.first_item_latency_ms", firstItemLatency);
-                }
-
-                itemCount++;
-                yield return item;
+                _metrics.RecordRequest(provider, model, $"{operationName}.stream");
+                enumerator = operation(cancellationToken)
+                    .WithCancellation(cancellationToken)
+                    .GetAsyncEnumerator();
+            }
+            catch (Exception ex)
+            {
+                RecordStreamFailure(ex);
+                throw;
             }
 
-            var totalLatency = stopwatch.ElapsedMilliseconds;
-            _metrics.RecordLatency(provider, model, totalLatency, true);
+            try
+            {
+                while (true)
+                {
+                    T item;
+                    try
+                    {
+                        if (!await enumerator.MoveNextAsync())
+                        {
+                            break;
+                        }
 
-            activity?.SetTag("llm.latency_ms", totalLatency);
-            activity?.SetTag("llm.item_count", itemCount);
-            activity?.SetStatus(ActivityStatusCode.Ok);
+                        item = enumerator.Current;
+                    }
+                    catch (Exception ex)
+                    {
+                        RecordStreamFailure(ex);
+                        throw;
+                    }
 
-            _logger?.LogInformation(
-                "Completed streaming LLM operation: {Operation} in {Latency}ms with {ItemCount} items",
-                operationName, totalLatency, itemCount);
+                    if (itemCount == 0)
+                    {
+                        firstItemLatency = stopwatch.ElapsedMilliseconds;
+                        activity?.SetTag("llm.first_item_latency_ms", firstItemLatency);
+                    }
+
+                    itemCount++;
+                    yield return item;
+                }
+
+                var totalLatency = stopwatch.ElapsedMilliseconds;
+                _metrics.RecordLatency(provider, model, totalLatency, true);
+
+                activity?.SetTag("llm.latency_ms", totalLatency);
+                activity?.SetTag("llm.item_count", itemCount);
+                activity?.SetStatus(ActivityStatusCode.Ok);
+
+                _logger?.LogInformation(
+                    "Completed streaming LLM operation: {Operation} in {Latency}ms with {ItemCount} items",
+                    operationName, totalLatency, itemCount);
+            }
+            finally
+            {
+                await enumerator.DisposeAsync();
+            }
         }
         finally
         {
-            await enumerator.DisposeAsync();
             _metrics.DecrementActiveRequests(provider);
             stopwatch.Stop();
         }
