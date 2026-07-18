@@ -137,6 +137,72 @@ public class AnthropicProviderTests
     }
 
     [Fact]
+    public async Task CompleteAsync_RequestWithoutModel_UsesConfiguredDefault()
+    {
+        // When the incoming request omits a model, the provider must fall back
+        // to the model configured on its ProviderConfig rather than erroring.
+        HttpRequestMessage? captured = null;
+        var (provider, _) = BuildProvider(_logger.Object, (req, _) =>
+        {
+            captured = req;
+            return new HttpResponseMessage(HttpStatusCode.OK)
+            {
+                Content = new StringContent(@"{
+                    ""content"":[{""type"":""text"",""text"":""ok""}],
+                    ""stop_reason"":""end_turn"",
+                    ""usage"":{""input_tokens"":1,""output_tokens"":1}
+                }", Encoding.UTF8, "application/json")
+            };
+        });
+
+        await provider.CompleteAsync(new LlmRequest
+        {
+            Messages = new List<Message>
+            {
+                new() { Role = Role.User, Content = "Hi" }
+            },
+            Config = new LlmClientConfig { MaxTokens = 16 }
+        });
+
+        var body = await captured!.Content!.ReadAsStringAsync();
+        using var doc = JsonDocument.Parse(body);
+        // DefaultConfig().Model is the configured default.
+        Assert.Equal("claude-sonnet-4-5-20250929", doc.RootElement.GetProperty("model").GetString());
+    }
+
+    [Fact]
+    public async Task CompleteAsync_RequestWithModel_UsesRequestModel()
+    {
+        // An explicit per-request model overrides the configured default.
+        HttpRequestMessage? captured = null;
+        var (provider, _) = BuildProvider(_logger.Object, (req, _) =>
+        {
+            captured = req;
+            return new HttpResponseMessage(HttpStatusCode.OK)
+            {
+                Content = new StringContent(@"{
+                    ""content"":[{""type"":""text"",""text"":""ok""}],
+                    ""stop_reason"":""end_turn"",
+                    ""usage"":{""input_tokens"":1,""output_tokens"":1}
+                }", Encoding.UTF8, "application/json")
+            };
+        });
+
+        await provider.CompleteAsync(new LlmRequest
+        {
+            Messages = new List<Message>
+            {
+                new() { Role = Role.User, Content = "Hi" }
+            },
+            Config = new LlmClientConfig { Model = "claude-opus-4-1-20250805", MaxTokens = 16 }
+        });
+
+        var body = await captured!.Content!.ReadAsStringAsync();
+        using var doc = JsonDocument.Parse(body);
+        Assert.Equal("claude-opus-4-1-20250805", doc.RootElement.GetProperty("model").GetString());
+    }
+
+    [Fact]
     public async Task CompleteAsync_SystemMessage_LiftedToTopLevelField()
     {
         HttpRequestMessage? captured = null;

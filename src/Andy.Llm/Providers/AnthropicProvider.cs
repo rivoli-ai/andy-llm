@@ -379,7 +379,7 @@ public class AnthropicProvider : Andy.Model.Llm.ILlmProvider
 
     #region Request building
 
-    internal static AnthropicMessagesRequest BuildRequest(LlmRequest request, bool stream)
+    internal AnthropicMessagesRequest BuildRequest(LlmRequest request, bool stream)
     {
         var anthropicMessages = new List<AnthropicMessage>();
         string? systemPrompt = request.SystemPrompt;
@@ -447,9 +447,19 @@ public class AnthropicProvider : Andy.Model.Llm.ILlmProvider
             }
         }
 
+        // Resolve the model: an explicit per-request model wins, otherwise fall
+        // back to the provider's configured default. Only error when neither is
+        // available (the default is normally guaranteed by the constructor).
+        var model = !string.IsNullOrEmpty(request.Model) ? request.Model : _defaultModel;
+        if (string.IsNullOrEmpty(model))
+        {
+            throw new InvalidOperationException(
+                "No model specified: the request has no Model and no default model is configured for Anthropic");
+        }
+
         var body = new AnthropicMessagesRequest
         {
-            Model = request.Model ?? throw new InvalidOperationException("LlmRequest.Model is required for Anthropic"),
+            Model = model,
             MaxTokens = request.MaxTokens > 0 ? request.MaxTokens : DefaultMaxTokens,
             System = systemField,
             Messages = anthropicMessages,
