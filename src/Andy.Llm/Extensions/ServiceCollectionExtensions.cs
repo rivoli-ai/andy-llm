@@ -323,6 +323,23 @@ public static class ServiceCollectionExtensions
                 });
             }
 
+            // Gateway (Andy Models) configuration
+            var gatewayKey = Environment.GetEnvironmentVariable("ANDY_MODELS_API_KEY");
+            var gatewayBase = Environment.GetEnvironmentVariable("ANDY_MODELS_API_BASE");
+            var gatewayModel = Environment.GetEnvironmentVariable("ANDY_MODELS_MODEL");
+
+            if (!string.IsNullOrEmpty(gatewayKey))
+            {
+                MergeProviderConfig("gateway", new ProviderConfig
+                {
+                    Provider = "gateway",
+                    ApiKey = gatewayKey,
+                    ApiBase = gatewayBase,
+                    Model = gatewayModel,
+                    Enabled = true
+                });
+            }
+
             // Local/Ollama configuration
             var ollamaBase = Environment.GetEnvironmentVariable("OLLAMA_API_BASE");
             var ollamaModel = Environment.GetEnvironmentVariable("OLLAMA_MODEL");
