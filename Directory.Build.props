@@ -5,8 +5,9 @@
     <Nullable>enable</Nullable>
     <LangVersion>latest</LangVersion>
 
-    <!-- Packaging defaults for libraries; tests override IsPackable -->
-    <IsPackable>true</IsPackable>
+    <!-- Not packable by default; only the shippable library under src/ opts in
+         via IsPackable=true. Examples and test projects stay non-packable. -->
+    <IsPackable>false</IsPackable>
     <GenerateDocumentationFile>true</GenerateDocumentationFile>
     <Authors>Rivoli AI</Authors>
     <Company>Rivoli AI</Company>
@@ -32,5 +33,4 @@
     <PackageReference Include="Microsoft.SourceLink.GitHub" Version="8.0.0" PrivateAssets="All" />
   </ItemGroup>
 
-  <!-- Test projects set IsPackable=false; see their csproj -->
 </Project>

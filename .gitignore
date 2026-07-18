@@ -76,3 +76,9 @@ container/rootfs-safe/
 *.VisualState.xml
 TestResult.xml
 nunit-*.xml
+
+# User-specific and scratch files (never tracked)
+*.user
+*.exe
+*.tmp
+debug_types.exe
