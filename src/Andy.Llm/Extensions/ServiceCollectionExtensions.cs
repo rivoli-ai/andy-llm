@@ -107,6 +107,7 @@ public static class ServiceCollectionExtensions
         services.AddSingleton<OllamaProvider>();
         services.AddSingleton<AnthropicProvider>();
         services.AddSingleton<OpenRouterProvider>();
+        services.AddSingleton<GatewayProvider>();
 
         // Register HttpClientFactory for providers that need it
         services.AddHttpClient();
@@ -133,6 +134,7 @@ public static class ServiceCollectionExtensions
         services.AddSingleton<OllamaProvider>();
         services.AddSingleton<AnthropicProvider>();
         services.AddSingleton<OpenRouterProvider>();
+        services.AddSingleton<GatewayProvider>();
 
         // Register HttpClientFactory for providers that need it
         services.AddHttpClient();

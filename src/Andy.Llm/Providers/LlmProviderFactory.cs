@@ -147,6 +147,11 @@ public class LlmProviderFactory : ILlmProviderFactory
                     var openRouterLogger = loggerFactory.CreateLogger<OpenRouterProvider>();
                     provider = new OpenRouterProvider(configCopy, configKey, openRouterLogger, httpClientFactory);
                     break;
+                case "gateway":
+                case "andy-models":
+                    var gatewayLogger = loggerFactory.CreateLogger<GatewayProvider>();
+                    provider = new GatewayProvider(configCopy, configKey, gatewayLogger, httpClientFactory);
+                    break;
                 default:
                     throw new NotSupportedException($"Provider type '{providerType}' is not supported");
             }
