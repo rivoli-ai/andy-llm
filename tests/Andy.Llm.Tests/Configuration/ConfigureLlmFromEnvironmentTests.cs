@@ -144,4 +144,40 @@ public class ConfigureLlmFromEnvironmentTests
             Environment.SetEnvironmentVariable("GROQ_API_KEY", originalGroqKey);
         }
     }
+
+    [Fact]
+    public void ConfigureLlmFromEnvironment_RegistersGatewayProviderFromAndyModelsEnv()
+    {
+        var originalKey = Environment.GetEnvironmentVariable("ANDY_MODELS_API_KEY");
+        var originalBase = Environment.GetEnvironmentVariable("ANDY_MODELS_API_BASE");
+        var originalModel = Environment.GetEnvironmentVariable("ANDY_MODELS_MODEL");
+        try
+        {
+            // ANDY_MODELS_* env vars describe the Andy Models gateway, which the factory
+            // supports ("gateway"/"andy-models"), so env config must register it.
+            Environment.SetEnvironmentVariable("ANDY_MODELS_API_KEY", "test-gateway-key");
+            Environment.SetEnvironmentVariable("ANDY_MODELS_API_BASE", "https://gateway.example.com");
+            Environment.SetEnvironmentVariable("ANDY_MODELS_MODEL", "openai/gpt-4o-mini");
+
+            var services = new ServiceCollection();
+            services.ConfigureLlmFromEnvironment();
+
+            var sp = services.BuildServiceProvider();
+            var options = sp.GetRequiredService<IOptions<LlmOptions>>().Value;
+
+            Assert.True(options.Providers.ContainsKey("gateway"));
+            var gateway = options.Providers["gateway"];
+            Assert.Equal("gateway", gateway.Provider);
+            Assert.Equal("test-gateway-key", gateway.ApiKey);
+            Assert.Equal("https://gateway.example.com", gateway.ApiBase);
+            Assert.Equal("openai/gpt-4o-mini", gateway.Model);
+            Assert.True(gateway.Enabled);
+        }
+        finally
+        {
+            Environment.SetEnvironmentVariable("ANDY_MODELS_API_KEY", originalKey);
+            Environment.SetEnvironmentVariable("ANDY_MODELS_API_BASE", originalBase);
+            Environment.SetEnvironmentVariable("ANDY_MODELS_MODEL", originalModel);
+        }
+    }
 }
