@@ -141,7 +141,7 @@ internal class ResponsesApiStrategy : IOpenAIApiStrategy
         using var reader = new StreamReader(stream);
 
         var accumulatedText = new StringBuilder();
-        var toolCalls = new Dictionary<string, AccumulatedFunctionCall>();
+        var streamState = new StreamState();
 
         while (!reader.EndOfStream && !cancellationToken.IsCancellationRequested)
         {
@@ -161,7 +161,7 @@ internal class ResponsesApiStrategy : IOpenAIApiStrategy
 
                 var data = dataLine["data: ".Length..];
 
-                foreach (var chunk in ProcessStreamEvent(eventType, data, toolCalls))
+                foreach (var chunk in ProcessStreamEvent(eventType, data, streamState))
                 {
                     yield return chunk;
                 }
@@ -411,8 +411,10 @@ internal class ResponsesApiStrategy : IOpenAIApiStrategy
     private IEnumerable<LlmStreamResponse> ProcessStreamEvent(
         string eventType,
         string data,
-        Dictionary<string, AccumulatedFunctionCall> toolCalls)
+        StreamState streamState)
     {
+        var toolCalls = streamState.PendingCalls;
+
         switch (eventType)
         {
             case "response.output_text.delta":
@@ -473,6 +475,11 @@ internal class ResponsesApiStrategy : IOpenAIApiStrategy
                             toolCalls.Remove(callId);
                         }
 
+                        // Record that the stream produced a tool/function call so the
+                        // terminal response.completed frame can report "tool_calls"
+                        // (mirrors the non-streaming ParseResponse logic).
+                        streamState.ToolCallsEmitted = true;
+
                         yield return new LlmStreamResponse
                         {
                             Delta = new Message
@@ -495,32 +502,148 @@ internal class ResponsesApiStrategy : IOpenAIApiStrategy
                 break;
 
             case "response.completed":
-                // Final event with usage
-                LlmUsage? usage = null;
+                // Terminal event. Usage lives under the nested "response" object
+                // (response.usage), not at the root of the event payload.
+                // When the stream produced one or more tool/function calls, report
+                // "tool_calls" so agent loops that key execution off FinishReason do
+                // not drop them (mirrors the non-streaming ParseResponse logic).
                 using (var doc = JsonDocument.Parse(data))
                 {
-                    if (doc.RootElement.TryGetProperty("usage", out var usageProp))
+                    yield return new LlmStreamResponse
                     {
-                        var inputTokens = usageProp.TryGetProperty("input_tokens", out var it) ? it.GetInt32() : 0;
-                        var outputTokens = usageProp.TryGetProperty("output_tokens", out var ot) ? ot.GetInt32() : 0;
-
-                        usage = new LlmUsage
-                        {
-                            PromptTokens = inputTokens,
-                            CompletionTokens = outputTokens,
-                            TotalTokens = inputTokens + outputTokens
-                        };
-                    }
+                        IsComplete = true,
+                        FinishReason = streamState.ToolCallsEmitted ? "tool_calls" : "stop",
+                        Usage = ExtractStreamUsage(doc.RootElement)
+                    };
                 }
+                break;
 
-                yield return new LlmStreamResponse
+            case "response.incomplete":
+                // Model stopped before finishing (e.g. hit the output token cap).
+                using (var doc = JsonDocument.Parse(data))
                 {
-                    IsComplete = true,
-                    FinishReason = "stop",
-                    Usage = usage
-                };
+                    yield return new LlmStreamResponse
+                    {
+                        IsComplete = true,
+                        FinishReason = MapIncompleteReason(doc.RootElement),
+                        Usage = ExtractStreamUsage(doc.RootElement)
+                    };
+                }
+                break;
+
+            case "response.failed":
+                // Generation failed. Surface any error message the API attached.
+                using (var doc = JsonDocument.Parse(data))
+                {
+                    var message = ExtractResponseError(doc.RootElement);
+                    yield return new LlmStreamResponse
+                    {
+                        Delta = message != null
+                            ? new Message { Role = Role.Assistant, Content = message }
+                            : null,
+                        IsComplete = true,
+                        FinishReason = "error",
+                        Usage = ExtractStreamUsage(doc.RootElement)
+                    };
+                }
+                break;
+
+            case "error":
+                // Top-level stream error event: { "type": "error", "message": ... }.
+                using (var doc = JsonDocument.Parse(data))
+                {
+                    var message = doc.RootElement.TryGetProperty("message", out var msgProp)
+                        ? msgProp.GetString()
+                        : null;
+                    yield return new LlmStreamResponse
+                    {
+                        Delta = !string.IsNullOrEmpty(message)
+                            ? new Message { Role = Role.Assistant, Content = message }
+                            : null,
+                        IsComplete = true,
+                        FinishReason = "error"
+                    };
+                }
                 break;
         }
+    }
+
+    /// <summary>
+    /// Reads token usage from a terminal Responses stream event. The Responses API
+    /// nests the completed response (and its usage) under a "response" property, so
+    /// prefer <c>response.usage</c> and fall back to a root-level <c>usage</c> for
+    /// resilience against payload shape changes.
+    /// </summary>
+    private static LlmUsage? ExtractStreamUsage(JsonElement eventRoot)
+    {
+        JsonElement usageProp;
+        var found = false;
+
+        if (eventRoot.TryGetProperty("response", out var responseObj) &&
+            responseObj.ValueKind == JsonValueKind.Object &&
+            responseObj.TryGetProperty("usage", out usageProp) &&
+            usageProp.ValueKind == JsonValueKind.Object)
+        {
+            found = true;
+        }
+        else if (eventRoot.TryGetProperty("usage", out usageProp) &&
+                 usageProp.ValueKind == JsonValueKind.Object)
+        {
+            found = true;
+        }
+
+        if (!found)
+            return null;
+
+        var inputTokens = usageProp.TryGetProperty("input_tokens", out var it) ? it.GetInt32() : 0;
+        var outputTokens = usageProp.TryGetProperty("output_tokens", out var ot) ? ot.GetInt32() : 0;
+        var totalTokens = usageProp.TryGetProperty("total_tokens", out var tt) ? tt.GetInt32() : inputTokens + outputTokens;
+
+        return new LlmUsage
+        {
+            PromptTokens = inputTokens,
+            CompletionTokens = outputTokens,
+            TotalTokens = totalTokens
+        };
+    }
+
+    /// <summary>
+    /// Maps a <c>response.incomplete</c> event to a finish reason. When the model
+    /// was cut off by the output token cap, this is reported as "length"; any other
+    /// reason is reported as "incomplete".
+    /// </summary>
+    private static string MapIncompleteReason(JsonElement eventRoot)
+    {
+        if (eventRoot.TryGetProperty("response", out var responseObj) &&
+            responseObj.ValueKind == JsonValueKind.Object &&
+            responseObj.TryGetProperty("incomplete_details", out var details) &&
+            details.ValueKind == JsonValueKind.Object &&
+            details.TryGetProperty("reason", out var reasonProp))
+        {
+            var reason = reasonProp.GetString();
+            if (reason == "max_output_tokens")
+                return "length";
+        }
+
+        return "incomplete";
+    }
+
+    /// <summary>
+    /// Extracts a human-readable error message from a <c>response.failed</c> event,
+    /// where the error lives under <c>response.error.message</c>.
+    /// </summary>
+    private static string? ExtractResponseError(JsonElement eventRoot)
+    {
+        if (eventRoot.TryGetProperty("response", out var responseObj) &&
+            responseObj.ValueKind == JsonValueKind.Object &&
+            responseObj.TryGetProperty("error", out var errorObj) &&
+            errorObj.ValueKind == JsonValueKind.Object &&
+            errorObj.TryGetProperty("message", out var msgProp))
+        {
+            return msgProp.GetString();
+        }
+
+        return null;
     }
 
     #endregion
@@ -628,6 +751,17 @@ internal class ResponsesApiStrategy : IOpenAIApiStrategy
         public string CallId { get; set; } = "";
         public string Name { get; set; } = "";
         public string Arguments { get; set; } = "";
+    }
+
+    /// <summary>
+    /// Per-stream mutable state carried across SSE events. Tracks in-flight
+    /// function-call argument accumulation and whether any tool/function call
+    /// was emitted, so the terminal frame can report the correct finish reason.
+    /// </summary>
+    private sealed class StreamState
+    {
+        public Dictionary<string, AccumulatedFunctionCall> PendingCalls { get; } = new();
+        public bool ToolCallsEmitted { get; set; }
     }
 
     #endregion
