@@ -388,12 +388,216 @@ data: [DONE]";
         Assert.NotEmpty(result.Children);
     }
 
+    [Fact]
+    public async Task ParseStreamingAsync_SingleUseTextStream_ParsedOnceWithoutDuplication()
+    {
+        // Arrange - a stream that can only be enumerated a single time. Re-enumeration throws.
+        var originalChunks = new List<string>
+        {
+            "This is ",
+            "plain text ",
+            "that streams once ",
+            "and completes."
+        };
+
+        List<string>? receivedChunks = null;
+        var expectedNode = new ResponseNode();
+        expectedNode.Children.Add(new TextNode { Content = string.Concat(originalChunks) });
+
+        _mockTextParser
+            .Setup(p => p.ParseStreamingAsync(It.IsAny<IAsyncEnumerable<string>>(), It.IsAny<ParserContext?>(), It.IsAny<CancellationToken>()))
+            .Returns(async (IAsyncEnumerable<string> stream, ParserContext? _, CancellationToken _) =>
+            {
+                receivedChunks = new List<string>();
+                await foreach (var chunk in stream)
+                {
+                    receivedChunks.Add(chunk);
+                }
+                return expectedNode;
+            });
+
+        var singleUseStream = new SingleUseAsyncEnumerable(originalChunks);
+
+        // Act - must not throw even though the stream refuses a second enumeration
+        var result = await _parser.ParseStreamingAsync(singleUseStream);
+
+        // Assert
+        Assert.NotNull(result);
+        Assert.Equal(1, singleUseStream.EnumerationCount);
+        Assert.NotNull(receivedChunks);
+        // The text parser must see every chunk exactly once, in order, with no duplication
+        Assert.Equal(originalChunks, receivedChunks);
+    }
+
+    [Fact]
+    public void Parse_StructuredResponse_UsesInjectedStructuredFactory()
+    {
+        // Arrange - a custom factory that produces a distinctive response
+        var factoryResponse = new StructuredLlmResponse
+        {
+            TextContent = "produced by the injected factory",
+            Metadata = new StructuredResponseMetadata
+            {
+                Provider = "custom-factory",
+                Model = "custom-model"
+            }
+        };
+        factoryResponse.ToolCalls.Add(
+            StructuredArgumentParser.CreateToolCall("call_custom", "custom_tool", "{}"));
+
+        _mockStructuredFactory
+            .Setup(f => f.CreateFromOpenAI(It.IsAny<object>()))
+            .Returns(factoryResponse);
+
+        var openAiJson = @"{
+            ""choices"": [{
+                ""message"": { ""content"": ""hi"", ""tool_calls"": [] },
+                ""finish_reason"": ""stop""
+            }],
+            ""model"": ""gpt-4""
+        }";
+
+        // Act
+        var result = _parser.Parse(openAiJson);
+
+        // Assert - the injected factory was invoked and its result was used
+        _mockStructuredFactory.Verify(f => f.CreateFromOpenAI(It.IsAny<object>()), Times.Once);
+        Assert.Equal("custom-factory", result.ModelProvider);
+        Assert.Equal("custom-model", result.ModelName);
+        Assert.Contains(result.Children.OfType<ToolCallNode>(), t => t.ToolName == "custom_tool");
+    }
+
+    [Fact]
+    public void Parse_SseWithRealFactory_RoutesToTextParserNotRawNode()
+    {
+        // Arrange - use the REAL StructuredResponseFactory. Unlike a null-returning
+        // mock, the real factory never returns null: on a JSON parse failure it
+        // swallows the error and echoes the raw input back as TextContent. A
+        // structured-LOOKING but non-JSON SSE stream (accepted by
+        // IsStructuredResponseFormat) must therefore still be routed to the text
+        // parser rather than emitted verbatim as a single raw plain-text node.
+        var textParser = new Mock<ILlmResponseParser>();
+        var realFactory = new StructuredResponseFactory();
+        var parser = new HybridLlmParser(textParser.Object, realFactory);
+
+        var sseResponse = @"event: message
+data: {""content"": ""hello"", ""tool_calls"": []}
+
+event: done
+data: [DONE]";
+
+        // A distinctive result so we can prove the text parser produced the output.
+        var textParserResult = new ResponseNode();
+        textParserResult.Children.Add(new TextNode { Content = "hello" });
+        textParserResult.Children.Add(new ToolCallNode { ToolName = "extracted_by_text_parser" });
+
+        textParser
+            .Setup(p => p.Parse(sseResponse, It.IsAny<ParserContext?>()))
+            .Returns(textParserResult);
+
+        // Act
+        var result = parser.Parse(sseResponse);
+
+        // Assert - the SSE stream was handed to the text parser exactly once, and its
+        // (structured) output was used verbatim.
+        textParser.Verify(p => p.Parse(sseResponse, It.IsAny<ParserContext?>()), Times.Once);
+        Assert.Same(textParserResult, result);
+        Assert.Contains(result.Children.OfType<ToolCallNode>(), t => t.ToolName == "extracted_by_text_parser");
+
+        // Guard against the regression: the raw SSE payload must NOT be passed
+        // through as one plain-text node by the factory.
+        Assert.DoesNotContain(result.Children.OfType<TextNode>(), n => n.Content == sseResponse);
+    }
+
+    [Fact]
+    public void Parse_GenuineJsonWithRealFactory_GoesThroughFactory()
+    {
+        // Arrange - real factory, genuine OpenAI JSON. Issue #16's requirement is
+        // that real structured JSON still flows through the injected factory. The
+        // real factory stamps Provider = "openai"; the built-in fallback would use
+        // "structured", so the provider proves which path handled the input.
+        var textParser = new Mock<ILlmResponseParser>();
+        var realFactory = new StructuredResponseFactory();
+        var parser = new HybridLlmParser(textParser.Object, realFactory);
+
+        var openAiJson = @"{
+            ""choices"": [{
+                ""message"": {
+                    ""content"": ""working on it"",
+                    ""tool_calls"": [{
+                        ""id"": ""call_1"",
+                        ""type"": ""function"",
+                        ""function"": { ""name"": ""lookup"", ""arguments"": ""{}"" }
+                    }]
+                },
+                ""finish_reason"": ""tool_calls""
+            }],
+            ""model"": ""gpt-4""
+        }";
+
+        // Act
+        var result = parser.Parse(openAiJson);
+
+        // Assert - the real factory handled it (Provider "openai", not "structured"),
+        // and the text parser was never involved.
+        Assert.Equal("openai", result.ModelProvider);
+        Assert.Contains(result.Children.OfType<ToolCallNode>(), t => t.ToolName == "lookup");
+        textParser.Verify(p => p.Parse(It.IsAny<string>(), It.IsAny<ParserContext?>()), Times.Never);
+    }
+
     private static async IAsyncEnumerable<string> ToAsyncEnumerable(IEnumerable<string> items)
     {
         foreach (var item in items)
         {
             yield return item;
             await Task.Yield();
+        }
+    }
+
+    /// <summary>
+    /// An async stream that can only be enumerated once; a second enumeration throws.
+    /// Mirrors the behaviour of non-replayable network/provider streams.
+    /// </summary>
+    private sealed class SingleUseAsyncEnumerable : IAsyncEnumerable<string>
+    {
+        private readonly IEnumerable<string> _items;
+        private int _enumerationCount;
+
+        public SingleUseAsyncEnumerable(IEnumerable<string> items)
+        {
+            _items = items;
+        }
+
+        public int EnumerationCount => _enumerationCount;
+
+        public IAsyncEnumerator<string> GetAsyncEnumerator(CancellationToken cancellationToken = default)
+        {
+            if (Interlocked.Increment(ref _enumerationCount) > 1)
+            {
+                throw new InvalidOperationException("This stream can only be enumerated once.");
+            }
+
+            return new Enumerator(_items.GetEnumerator());
+        }
+
+        private sealed class Enumerator : IAsyncEnumerator<string>
+        {
+            private readonly IEnumerator<string> _inner;
+
+            public Enumerator(IEnumerator<string> inner)
+            {
+                _inner = inner;
+            }
+
+            public string Current => _inner.Current;
+
+            public ValueTask<bool> MoveNextAsync() => new(_inner.MoveNext());
+
+            public ValueTask DisposeAsync()
+            {
+                _inner.Dispose();
+                return default;
+            }
         }
     }
 }

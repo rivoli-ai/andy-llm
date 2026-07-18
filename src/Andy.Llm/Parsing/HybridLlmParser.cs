@@ -92,10 +92,18 @@ public class HybridLlmParser : ILlmResponseParser
         var structuredDetectionComplete = false;
         var initialChunks = new List<string>();
 
+        // Enumerate the input stream manually so it is consumed exactly once.
+        // When the format is detected as text we hand the REMAINDER of this same
+        // enumerator (concatenated with the already-consumed chunks) to the text
+        // parser instead of re-enumerating the original source.
+        await using var enumerator = chunks.GetAsyncEnumerator(cancellationToken);
+
         try
         {
-            await foreach (var chunk in chunks.WithCancellation(cancellationToken))
+            while (await enumerator.MoveNextAsync())
             {
+                var chunk = enumerator.Current;
+
                 if (!structuredDetectionComplete)
                 {
                     buffer.Append(chunk);
@@ -119,8 +127,9 @@ public class HybridLlmParser : ILlmResponseParser
                             // Switch to text streaming
                             _logger?.LogDebug("Detected text format in stream, delegating to text parser");
 
-                            // Create a new enumerable that includes buffered chunks
-                            var combinedChunks = CreateCombinedChunks(initialChunks, chunks, cancellationToken);
+                            // Combine the already-consumed chunks with the remainder of the
+                            // SAME enumerator so the input is never enumerated twice.
+                            var combinedChunks = CreateCombinedChunks(initialChunks, enumerator, cancellationToken);
                             return await _textParser.ParseStreamingAsync(combinedChunks, context, cancellationToken);
                         }
                     }
@@ -170,11 +179,13 @@ public class HybridLlmParser : ILlmResponseParser
     }
 
     /// <summary>
-    /// Creates a combined async enumerable from buffered chunks and remaining stream
+    /// Creates a combined async enumerable from the already-consumed buffered chunks
+    /// and the remainder of the original stream's enumerator. The enumerator is advanced
+    /// in place (never re-created), so the source stream is enumerated exactly once.
     /// </summary>
     private async IAsyncEnumerable<string> CreateCombinedChunks(
         List<string> bufferedChunks,
-        IAsyncEnumerable<string> remainingChunks,
+        IAsyncEnumerator<string> remainingChunks,
         [System.Runtime.CompilerServices.EnumeratorCancellation] CancellationToken cancellationToken)
     {
         // Yield buffered chunks first
@@ -183,10 +194,12 @@ public class HybridLlmParser : ILlmResponseParser
             yield return chunk;
         }
 
-        // Then yield remaining chunks
-        await foreach (var chunk in remainingChunks.WithCancellation(cancellationToken))
+        // Then yield the remainder of the same enumerator. The enumerator itself is
+        // owned (and disposed) by the caller, so we only advance it here.
+        while (await remainingChunks.MoveNextAsync())
         {
-            yield return chunk;
+            cancellationToken.ThrowIfCancellationRequested();
+            yield return remainingChunks.Current;
         }
     }
 
@@ -284,17 +297,169 @@ public class HybridLlmParser : ILlmResponseParser
         try
         {
             // Try to detect if this looks like structured JSON containing tool calls
-            if (IsStructuredResponseFormat(input))
+            if (!IsStructuredResponseFormat(input))
             {
-                return ParseStructuredJson(input);
+                return null;
             }
 
-            return null;
+            // IsStructuredResponseFormat also accepts inputs that merely LOOK
+            // structured but are not a single JSON document (SSE event:/data:
+            // streams, JSONL, malformed JSON). Neither the injected factory nor the
+            // built-in JSON parser can meaningfully handle those: the real
+            // StructuredResponseFactory swallows JSON parse errors and returns the
+            // raw input as TextContent, which would surface here as one plain-text
+            // node instead of the richer text-parser output. Gate the structured
+            // path on actual JSON validity so non-JSON content falls through to the
+            // text parser (the pre-#16 behaviour).
+            if (!IsValidJson(input))
+            {
+                return null;
+            }
+
+            // Prefer the caller-supplied structured factory. Only fall back to the
+            // built-in JSON parsing when the factory cannot produce a response.
+            var fromFactory = TryCreateFromStructuredFactory(input);
+            if (fromFactory != null)
+            {
+                return fromFactory;
+            }
+
+            return ParseStructuredJson(input);
         }
         catch (Exception ex)
         {
             _logger?.LogDebug(ex, "Failed to parse as structured response, treating as text");
             return null;
+        }
+    }
+
+    /// <summary>
+    /// Builds a structured response using the injected <see cref="IStructuredResponseFactory"/>,
+    /// routing to the provider-specific factory method based on the detected format.
+    /// Returns null when the factory produces no usable response so the caller can
+    /// fall back to the built-in parsing.
+    /// </summary>
+    private StructuredLlmResponse? TryCreateFromStructuredFactory(string input)
+    {
+        try
+        {
+            return IsAnthropicStructuredFormat(input)
+                ? _structuredFactory.CreateFromAnthropic(input)
+                : _structuredFactory.CreateFromOpenAI(input);
+        }
+        catch (Exception ex)
+        {
+            _logger?.LogDebug(ex, "Structured factory could not create a response, using built-in parsing");
+            return null;
+        }
+    }
+
+    /// <summary>
+    /// Returns true only when the entire input parses as a single valid JSON
+    /// document. Used to gate the structured factory / structured-JSON path so that
+    /// inputs which merely look structured (SSE streams, JSONL, malformed JSON) are
+    /// routed to the text parser rather than passed through as one raw-text node.
+    /// </summary>
+    private static bool IsValidJson(string input)
+    {
+        if (string.IsNullOrWhiteSpace(input))
+        {
+            return false;
+        }
+
+        try
+        {
+            using var _ = System.Text.Json.JsonDocument.Parse(input);
+            return true;
+        }
+        catch (System.Text.Json.JsonException)
+        {
+            return false;
+        }
+    }
+
+    /// <summary>
+    /// Determines whether the input looks like an Anthropic-style structured response,
+    /// which the factory handles differently from OpenAI/generic formats. This is only
+    /// consulted for inputs already confirmed to be valid JSON, so it inspects the
+    /// parsed structure rather than matching raw substrings (which could misroute an
+    /// OpenAI payload whose text happens to contain "tool_use"/"stop_reason"/etc.).
+    /// </summary>
+    private static bool IsAnthropicStructuredFormat(string input)
+    {
+        if (string.IsNullOrWhiteSpace(input))
+        {
+            return false;
+        }
+
+        try
+        {
+            using var doc = System.Text.Json.JsonDocument.Parse(input);
+            var root = doc.RootElement;
+
+            if (root.ValueKind != System.Text.Json.JsonValueKind.Object)
+            {
+                return false;
+            }
+
+            // OpenAI-shaped payloads take precedence: a choices array or a
+            // "chat.completion" envelope is never Anthropic.
+            if (root.TryGetProperty("choices", out _))
+            {
+                return false;
+            }
+
+            if (root.TryGetProperty("object", out var objectKind) &&
+                objectKind.ValueKind == System.Text.Json.JsonValueKind.String &&
+                (objectKind.GetString()?.StartsWith("chat.completion", StringComparison.Ordinal) ?? false))
+            {
+                return false;
+            }
+
+            // Anthropic messages carry a top-level stop_reason, a "type":"message"
+            // envelope, usage.input_tokens, or a content array of typed blocks.
+            if (root.TryGetProperty("stop_reason", out _))
+            {
+                return true;
+            }
+
+            if (root.TryGetProperty("type", out var typeProp) &&
+                typeProp.ValueKind == System.Text.Json.JsonValueKind.String &&
+                typeProp.GetString() == "message")
+            {
+                return true;
+            }
+
+            if (root.TryGetProperty("usage", out var usage) &&
+                usage.ValueKind == System.Text.Json.JsonValueKind.Object &&
+                usage.TryGetProperty("input_tokens", out _))
+            {
+                return true;
+            }
+
+            if (root.TryGetProperty("content", out var content) &&
+                content.ValueKind == System.Text.Json.JsonValueKind.Array)
+            {
+                foreach (var block in content.EnumerateArray())
+                {
+                    if (block.ValueKind == System.Text.Json.JsonValueKind.Object &&
+                        block.TryGetProperty("type", out var blockType) &&
+                        blockType.ValueKind == System.Text.Json.JsonValueKind.String)
+                    {
+                        var kind = blockType.GetString();
+                        if (kind == "tool_use" || kind == "text")
+                        {
+                            return true;
+                        }
+                    }
+                }
+            }
+
+            return false;
+        }
+        catch (System.Text.Json.JsonException)
+        {
+            return false;
         }
     }
 
