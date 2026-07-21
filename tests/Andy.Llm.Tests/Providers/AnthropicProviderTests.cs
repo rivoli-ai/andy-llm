@@ -19,8 +19,8 @@ namespace Andy.Llm.Tests.Providers;
 /// Unit coverage for <see cref="AnthropicProvider"/>. The provider is a
 /// direct HttpClient implementation of the Anthropic Messages API; tests
 /// stub <see cref="HttpMessageHandler"/> to assert wire-shape correctness
-/// without hitting the real service. The opt-in integration test against
-/// a real API key lives in <see cref="AnthropicIntegrationTests"/>.
+/// without hitting the real service. Opt-in live API coverage is intentionally
+/// kept separate from this deterministic unit suite.
 /// </summary>
 public class AnthropicProviderTests
 {

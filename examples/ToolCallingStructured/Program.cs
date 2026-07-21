@@ -18,7 +18,7 @@ namespace ToolCallingStructured;
 /// </summary>
 class Program
 {
-    static async Task Main(string[] args)
+    static async Task Main()
     {
         // Setup DI container
         var services = new ServiceCollection();
@@ -347,7 +347,7 @@ public class ToolCallingExamples
     }
 
     // Helper methods
-    private async Task<object> ExecuteTool(string name, Dictionary<string, object?> arguments)
+    private async Task<object> ExecuteTool(string name, Dictionary<string, object?> _)
     {
         await Task.Delay(100); // Simulate execution
 

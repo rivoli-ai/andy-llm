@@ -8,7 +8,9 @@
     <!-- Not packable by default; only the shippable library under src/ opts in
          via IsPackable=true. Examples and test projects stay non-packable. -->
     <IsPackable>false</IsPackable>
-    <GenerateDocumentationFile>true</GenerateDocumentationFile>
+    <!-- Only the shippable library emits XML documentation. Examples and
+         tests should not produce public-API documentation warnings. -->
+    <GenerateDocumentationFile>false</GenerateDocumentationFile>
     <Authors>Rivoli AI</Authors>
     <Company>Rivoli AI</Company>
     <Copyright>Copyright © Rivoli AI</Copyright>
@@ -19,7 +21,10 @@
     <SymbolPackageFormat>snupkg</SymbolPackageFormat>
     <ContinuousIntegrationBuild Condition="'$(CI)' == 'true'">true</ContinuousIntegrationBuild>
     <Deterministic>true</Deterministic>
-    <Version>0.1.9</Version>
+    <!-- Published dependencies are currently prerelease-only, so the default
+         local package version must also be prerelease. CI overrides this with
+         its date-based prerelease version. -->
+    <Version>2026.7.21-rc.77</Version>
     <Description>Andy.Llm — Large Language Model integration library for .NET.</Description>
     <PackageRequireLicenseAcceptance>false</PackageRequireLicenseAcceptance>
     <PackageReadmeFile Condition="Exists('$(MSBuildThisFileDirectory)README.md')">README.md</PackageReadmeFile>

@@ -37,8 +37,10 @@ using Andy.Llm.Extensions;
 using Andy.Llm.Providers;
 using Microsoft.Extensions.DependencyInjection;
 
-// Configure providers from environment variables (e.g. OPENAI_API_KEY, OPENAI_MODEL)
+// Register the LLM services, then configure providers from environment variables
+// (for example, OPENAI_API_KEY and OPENAI_MODEL).
 var services = new ServiceCollection();
+services.AddLlmServices(_ => { });
 services.ConfigureLlmFromEnvironment();
 var serviceProvider = services.BuildServiceProvider();
 
@@ -140,10 +142,7 @@ using Microsoft.Extensions.DependencyInjection;
 
 var services = new ServiceCollection();
 
-// Configure from environment variables
-services.ConfigureLlmFromEnvironment();
-
-// Or configure programmatically with human-readable names
+// Register services and configure providers with human-readable names.
 services.AddLlmServices(options =>
 {
     options.DefaultProvider = "openai/latest-small";
@@ -163,6 +162,9 @@ services.AddLlmServices(options =>
         Enabled = false
     };
 });
+
+// Fill missing or placeholder values from environment variables.
+services.ConfigureLlmFromEnvironment();
 
 var serviceProvider = services.BuildServiceProvider();
 var factory = serviceProvider.GetRequiredService<ILlmProviderFactory>();

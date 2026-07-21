@@ -46,6 +46,11 @@ The `Model` under the gateway config is the **canonical catalog slug** (e.g. `op
 | `ANDY_MODELS_API_KEY` | Bearer token accepted by the gateway |
 | `ANDY_MODELS_MODEL` | Default catalog slug when a request doesn't specify one |
 
+When configuration comes only from the environment, all three variables are
+required before an enabled gateway provider is registered. When a gateway is
+already declared in application configuration, individual environment values
+can fill its missing or placeholder fields without creating a second provider.
+
 ## What the provider does
 
 - `POST /v1/chat/completions` to the gateway, forwarding messages, tools, temperature, `max_tokens`, and `top_p` in the standard OpenAI shape.

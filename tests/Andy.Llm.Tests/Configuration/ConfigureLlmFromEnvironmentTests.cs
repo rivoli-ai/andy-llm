@@ -1,5 +1,6 @@
 using Andy.Llm.Configuration;
 using Andy.Llm.Extensions;
+using Andy.Llm.Providers;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Options;
 using Xunit;
@@ -108,6 +109,7 @@ public class ConfigureLlmFromEnvironmentTests
             Environment.SetEnvironmentVariable("GOOGLE_API_KEY", "test-google-key");
 
             var services = new ServiceCollection();
+            services.AddLlmServices(_ => { });
             services.ConfigureLlmFromEnvironment();
 
             var sp = services.BuildServiceProvider();
@@ -160,6 +162,7 @@ public class ConfigureLlmFromEnvironmentTests
             Environment.SetEnvironmentVariable("ANDY_MODELS_MODEL", "openai/gpt-4o-mini");
 
             var services = new ServiceCollection();
+            services.AddLlmServices(_ => { });
             services.ConfigureLlmFromEnvironment();
 
             var sp = services.BuildServiceProvider();
@@ -172,6 +175,83 @@ public class ConfigureLlmFromEnvironmentTests
             Assert.Equal("https://gateway.example.com", gateway.ApiBase);
             Assert.Equal("openai/gpt-4o-mini", gateway.Model);
             Assert.True(gateway.Enabled);
+
+            var factory = sp.GetRequiredService<ILlmProviderFactory>();
+            var provider = factory.CreateProvider("gateway");
+            Assert.Equal("gateway", provider.Name);
+        }
+        finally
+        {
+            Environment.SetEnvironmentVariable("ANDY_MODELS_API_KEY", originalKey);
+            Environment.SetEnvironmentVariable("ANDY_MODELS_API_BASE", originalBase);
+            Environment.SetEnvironmentVariable("ANDY_MODELS_MODEL", originalModel);
+        }
+    }
+
+    [Fact]
+    public void ConfigureLlmFromEnvironment_DoesNotRegisterIncompleteGatewayProvider()
+    {
+        var originalKey = Environment.GetEnvironmentVariable("ANDY_MODELS_API_KEY");
+        var originalBase = Environment.GetEnvironmentVariable("ANDY_MODELS_API_BASE");
+        var originalModel = Environment.GetEnvironmentVariable("ANDY_MODELS_MODEL");
+        try
+        {
+            Environment.SetEnvironmentVariable("ANDY_MODELS_API_KEY", "test-gateway-key");
+            Environment.SetEnvironmentVariable("ANDY_MODELS_API_BASE", null);
+            Environment.SetEnvironmentVariable("ANDY_MODELS_MODEL", null);
+
+            var services = new ServiceCollection();
+            services.AddLlmServices(_ => { });
+            services.ConfigureLlmFromEnvironment();
+
+            using var sp = services.BuildServiceProvider();
+            var options = sp.GetRequiredService<IOptions<LlmOptions>>().Value;
+
+            Assert.False(options.Providers.ContainsKey("gateway"));
+            Assert.NotEqual("gateway", options.DefaultProvider);
+        }
+        finally
+        {
+            Environment.SetEnvironmentVariable("ANDY_MODELS_API_KEY", originalKey);
+            Environment.SetEnvironmentVariable("ANDY_MODELS_API_BASE", originalBase);
+            Environment.SetEnvironmentVariable("ANDY_MODELS_MODEL", originalModel);
+        }
+    }
+
+    [Fact]
+    public void ConfigureLlmFromEnvironment_MergesPartialGatewayEnvironmentIntoExistingProvider()
+    {
+        var originalKey = Environment.GetEnvironmentVariable("ANDY_MODELS_API_KEY");
+        var originalBase = Environment.GetEnvironmentVariable("ANDY_MODELS_API_BASE");
+        var originalModel = Environment.GetEnvironmentVariable("ANDY_MODELS_MODEL");
+        try
+        {
+            Environment.SetEnvironmentVariable("ANDY_MODELS_API_KEY", "test-gateway-key");
+            Environment.SetEnvironmentVariable("ANDY_MODELS_API_BASE", null);
+            Environment.SetEnvironmentVariable("ANDY_MODELS_MODEL", null);
+
+            var services = new ServiceCollection();
+            services.AddLlmServices(options =>
+            {
+                options.DefaultProvider = "gateway";
+                options.Providers["gateway"] = new ProviderConfig
+                {
+                    Provider = "gateway",
+                    ApiKey = "${ANDY_MODELS_API_KEY}",
+                    ApiBase = "https://gateway.example.com",
+                    Model = "openai/gpt-4o-mini",
+                    Enabled = true
+                };
+            });
+            services.ConfigureLlmFromEnvironment();
+
+            using var sp = services.BuildServiceProvider();
+            var options = sp.GetRequiredService<IOptions<LlmOptions>>().Value;
+
+            Assert.Equal("test-gateway-key", options.Providers["gateway"].ApiKey);
+            var factory = sp.GetRequiredService<ILlmProviderFactory>();
+            var provider = factory.CreateProvider("gateway");
+            Assert.Equal("gateway", provider.Name);
         }
         finally
         {

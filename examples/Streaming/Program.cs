@@ -83,8 +83,11 @@ public class StreamingExample
             {
                 new Message { Role = Role.User, Content = "Write a short poem about programming." }
             },
-            Config = new LlmClientConfig { Model = "gpt-4o-mini",
-            MaxTokens = 1000 }
+            Config = new LlmClientConfig
+            {
+                Model = "gpt-4o-mini",
+                MaxTokens = 1000
+            }
         };
 
         logger.LogInformation("Streaming response:");
@@ -126,8 +129,11 @@ public class StreamingExample
             {
                 new Message { Role = Role.User, Content = "Count from 1 to 100 slowly, one number at a time." }
             },
-            Config = new LlmClientConfig { Model = "gpt-4o-mini",
-            MaxTokens = 1000 }
+            Config = new LlmClientConfig
+            {
+                Model = "gpt-4o-mini",
+                MaxTokens = 1000
+            }
         };
 
         logger.LogInformation("Streaming (will cancel after 2 seconds):");
@@ -165,8 +171,11 @@ public class StreamingExample
             {
                 new Message { Role = Role.User, Content = "List 5 programming languages with brief descriptions." }
             },
-            Config = new LlmClientConfig { Model = "gpt-4o-mini",
-            MaxTokens = 1000 }
+            Config = new LlmClientConfig
+            {
+                Model = "gpt-4o-mini",
+                MaxTokens = 1000
+            }
         };
 
         logger.LogInformation("Streaming response with character count:");

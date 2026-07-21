@@ -102,7 +102,11 @@ public class GatewayProvider : Andy.Model.Llm.ILlmProvider
                 foreach (var node in arr)
                 {
                     var id = node?["id"]?.GetValue<string>();
-                    if (string.IsNullOrEmpty(id)) continue;
+                    if (string.IsNullOrEmpty(id))
+                    {
+                        continue;
+                    }
+
                     list.Add(new ModelInfo
                     {
                         Id = id,
@@ -190,24 +194,41 @@ public class GatewayProvider : Andy.Model.Llm.ILlmProvider
         string? line;
         while ((line = await reader.ReadLineAsync(cancellationToken)) != null)
         {
-            if (!line.StartsWith("data: ", StringComparison.Ordinal)) continue;
+            if (!line.StartsWith("data: ", StringComparison.Ordinal))
+            {
+                continue;
+            }
+
             var payload = line[6..];
-            if (payload == "[DONE]") break;
+            if (payload == "[DONE]")
+            {
+                break;
+            }
 
             JsonNode? chunk;
-            try { chunk = JsonNode.Parse(payload); }
+            try
+            { chunk = JsonNode.Parse(payload); }
             catch (JsonException ex)
             {
                 _logger.LogDebug(ex, "Unparseable gateway SSE chunk, skipping");
                 continue;
             }
-            if (chunk is null) continue;
+            if (chunk is null)
+            {
+                continue;
+            }
 
             var delta = chunk["choices"]?[0]?["delta"];
             var chunkFinish = chunk["choices"]?[0]?["finish_reason"]?.GetValue<string?>();
-            if (!string.IsNullOrEmpty(chunkFinish)) finishReason = chunkFinish;
+            if (!string.IsNullOrEmpty(chunkFinish))
+            {
+                finishReason = chunkFinish;
+            }
 
-            if (chunk["usage"] is { } u) usage = ReadUsage(u);
+            if (chunk["usage"] is { } u)
+            {
+                usage = ReadUsage(u);
+            }
 
             if (delta?["content"]?.GetValue<string?>() is { Length: > 0 } text)
             {
@@ -222,15 +243,27 @@ public class GatewayProvider : Andy.Model.Llm.ILlmProvider
             {
                 foreach (var tc in tcArray)
                 {
-                    if (tc is null) continue;
+                    if (tc is null)
+                    {
+                        continue;
+                    }
+
                     var index = tc["index"]?.GetValue<int?>() ?? 0;
                     if (!toolCallAccumulators.TryGetValue(index, out var acc))
                     {
                         acc = new ToolCallAccumulator();
                         toolCallAccumulators[index] = acc;
                     }
-                    if (tc["id"]?.GetValue<string?>() is { Length: > 0 } id) acc.Id = id;
-                    if (tc["function"]?["name"]?.GetValue<string?>() is { Length: > 0 } name) acc.Name = name;
+                    if (tc["id"]?.GetValue<string?>() is { Length: > 0 } id)
+                    {
+                        acc.Id = id;
+                    }
+
+                    if (tc["function"]?["name"]?.GetValue<string?>() is { Length: > 0 } name)
+                    {
+                        acc.Name = name;
+                    }
+
                     if (tc["function"]?["arguments"]?.GetValue<string?>() is { Length: > 0 } argFragment)
                     {
                         acc.Arguments.Append(argFragment);
@@ -291,9 +324,20 @@ public class GatewayProvider : Andy.Model.Llm.ILlmProvider
             ["stream"] = stream
         };
 
-        if (request.Config?.Temperature is { } temp) obj["temperature"] = (double)temp;
-        if (request.Config?.MaxTokens is int max && max > 0) obj["max_tokens"] = max;
-        if (request.Config?.TopP is { } topP && topP > 0m) obj["top_p"] = (double)topP;
+        if (request.Config?.Temperature is { } temp)
+        {
+            obj["temperature"] = (double)temp;
+        }
+
+        if (request.Config?.MaxTokens is int max && max > 0)
+        {
+            obj["max_tokens"] = max;
+        }
+
+        if (request.Config?.TopP is { } topP && topP > 0m)
+        {
+            obj["top_p"] = (double)topP;
+        }
 
         if (request.Tools.Count > 0)
         {
@@ -381,7 +425,11 @@ public class GatewayProvider : Andy.Model.Llm.ILlmProvider
     private static List<ToolCall> ReadToolCalls(JsonNode? node)
     {
         var list = new List<ToolCall>();
-        if (node is not JsonArray arr) return list;
+        if (node is not JsonArray arr)
+        {
+            return list;
+        }
+
         foreach (var tc in arr)
         {
             var id = tc?["id"]?.GetValue<string?>() ?? Guid.NewGuid().ToString("N");
@@ -394,11 +442,19 @@ public class GatewayProvider : Andy.Model.Llm.ILlmProvider
 
     private static LlmUsage? ReadUsage(JsonNode? node)
     {
-        if (node is null) return null;
+        if (node is null)
+        {
+            return null;
+        }
+
         var prompt = node["prompt_tokens"]?.GetValue<int?>() ?? 0;
         var completion = node["completion_tokens"]?.GetValue<int?>() ?? 0;
         var total = node["total_tokens"]?.GetValue<int?>() ?? (prompt + completion);
-        if (prompt == 0 && completion == 0 && total == 0) return null;
+        if (prompt == 0 && completion == 0 && total == 0)
+        {
+            return null;
+        }
+
         return new LlmUsage
         {
             PromptTokens = prompt,

@@ -13,7 +13,7 @@ using Microsoft.Extensions.Logging;
 /// </summary>
 public class ListModels
 {
-    public static async Task Main(string[] args)
+    public static async Task Main()
     {
         // Load configuration from appsettings.json
         var configuration = new ConfigurationBuilder()
@@ -33,7 +33,7 @@ public class ListModels
 
         var serviceProvider = services.BuildServiceProvider();
         var logger = serviceProvider.GetRequiredService<ILogger<ListModels>>();
-        
+
         try
         {
             var factory = serviceProvider.GetRequiredService<ILlmProviderFactory>();
@@ -63,9 +63,9 @@ public class ListModels
         try
         {
             logger.LogInformation("\n=== {Provider} Models ===", providerName.ToUpper());
-            
+
             var provider = factory.CreateProvider(providerName);
-            
+
             if (!await provider.IsAvailableAsync())
             {
                 logger.LogWarning("{Provider} is not available. Skipping...", providerName);
@@ -73,7 +73,7 @@ public class ListModels
             }
 
             var models = await provider.ListModelsAsync();
-            
+
             if (!models.Any())
             {
                 logger.LogInformation("No models found for {Provider}", providerName);
@@ -83,31 +83,43 @@ public class ListModels
             foreach (var model in models)
             {
                 logger.LogInformation("\nModel: {ModelId}", model.Id);
-                
+
                 if (!string.IsNullOrEmpty(model.Description))
+                {
                     logger.LogInformation("  Description: {Description}", model.Description);
-                
+                }
+
                 if (!string.IsNullOrEmpty(model.Family))
+                {
                     logger.LogInformation("  Family: {Family}", model.Family);
-                
+                }
+
                 if (!string.IsNullOrEmpty(model.ParameterSize))
+                {
                     logger.LogInformation("  Size: {Size}", model.ParameterSize);
-                
+                }
+
                 if (model.MaxTokens.HasValue)
+                {
                     logger.LogInformation("  Max Tokens: {MaxTokens:N0}", model.MaxTokens);
-                
+                }
+
                 logger.LogInformation("  Function Calling: {Supported}",
                     model.SupportsFunctions ? "Yes" : "No");
-                
+
                 logger.LogInformation("  Vision Support: {Supported}",
                     model.SupportsVision ? "Yes" : "No");
-                
+
                 if (model.IsFineTuned)
+                {
                     logger.LogInformation("  Type: Fine-tuned");
-                
+                }
+
                 if (model.Created.HasValue)
+                {
                     logger.LogInformation("  Created: {Created:yyyy-MM-dd}", model.Created);
-                
+                }
+
                 if (model.Metadata != null && model.Metadata.Any())
                 {
                     logger.LogInformation("  Metadata:");
@@ -117,12 +129,12 @@ public class ListModels
                     }
                 }
             }
-            
+
             logger.LogInformation("\nTotal {Provider} models: {Count}", providerName, models.Count());
         }
         catch (Exception ex)
         {
-            logger.LogError("Failed to list models for {Provider}: {Message}", 
+            logger.LogError("Failed to list models for {Provider}: {Message}",
                 providerName, ex.Message);
         }
     }
@@ -133,18 +145,20 @@ public class ListModels
 
         var providers = new[] { "openai/latest-large", "cerebras/fast-large", "azure/production", "ollama/local" };
         var allModels = new List<(string Provider, string ModelId, string? Description)>();
-        
+
         foreach (var providerName in providers)
         {
             try
             {
                 var provider = factory.CreateProvider(providerName);
-                
+
                 if (!await provider.IsAvailableAsync())
+                {
                     continue;
-                
+                }
+
                 var models = await provider.ListModelsAsync();
-                
+
                 foreach (var model in models)
                 {
                     allModels.Add((providerName, model.Id, model.Description));
@@ -155,23 +169,27 @@ public class ListModels
                 // Skip failed providers
             }
         }
-        
+
         if (allModels.Any())
         {
             logger.LogInformation("\nAll available models ({Count} total):", allModels.Count);
-            
+
             // Group by provider
             var groupedModels = allModels.GroupBy(m => m.Provider);
-            
+
             foreach (var group in groupedModels)
             {
                 logger.LogInformation("\n{Provider}:", group.Key.ToUpper());
                 foreach (var model in group)
                 {
                     if (!string.IsNullOrEmpty(model.Description))
+                    {
                         logger.LogInformation("  - {ModelId}: {Description}", model.ModelId, model.Description);
+                    }
                     else
+                    {
                         logger.LogInformation("  - {ModelId}", model.ModelId);
+                    }
                 }
             }
         }

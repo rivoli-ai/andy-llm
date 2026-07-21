@@ -29,9 +29,46 @@ jobs:
     
     - name: Restore dependencies
       run: dotnet restore
+
+    - name: Verify formatting
+      if: matrix.os == 'ubuntu-latest'
+      run: dotnet format --verify-no-changes --no-restore
     
     - name: Build
       run: dotnet build --configuration Release --no-restore
     
     - name: Test
       run: dotnet test --configuration Release --no-build --verbosity normal
+
+    - name: Verify package
+      if: matrix.os == 'ubuntu-latest'
+      run: >-
+        dotnet pack src/Andy.Llm/Andy.Llm.csproj
+        --configuration Release
+        --no-build
+        --output ./artifacts/ci
+        -p:WarningsAsErrors=NU5104
+
+    - name: Verify repository and package hygiene
+      if: matrix.os == 'ubuntu-latest'
+      shell: bash
+      run: |
+        tracked_artifacts=$(git ls-files | grep -Ei '(^|/)(bin|obj|TestResults|CoverageReport|artifacts|node_modules|\.idea|\.vscode)(/|$)|(^|/)(\.DS_Store|Thumbs\.db)$|\.(dll|exe|pdb|nupkg|snupkg|trx|binlog|user|suo|tmp)$' || true)
+        if [[ -n "$tracked_artifacts" ]]; then
+          echo "Unexpected tracked artifacts:"
+          echo "$tracked_artifacts"
+          exit 1
+        fi
+
+        package=$(find ./artifacts/ci -maxdepth 1 -name '*.nupkg' ! -name '*.snupkg' -print -quit)
+        if [[ -z "$package" ]]; then
+          echo "No NuGet package was produced."
+          exit 1
+        fi
+
+        unexpected_entries=$(unzip -Z1 "$package" | grep -Ei '(^|/)(bin|obj|TestResults|CoverageReport|node_modules|\.idea|\.vscode)(/|$)|(^|/)(\.DS_Store|Thumbs\.db)$|\.(exe|pdb|trx|binlog|user|suo|tmp)$' || true)
+        if [[ -n "$unexpected_entries" ]]; then
+          echo "Unexpected package entries:"
+          echo "$unexpected_entries"
+          exit 1
+        fi
