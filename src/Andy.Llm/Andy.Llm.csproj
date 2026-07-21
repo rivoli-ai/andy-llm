@@ -2,6 +2,7 @@
 
   <PropertyGroup>
     <IsPackable>true</IsPackable>
+    <GenerateDocumentationFile>true</GenerateDocumentationFile>
     <PackageTags>llm;ai;openai;cerebras;azure;ollama;gpt;chatgpt;ml;machine-learning;nlp</PackageTags>
     <RepositoryUrl>https://github.com/rivoli-ai/andy-llm</RepositoryUrl>
     <PackageProjectUrl>https://github.com/rivoli-ai/andy-llm</PackageProjectUrl>

@@ -148,7 +148,9 @@ internal class ResponsesApiStrategy : IOpenAIApiStrategy
             var line = await reader.ReadLineAsync(cancellationToken);
 
             if (string.IsNullOrEmpty(line))
+            {
                 continue;
+            }
 
             // SSE format: "event: <type>" followed by "data: <json>"
             if (line.StartsWith("event: "))
@@ -157,7 +159,9 @@ internal class ResponsesApiStrategy : IOpenAIApiStrategy
                 var dataLine = await reader.ReadLineAsync(cancellationToken);
 
                 if (dataLine == null || !dataLine.StartsWith("data: "))
+                {
                     continue;
+                }
 
                 var data = dataLine["data: ".Length..];
 
@@ -368,7 +372,9 @@ internal class ResponsesApiStrategy : IOpenAIApiStrategy
         {
             var status = statusProp.GetString();
             if (status == "failed")
+            {
                 finishReason = "error";
+            }
         }
 
         // Extract usage
@@ -452,7 +458,9 @@ internal class ResponsesApiStrategy : IOpenAIApiStrategy
                         }
 
                         if (argDelta != null)
+                        {
                             acc.Arguments += argDelta;
+                        }
                     }
                 }
                 break;
@@ -593,7 +601,9 @@ internal class ResponsesApiStrategy : IOpenAIApiStrategy
         }
 
         if (!found)
+        {
             return null;
+        }
 
         var inputTokens = usageProp.TryGetProperty("input_tokens", out var it) ? it.GetInt32() : 0;
         var outputTokens = usageProp.TryGetProperty("output_tokens", out var ot) ? ot.GetInt32() : 0;
@@ -622,7 +632,9 @@ internal class ResponsesApiStrategy : IOpenAIApiStrategy
         {
             var reason = reasonProp.GetString();
             if (reason == "max_output_tokens")
+            {
                 return "length";
+            }
         }
 
         return "incomplete";

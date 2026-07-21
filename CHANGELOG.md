@@ -7,6 +7,19 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Fixed
+- Environment-only setup examples now register the provider factory before use
+- Gateway environment configuration no longer creates an enabled provider when
+  one or more constructor-required `ANDY_MODELS_*` values are missing
+- Default local package metadata remains prerelease while published dependencies
+  are available only as prerelease packages
+
+### Changed
+- Added repository-level formatting and package validation guidance
+- Removed stale development artifacts and consolidated agent instructions
+- Expanded ignore rules for local secrets, editor settings, and configuration
+  overrides
+
 ## [0.1.9] - 2026-07-17
 
 ### Added

@@ -23,7 +23,9 @@ public static partial class ToolArgumentJsonRepair
     {
         repairedJson = "{}";
         if (string.IsNullOrWhiteSpace(raw))
+        {
             return false;
+        }
 
         foreach (var candidate in Candidates(raw))
         {
@@ -46,7 +48,10 @@ public static partial class ToolArgumentJsonRepair
     public static string Normalize(string? raw)
     {
         if (string.IsNullOrWhiteSpace(raw))
+        {
             return "{}";
+        }
+
         return TryRepair(raw, out var json) ? json : "{}";
     }
 
@@ -57,7 +62,9 @@ public static partial class ToolArgumentJsonRepair
     public static Dictionary<string, object?> ParseArguments(string? raw)
     {
         if (!TryRepair(raw, out var json))
+        {
             return new Dictionary<string, object?>();
+        }
 
         using var doc = JsonDocument.Parse(json);
         return ToDictionary(doc.RootElement);
@@ -81,7 +88,9 @@ public static partial class ToolArgumentJsonRepair
             }
 
             if (root.ValueKind != JsonValueKind.Object)
+            {
                 return false;
+            }
 
             json = root.GetRawText();
             return true;
@@ -101,44 +110,75 @@ public static partial class ToolArgumentJsonRepair
 
         // 1. As-is (so valid JSON is never altered).
         var asIs = raw.Trim();
-        if (New(asIs)) yield return asIs;
+        if (New(asIs))
+        {
+            yield return asIs;
+        }
 
         // 2. Strip a markdown code fence.
         var fenced = StripCodeFence(asIs);
-        if (New(fenced)) yield return fenced;
+        if (New(fenced))
+        {
+            yield return fenced;
+        }
 
         // 3. Narrow to the outermost {...} (drops surrounding prose).
         var braced = ExtractOutermostBraces(fenced) ?? fenced;
-        if (New(braced)) yield return braced;
+        if (New(braced))
+        {
+            yield return braced;
+        }
 
         // 4. Progressive structural repairs, applied cumulatively on the braced text.
         var step = braced;
 
         step = NormalizeSmartQuotes(step);
-        if (New(step)) yield return step;
+        if (New(step))
+        {
+            yield return step;
+        }
 
         var singleFixed = SingleToDoubleQuotes(step);
-        if (New(singleFixed)) yield return singleFixed;
+        if (New(singleFixed))
+        {
+            yield return singleFixed;
+        }
+
         step = singleFixed;
 
         step = QuoteUnquotedKeys(step);
-        if (New(step)) yield return step;
+        if (New(step))
+        {
+            yield return step;
+        }
 
         step = NormalizePythonLiterals(step);
-        if (New(step)) yield return step;
+        if (New(step))
+        {
+            yield return step;
+        }
 
         step = RemoveTrailingCommas(step);
-        if (New(step)) yield return step;
+        if (New(step))
+        {
+            yield return step;
+        }
     }
 
     private static string StripCodeFence(string s)
     {
         if (!s.Contains("```", StringComparison.Ordinal))
+        {
             return s;
+        }
+
         var first = s.IndexOf("```", StringComparison.Ordinal);
         var afterOpen = s.IndexOf('\n', first);
         if (afterOpen < 0)
+        {
             return s;
+        }
+
         var close = s.IndexOf("```", afterOpen, StringComparison.Ordinal);
         var body = close < 0 ? s[(afterOpen + 1)..] : s[(afterOpen + 1)..close];
         return body.Trim();
@@ -163,7 +203,10 @@ public static partial class ToolArgumentJsonRepair
     private static string SingleToDoubleQuotes(string s)
     {
         if (s.Contains('"') || !s.Contains('\''))
+        {
             return s;
+        }
+
         return s.Replace('\'', '"');
     }
 
@@ -186,7 +229,10 @@ public static partial class ToolArgumentJsonRepair
     {
         var dict = new Dictionary<string, object?>();
         foreach (var prop in obj.EnumerateObject())
+        {
             dict[prop.Name] = ToValue(prop.Value);
+        }
+
         return dict;
     }
 

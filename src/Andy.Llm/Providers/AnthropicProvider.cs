@@ -337,7 +337,7 @@ public class AnthropicProvider : Andy.Model.Llm.ILlmProvider
                     ArgumentsJson = ToolArgumentJsonRepair.Normalize(kvp.Value.InputJson)
                 })
                 .ToList()
-            : null;
+            : [];
 
         yield return new LlmStreamResponse
         {
@@ -666,7 +666,7 @@ public class AnthropicProvider : Andy.Model.Llm.ILlmProvider
             {
                 Role = Role.Assistant,
                 Content = textBuilder.ToString(),
-                ToolCalls = toolCalls.Count > 0 ? toolCalls : null
+                ToolCalls = toolCalls
             },
             Model = response.Model ?? model,
             FinishReason = response.StopReason,
@@ -725,7 +725,10 @@ public class AnthropicProvider : Andy.Model.Llm.ILlmProvider
                 return Enumerable.Empty<LlmStreamResponse>();
 
             case "content_block_delta":
-                if (ev.Delta is null) return Enumerable.Empty<LlmStreamResponse>();
+                if (ev.Delta is null)
+                {
+                    return Enumerable.Empty<LlmStreamResponse>();
+                }
 
                 if (ev.Delta.Type == "text_delta" && !string.IsNullOrEmpty(ev.Delta.Text))
                 {

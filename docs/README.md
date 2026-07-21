@@ -13,8 +13,8 @@ Welcome to the Andy.Llm documentation! This directory contains comprehensive doc
 - [Telemetry & Monitoring](TELEMETRY.md) - Metrics, tracing, and monitoring capabilities
 
 ### Development
-- [Test Results](development/TEST_RESULTS.md) - Test coverage and results
-- [Development Agents](development/agents.md) - AI agent development notes
+- [Contributing Guide](../CONTRIBUTING.md) - Build, test, formatting, and contribution workflow
+- [Agent Instructions](../AGENTS.md) - Repository guidance for coding agents
 
 ### Troubleshooting
 - [Examples Fixes](troubleshooting/EXAMPLES_FIXES_SUMMARY.md) - Common issues and fixes for examples

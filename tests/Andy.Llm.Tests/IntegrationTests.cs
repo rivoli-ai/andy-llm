@@ -189,7 +189,7 @@ public class IntegrationTests : IClassFixture<IntegrationTests.IntegrationTestFi
         else
         {
             // If no tool calls, this is a failure - the model should use tools
-            Assert.True(false, $"Cerebras llama-3.3-70b did not make tool calls. Response: {response.Content}");
+            Assert.Fail($"Cerebras llama-3.3-70b did not make tool calls. Response: {response.Content}");
         }
     }
 
@@ -208,7 +208,7 @@ public class IntegrationTests : IClassFixture<IntegrationTests.IntegrationTestFi
 
         var request = new LlmRequest
         {
-            Messages = new List<Message> {new Message {Role = Role.User, Content = "Count from 1 to 5."}},
+            Messages = new List<Message> { new Message { Role = Role.User, Content = "Count from 1 to 5." } },
             Config = new LlmClientConfig
             {
                 Model = "gpt-4o-mini",

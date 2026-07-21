@@ -16,7 +16,7 @@ namespace Andy.Llm.Tests;
 public class FunctionCallingTests
 {
     [Fact]
-    public async Task CompleteAsync_WithToolCalls_ShouldIncludeCallIdInToolResults()
+    public void CompleteAsync_WithToolCalls_ShouldIncludeCallIdInToolResults()
     {
         // Arrange
         var mockProvider = new Mock<Andy.Model.Llm.ILlmProvider>();

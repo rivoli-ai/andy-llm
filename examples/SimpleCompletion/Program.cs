@@ -13,18 +13,18 @@ public class SimpleCompletion
 {
     public static async Task Main()
     {
-// Example: Simple text completion with OpenAI and Cerebras
-// Load configuration from appsettings.json
+        // Example: Simple text completion with OpenAI and Cerebras
+        // Load configuration from appsettings.json
         var configuration = new ConfigurationBuilder()
             .SetBasePath(AppContext.BaseDirectory)
             .AddJsonFile("appsettings.json", optional: false)
             .AddEnvironmentVariables()
             .Build();
 
-// Setup services
+        // Setup services
         var services = new ServiceCollection();
         services.AddLogging(builder => builder.AddCleanConsole());
-// Configure providers from appsettings.json, then environment variables will merge
+        // Configure providers from appsettings.json, then environment variables will merge
         services.AddLlmServices(configuration);
         services.ConfigureLlmFromEnvironment();
         var serviceProvider = services.BuildServiceProvider();
@@ -65,7 +65,7 @@ public class SimpleCompletion
                         new Message {Role = Role.User, Content = userPrompt2}
                     },
                     // Model is optional - will use default llama3.1-8b
-                    Config = new LlmClientConfig {MaxTokens = 100, Temperature = 0.7M}
+                    Config = new LlmClientConfig { MaxTokens = 100, Temperature = 0.7M }
                 };
                 var cerebrasResponse = await cerebrasProvider.CompleteAsync(cerebrasRequest);
                 logger.LogInformation("Assistant: {Response}\n", cerebrasResponse.Content);
@@ -85,8 +85,8 @@ public class SimpleCompletion
 
             var streamRequest = new LlmRequest
             {
-                Messages = new List<Message> {new Message {Role = Role.User, Content = userPrompt3}},
-                Config = new LlmClientConfig {Model = "gpt-4o-mini", MaxTokens = 200}
+                Messages = new List<Message> { new Message { Role = Role.User, Content = userPrompt3 } },
+                Config = new LlmClientConfig { Model = "gpt-4o-mini", MaxTokens = 200 }
             };
 
             var streamedText = string.Empty;

@@ -31,6 +31,9 @@ jobs:
     
     - name: Restore dependencies
       run: dotnet restore
+
+    - name: Verify formatting
+      run: dotnet format --verify-no-changes --no-restore
     
     - name: Build
       run: dotnet build --configuration Release --no-restore
@@ -41,19 +44,20 @@ jobs:
     - name: Pack
       run: |
         # Determine version
-        if [[ $GITHUB_REF == refs/tags/v* ]]; then
-          VERSION=${GITHUB_REF#refs/tags/v}
+        if [[ "$GITHUB_REF" == refs/tags/v* ]]; then
+          VERSION="${GITHUB_REF#refs/tags/v}"
         else
-          VERSION=$(date +%Y.%m.%d)-rc.$GITHUB_RUN_NUMBER
+          VERSION="$(date +%Y.%m.%d)-rc.${GITHUB_RUN_NUMBER}"
         fi
         
-        echo "VERSION=$VERSION" >> $GITHUB_ENV
+        echo "VERSION=$VERSION" >> "$GITHUB_ENV"
         
         dotnet pack src/Andy.Llm/Andy.Llm.csproj \
           --configuration Release \
           --no-build \
           --output ./artifacts \
-          -p:PackageVersion=$VERSION
+          "-p:PackageVersion=$VERSION" \
+          -p:WarningsAsErrors=NU5104
     
     - name: Upload artifacts
       uses: actions/upload-artifact@v5

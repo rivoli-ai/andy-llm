@@ -40,7 +40,9 @@ By participating in this project, you agree to abide by our Code of Conduct:
 
 4. **Run Tests**
    ```bash
+   dotnet format --verify-no-changes
    dotnet test
+   dotnet pack src/Andy.Llm/Andy.Llm.csproj --configuration Release
    ```
 
 5. **Commit Your Changes**

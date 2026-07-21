@@ -77,7 +77,9 @@ public class RoundtripTests
 
         var chunks = new List<LlmStreamResponse>();
         await foreach (var c in provider.StreamCompleteAsync(req))
+        {
             chunks.Add(c);
+        }
 
         Assert.Contains(chunks, c => c.TextDelta != null);
         Assert.Contains(chunks, c => c.FunctionCall != null);

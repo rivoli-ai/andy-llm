@@ -178,7 +178,10 @@ public static class ServiceCollectionExtensions
                 !string.IsNullOrEmpty(value) && value.StartsWith("${") && value.EndsWith("}");
 
             // Helper method to merge provider configuration from environment variables
-            void MergeProviderConfig(string providerType, ProviderConfig envConfig)
+            void MergeProviderConfig(
+                string providerType,
+                ProviderConfig envConfig,
+                bool createWhenMissing = true)
             {
                 // Find all existing providers of this type (e.g., "openai/latest-small" has Provider="openai")
                 // This allows hierarchical configurations to receive environment variable overrides
@@ -225,7 +228,7 @@ public static class ServiceCollectionExtensions
                         // CRITICAL: Keep existing Enabled and Priority values - NEVER override from environment!
                     }
                 }
-                else if (!hasExistingConfig)
+                else if (!hasExistingConfig && createWhenMissing)
                 {
                     // Legacy mode: No appsettings.json configuration exists at all
                     // Create provider from environment variables for backward compatibility
@@ -328,7 +331,16 @@ public static class ServiceCollectionExtensions
             var gatewayBase = Environment.GetEnvironmentVariable("ANDY_MODELS_API_BASE");
             var gatewayModel = Environment.GetEnvironmentVariable("ANDY_MODELS_MODEL");
 
-            if (!string.IsNullOrEmpty(gatewayKey))
+            var hasAnyGatewayEnvironmentValue =
+                !string.IsNullOrEmpty(gatewayKey) ||
+                !string.IsNullOrEmpty(gatewayBase) ||
+                !string.IsNullOrEmpty(gatewayModel);
+            var hasCompleteGatewayEnvironment =
+                !string.IsNullOrEmpty(gatewayKey) &&
+                !string.IsNullOrEmpty(gatewayBase) &&
+                !string.IsNullOrEmpty(gatewayModel);
+
+            if (hasAnyGatewayEnvironmentValue)
             {
                 MergeProviderConfig("gateway", new ProviderConfig
                 {
@@ -337,7 +349,7 @@ public static class ServiceCollectionExtensions
                     ApiBase = gatewayBase,
                     Model = gatewayModel,
                     Enabled = true
-                });
+                }, createWhenMissing: hasCompleteGatewayEnvironment);
             }
 
             // Local/Ollama configuration

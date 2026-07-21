@@ -29,7 +29,10 @@ public class ProviderFactoryTests
         {
             options.Providers["openai"] = new ProviderConfig
             {
-                ApiKey = TestApiKey, ApiBase = TestApiBase, Model = "gpt-4o", Provider = "openai"
+                ApiKey = TestApiKey,
+                ApiBase = TestApiBase,
+                Model = "gpt-4o",
+                Provider = "openai"
             };
         });
 
@@ -50,7 +53,10 @@ public class ProviderFactoryTests
         {
             options.Providers["openai"] = new ProviderConfig
             {
-                ApiKey = TestApiKey, ApiBase = TestApiBase, Model = "gpt-4o", Provider = "openai"
+                ApiKey = TestApiKey,
+                ApiBase = TestApiBase,
+                Model = "gpt-4o",
+                Provider = "openai"
             };
             options.Providers["openai/codex-mini"] = new ProviderConfig
             {
@@ -82,7 +88,9 @@ public class ProviderFactoryTests
         {
             options.Providers["openai"] = new ProviderConfig
             {
-                ApiKey = TestApiKey, ApiBase = TestApiBase, Model = "gpt-4o"
+                ApiKey = TestApiKey,
+                ApiBase = TestApiBase,
+                Model = "gpt-4o"
             };
             options.Providers["openai/codex-mini"] = new ProviderConfig
             {
@@ -195,7 +203,9 @@ public class ProviderFactoryTests
         {
             options.Providers["openai"] = new ProviderConfig
             {
-                ApiKey = TestApiKey, ApiBase = TestApiBase, Model = "gpt-4o"
+                ApiKey = TestApiKey,
+                ApiBase = TestApiBase,
+                Model = "gpt-4o"
             };
             // No "openai/missing" config entry
         });
@@ -218,7 +228,9 @@ public class ProviderFactoryTests
             options.DefaultProvider = "openai/codex-mini";
             options.Providers["openai"] = new ProviderConfig
             {
-                ApiKey = TestApiKey, ApiBase = TestApiBase, Model = "gpt-4o"
+                ApiKey = TestApiKey,
+                ApiBase = TestApiBase,
+                Model = "gpt-4o"
             };
             options.Providers["openai/codex-mini"] = new ProviderConfig
             {

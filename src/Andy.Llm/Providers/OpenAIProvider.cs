@@ -318,7 +318,10 @@ public class OpenAIProvider : Andy.Model.Llm.ILlmProvider
 
     private static string? GetModelDescription(string? modelId)
     {
-        if (modelId == null) return null;
+        if (modelId == null)
+        {
+            return null;
+        }
 
         return modelId switch
         {
@@ -337,7 +340,10 @@ public class OpenAIProvider : Andy.Model.Llm.ILlmProvider
 
     private static string? GetModelFamily(string? modelId)
     {
-        if (modelId == null) return null;
+        if (modelId == null)
+        {
+            return null;
+        }
 
         return modelId switch
         {
@@ -355,7 +361,10 @@ public class OpenAIProvider : Andy.Model.Llm.ILlmProvider
 
     private static string? GetParameterSize(string? modelId)
     {
-        if (modelId == null) return null;
+        if (modelId == null)
+        {
+            return null;
+        }
 
         return modelId switch
         {
@@ -368,7 +377,10 @@ public class OpenAIProvider : Andy.Model.Llm.ILlmProvider
 
     private static int? GetMaxTokens(string? modelId)
     {
-        if (modelId == null) return null;
+        if (modelId == null)
+        {
+            return null;
+        }
 
         return modelId switch
         {
@@ -385,13 +397,20 @@ public class OpenAIProvider : Andy.Model.Llm.ILlmProvider
 
     private static bool SupportsFunctionCalling(string? modelId)
     {
-        if (modelId == null) return false;
+        if (modelId == null)
+        {
+            return false;
+        }
+
         return modelId.StartsWith("gpt-") || modelId.Contains("codex");
     }
 
     private static bool SupportsVision(string? modelId)
     {
-        if (modelId == null) return false;
+        if (modelId == null)
+        {
+            return false;
+        }
 
         return modelId.Contains("gpt-4o") ||
                modelId.Contains("gpt-4-turbo") ||

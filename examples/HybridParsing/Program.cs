@@ -14,7 +14,7 @@ namespace HybridParsing;
 /// </summary>
 class Program
 {
-    static async Task Main(string[] args)
+    static async Task Main()
     {
         // Setup DI container
         var services = new ServiceCollection();
@@ -25,15 +25,15 @@ class Program
         var loggerFactory = serviceProvider.GetRequiredService<ILoggerFactory>();
 
         var examples = new HybridParsingExamples(loggerFactory);
-        
+
         Console.WriteLine("=== Hybrid Parsing Examples ===\n");
-        
-        await examples.ParseOpenAIResponse();
-        await examples.ParseAnthropicResponse();
-        await examples.ParseTextWithEmbeddedTools();
-        await examples.ParseMixedContent();
+
+        examples.ParseOpenAIResponse();
+        examples.ParseAnthropicResponse();
+        examples.ParseTextWithEmbeddedTools();
+        examples.ParseMixedContent();
         await examples.StreamingExample();
-        await examples.ASTTraversalExample();
+        examples.ASTTraversalExample();
     }
 }
 
@@ -45,13 +45,13 @@ public class HybridParsingExamples
     public HybridParsingExamples(ILoggerFactory loggerFactory)
     {
         _loggerFactory = loggerFactory;
-        
+
         // Create the hybrid parser with a text parser fallback
         var textParser = new SimpleTextParser(); // Your text parser implementation
         var structuredFactory = new StructuredResponseFactory(
             loggerFactory.CreateLogger<StructuredResponseFactory>()
         );
-        
+
         _hybridParser = new HybridLlmParser(
             textParser,
             structuredFactory,
@@ -62,7 +62,7 @@ public class HybridParsingExamples
     /// <summary>
     /// Parse an OpenAI-style structured response
     /// </summary>
-    public async Task ParseOpenAIResponse()
+    public void ParseOpenAIResponse()
     {
         Console.WriteLine("1. OpenAI Structured Response");
         Console.WriteLine("-----------------------------");
@@ -106,12 +106,12 @@ public class HybridParsingExamples
         }";
 
         var ast = _hybridParser.Parse(openAIResponse);
-        
+
         Console.WriteLine($"Provider: {ast.ModelProvider}");
         Console.WriteLine($"Model: {ast.ModelName}");
         Console.WriteLine($"Total Tokens: {ast.ResponseMetadata.TokenCount}");
         Console.WriteLine("\nContent:");
-        
+
         PrintAST(ast);
         Console.WriteLine();
     }
@@ -119,7 +119,7 @@ public class HybridParsingExamples
     /// <summary>
     /// Parse an Anthropic-style response with content blocks
     /// </summary>
-    public async Task ParseAnthropicResponse()
+    public void ParseAnthropicResponse()
     {
         Console.WriteLine("2. Anthropic Structured Response");
         Console.WriteLine("--------------------------------");
@@ -166,11 +166,11 @@ public class HybridParsingExamples
         }";
 
         var ast = _hybridParser.Parse(anthropicResponse);
-        
+
         Console.WriteLine($"Provider: {ast.ModelProvider}");
         Console.WriteLine($"Finish Reason: {ast.ResponseMetadata.FinishReason}");
         Console.WriteLine("\nContent Flow:");
-        
+
         foreach (var node in ast.Children)
         {
             switch (node)
@@ -196,7 +196,7 @@ public class HybridParsingExamples
     /// <summary>
     /// Parse text response with embedded tool calls (Qwen-style)
     /// </summary>
-    public async Task ParseTextWithEmbeddedTools()
+    public void ParseTextWithEmbeddedTools()
     {
         Console.WriteLine("3. Text with Embedded Tool Calls");
         Console.WriteLine("--------------------------------");
@@ -212,10 +212,10 @@ Based on the current rate, I'll now convert your amount.
 The conversion shows that $1000 USD equals approximately €920 EUR at today's exchange rate.";
 
         var ast = _hybridParser.Parse(textResponse);
-        
+
         Console.WriteLine("Parsed Content Structure:");
         int elementCount = 1;
-        
+
         foreach (var node in ast.Children)
         {
             Console.WriteLine($"{elementCount++}. {node.NodeType}: {GetNodeSummary(node)}");
@@ -226,7 +226,7 @@ The conversion shows that $1000 USD equals approximately €920 EUR at today's e
     /// <summary>
     /// Parse mixed content with various node types
     /// </summary>
-    public async Task ParseMixedContent()
+    public void ParseMixedContent()
     {
         Console.WriteLine("4. Mixed Content Parsing");
         Console.WriteLine("-----------------------");
@@ -249,18 +249,18 @@ The conversion shows that $1000 USD equals approximately €920 EUR at today's e
         }";
 
         var ast = _hybridParser.Parse(mixedResponse);
-        
+
         Console.WriteLine("Content Analysis:");
-        
+
         // Count different node types
         var nodeTypes = ast.Children.GroupBy(n => n.NodeType)
             .Select(g => new { Type = g.Key, Count = g.Count() });
-        
+
         foreach (var nodeType in nodeTypes)
         {
             Console.WriteLine($"- {nodeType.Type}: {nodeType.Count}");
         }
-        
+
         // Show tool calls
         var toolCalls = ast.Children.OfType<ToolCallNode>();
         foreach (var tool in toolCalls)
@@ -307,11 +307,11 @@ The conversion shows that $1000 USD equals approximately €920 EUR at today's e
         }
 
         var ast = await _hybridParser.ParseStreamingAsync(ToAsyncEnumerable(chunks));
-        
+
         Console.WriteLine("\nParsed Result:");
         Console.WriteLine($"- Complete: {ast.ResponseMetadata.IsComplete}");
         Console.WriteLine($"- Nodes: {ast.Children.Count}");
-        
+
         foreach (var node in ast.Children)
         {
             Console.WriteLine($"  - {node.NodeType}");
@@ -322,7 +322,7 @@ The conversion shows that $1000 USD equals approximately €920 EUR at today's e
     /// <summary>
     /// AST traversal and visitor pattern example
     /// </summary>
-    public async Task ASTTraversalExample()
+    public void ASTTraversalExample()
     {
         Console.WriteLine("6. AST Traversal Example");
         Console.WriteLine("-----------------------");
@@ -346,24 +346,24 @@ The conversion shows that $1000 USD equals approximately €920 EUR at today's e
         }";
 
         var ast = _hybridParser.Parse(response);
-        
+
         // Create a custom visitor to extract specific information
         var visitor = new ToolCallExtractor();
         var rootInfo = ast.Accept(visitor);
-        
+
         Console.WriteLine("AST Visitor Results:");
         Console.WriteLine($"- Root node processed: {rootInfo}");
         Console.WriteLine($"- Tool calls found: {visitor.ToolCalls.Count}");
-        
+
         foreach (var tool in visitor.ToolCalls)
         {
             Console.WriteLine($"  - {tool.ToolName}: {tool.CallId}");
         }
-        
+
         // Validate the AST
         var validation = _hybridParser.Validate(ast);
         Console.WriteLine($"\nValidation: {(validation.IsValid ? "✅ Valid" : "❌ Invalid")}");
-        
+
         if (!validation.IsValid)
         {
             foreach (var issue in validation.Issues)
@@ -378,7 +378,7 @@ The conversion shows that $1000 USD equals approximately €920 EUR at today's e
     private void PrintAST(AstNode node, int indent = 0)
     {
         var indentStr = new string(' ', indent * 2);
-        
+
         switch (node)
         {
             case ResponseNode response:
@@ -387,11 +387,11 @@ The conversion shows that $1000 USD equals approximately €920 EUR at today's e
                     PrintAST(child, indent);
                 }
                 break;
-                
+
             case TextNode text:
                 Console.WriteLine($"{indentStr}📝 Text: {text.Content.Substring(0, Math.Min(50, text.Content.Length))}...");
                 break;
-                
+
             case ToolCallNode tool:
                 Console.WriteLine($"{indentStr}🔧 Tool: {tool.ToolName} (ID: {tool.CallId})");
                 if (tool.Arguments != null && tool.Arguments.Any())
@@ -399,20 +399,20 @@ The conversion shows that $1000 USD equals approximately €920 EUR at today's e
                     Console.WriteLine($"{indentStr}   Args: {string.Join(", ", tool.Arguments.Keys)}");
                 }
                 break;
-                
+
             case ToolResultNode result:
                 Console.WriteLine($"{indentStr}✅ Result: {result.ToolName} - {(result.IsSuccess ? "Success" : "Failed")}");
                 break;
-                
+
             case ErrorNode error:
                 Console.WriteLine($"{indentStr}❌ Error: {error.Message}");
                 break;
-                
+
             default:
                 Console.WriteLine($"{indentStr}📦 {node.NodeType}");
                 break;
         }
-        
+
         foreach (var child in node.Children)
         {
             PrintAST(child, indent + 1);
@@ -423,8 +423,8 @@ The conversion shows that $1000 USD equals approximately €920 EUR at today's e
     {
         return node switch
         {
-            TextNode text => text.Content.Length > 50 
-                ? text.Content.Substring(0, 47) + "..." 
+            TextNode text => text.Content.Length > 50
+                ? text.Content.Substring(0, 47) + "..."
                 : text.Content,
             ToolCallNode tool => $"{tool.ToolName}({tool.Arguments?.Count ?? 0} args)",
             ErrorNode error => error.Message,
@@ -459,7 +459,7 @@ public class ToolCallExtractor : IAstVisitor<string>
     }
 
     public string VisitText(TextNode node) => "TextNode";
-    
+
     public string VisitToolCall(ToolCallNode node)
     {
         ToolCalls.Add(node);
@@ -509,12 +509,12 @@ public class SimpleTextParser : ILlmResponseParser
         System.Threading.CancellationToken cancellationToken = default)
     {
         var buffer = new System.Text.StringBuilder();
-        
+
         await foreach (var chunk in chunks.WithCancellation(cancellationToken))
         {
             buffer.Append(chunk);
         }
-        
+
         return Parse(buffer.ToString(), context);
     }
 

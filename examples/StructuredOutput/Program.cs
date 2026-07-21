@@ -17,7 +17,7 @@ namespace StructuredOutput;
 /// </summary>
 class Program
 {
-    static async Task Main(string[] args)
+    static void Main()
     {
         // Setup DI container
         var services = new ServiceCollection();
@@ -26,13 +26,13 @@ class Program
         var loggerFactory = serviceProvider.GetRequiredService<ILoggerFactory>();
         // Run examples
         var examples = new StructuredOutputExamples(loggerFactory);
-        
+
         Console.WriteLine("=== Structured Output Examples ===\n");
-        await examples.BasicJsonSchemaExample();
-        await examples.DataExtractionExample();
-        await examples.ClassificationExample();
-        await examples.MultiStepPlanningExample();
-        await examples.ErrorHandlingExample();
+        examples.BasicJsonSchemaExample();
+        examples.DataExtractionExample();
+        examples.ClassificationExample();
+        examples.MultiStepPlanningExample();
+        examples.ErrorHandlingExample();
     }
 }
 public class StructuredOutputExamples
@@ -47,7 +47,7 @@ public class StructuredOutputExamples
     /// <summary>
     /// Basic example using JSON schema for structured output
     /// </summary>
-    public async Task BasicJsonSchemaExample()
+    public void BasicJsonSchemaExample()
     {
         Console.WriteLine("1. Basic JSON Schema Example");
         Console.WriteLine("----------------------------");
@@ -75,7 +75,7 @@ public class StructuredOutputExamples
         {
             Messages = new List<Message>
             {
-                new Message { Role = Role.System, Content = "You are a product data generator. Always respond with valid JSON matching the provided schema." },
+                new Message { Role = Role.System, Content = $"You are a product data generator. Respond with valid JSON matching this schema:\n{productSchema}" },
                 new Message { Role = Role.User, Content = "Generate a sample product for a tech store." }
             },
             Config = new LlmClientConfig
@@ -112,7 +112,7 @@ public class StructuredOutputExamples
     /// <summary>
     /// Extract structured data from unstructured text
     /// </summary>
-    public async Task DataExtractionExample()
+    public void DataExtractionExample()
     {
         Console.WriteLine("2. Data Extraction Example");
         Console.WriteLine("--------------------------");
@@ -149,7 +149,7 @@ public class StructuredOutputExamples
         // Simulate an LLM request with schema
         var messages = new List<Message>
         {
-            new Message { Role = Role.System, Content = "Extract structured information from the text according to the schema." },
+            new Message { Role = Role.System, Content = $"Extract structured information from the text according to this schema:\n{extractionSchema}" },
             new Message { Role = Role.User, Content = unstructuredText }
         };
         // Note: In a real scenario, you would pass the extractionSchema to the LLM
@@ -188,7 +188,7 @@ public class StructuredOutputExamples
     /// <summary>
     /// Classification with confidence scores
     /// </summary>
-    public async Task ClassificationExample()
+    public void ClassificationExample()
     {
         Console.WriteLine("3. Classification Example");
         Console.WriteLine("------------------------");
@@ -229,7 +229,7 @@ public class StructuredOutputExamples
         // Simulate an LLM request with classification schema
         var messages = new List<Message>
         {
-            new Message { Role = Role.System, Content = "Classify the customer feedback according to the schema." },
+            new Message { Role = Role.System, Content = $"Classify the customer feedback according to this schema:\n{classificationSchema}" },
             new Message { Role = Role.User, Content = customerFeedback }
         };
         var classificationResult = @"{
@@ -256,7 +256,7 @@ public class StructuredOutputExamples
     /// <summary>
     /// Multi-step planning with structured outputs
     /// </summary>
-    public async Task MultiStepPlanningExample()
+    public void MultiStepPlanningExample()
     {
         Console.WriteLine("4. Multi-Step Planning Example");
         Console.WriteLine("------------------------------");
@@ -297,7 +297,7 @@ public class StructuredOutputExamples
         // Simulate an LLM request with planning schema
         var messages = new List<Message>
         {
-            new Message { Role = Role.System, Content = "Create a detailed execution plan matching the schema." },
+            new Message { Role = Role.System, Content = $"Create a detailed execution plan matching this schema:\n{planSchema}" },
             new Message { Role = Role.User, Content = task }
         };
         var plan = @"{
@@ -367,7 +367,7 @@ public class StructuredOutputExamples
     /// <summary>
     /// Error handling and validation example
     /// </summary>
-    public async Task ErrorHandlingExample()
+    public void ErrorHandlingExample()
     {
         Console.WriteLine("5. Error Handling Example");
         // Create a structured response factory for parsing
@@ -393,7 +393,7 @@ public class StructuredOutputExamples
         {
             Console.WriteLine($"Tool: {toolCall.Name}");
             Console.WriteLine($"Call ID: {toolCall.Id}");
-            
+
             if (toolCall.ParseError != null)
             {
                 Console.WriteLine($"⚠️ Parse Error: {toolCall.ParseError.Message}");
