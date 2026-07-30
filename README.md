@@ -65,6 +65,8 @@ Console.WriteLine(response.Content);
 ### Structured Output with JSON Schema
 
 > **Note:** First-class schema enforcement on the request (dedicated `ResponseFormat`, `JsonSchema`, and `StrictMode` fields) is not yet implemented — it is tracked as a TODO in [examples/StructuredOutput](examples/StructuredOutput/). Today you request JSON by instructing the model through a system message and then parse the response with the parsing utilities (see [Hybrid Parsing](#hybrid-parsing-for-any-response-format) below).
+>
+> The response side is covered by `Andy.Llm.StructuredOutput`: screen schemas with `JsonSchemaPolicy` (size, depth, keyword-count, and vocabulary limits), then classify and validate model output with `StructuredOutputParser`, which returns a `StructuredOutputResult` distinguishing success, provider refusal, truncation, malformed JSON, schema mismatch, invalid schema, and unsupported capability. Four canonical schemas for the Andy Analyst use cases (analysis plan, child-task result, classification, extraction) ship as embedded resources via `CanonicalSchemas`.
 
 ```csharp
 using Andy.Model.Llm;
@@ -97,6 +99,32 @@ var request = new LlmRequest
 
 var response = await provider.CompleteAsync(request);
 // response.Content contains the JSON produced by the model
+```
+
+Validate the model's output against the schema before using it:
+
+```csharp
+using Andy.Llm.StructuredOutput;
+
+// Optional: screen the schema once (size/depth/keyword limits, supported vocabulary)
+var policy = JsonSchemaPolicy.Validate(schema);
+if (!policy.IsValid) { /* fix the schema, not the prompt */ }
+
+var result = StructuredOutputParser.FromResponse(response, schema);
+switch (result.Status)
+{
+    case StructuredOutputStatus.Success:
+        var payload = result.Value;               // JsonNode; or result.GetValue<T>()
+        break;
+    case StructuredOutputStatus.SchemaMismatch:
+        // result.SchemaIssues pinpoints each violation by instance path
+        break;
+    case StructuredOutputStatus.Truncated:
+    case StructuredOutputStatus.Refusal:
+    case StructuredOutputStatus.MalformedJson:
+        // retry / repair strategies
+        break;
+}
 ```
 
 ### Hybrid Parsing for Any Response Format

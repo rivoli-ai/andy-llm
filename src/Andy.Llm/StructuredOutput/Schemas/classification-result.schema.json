@@ -1,0 +1,33 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "ClassificationResult",
+  "description": "A single-label classification with confidence and rationale, as produced when an analysis step categorizes an input.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["category", "confidence", "rationale"],
+  "properties": {
+    "category": {
+      "type": "string",
+      "enum": ["factual", "analytical", "comparative", "speculative", "out-of-scope"]
+    },
+    "confidence": {
+      "type": "number",
+      "minimum": 0,
+      "maximum": 1
+    },
+    "rationale": {
+      "type": "string",
+      "minLength": 1,
+      "description": "Why this category was chosen."
+    },
+    "secondaryCategories": {
+      "type": "array",
+      "maxItems": 3,
+      "uniqueItems": true,
+      "items": {
+        "type": "string",
+        "enum": ["factual", "analytical", "comparative", "speculative", "out-of-scope"]
+      }
+    }
+  }
+}

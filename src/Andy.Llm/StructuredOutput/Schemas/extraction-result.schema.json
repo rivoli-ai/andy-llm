@@ -1,0 +1,47 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "ExtractionResult",
+  "description": "Entities and values extracted from source text during an analysis task.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["entities"],
+  "properties": {
+    "entities": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["name", "kind", "value"],
+        "properties": {
+          "name": {
+            "type": "string",
+            "minLength": 1,
+            "description": "The entity as named in the source text."
+          },
+          "kind": {
+            "type": "string",
+            "enum": ["person", "organization", "location", "date", "metric", "monetary", "percentage", "other"]
+          },
+          "value": {
+            "type": ["string", "number", "boolean"],
+            "description": "The extracted value associated with the entity."
+          },
+          "unit": {
+            "type": "string",
+            "description": "Unit of measure for metric, monetary, or percentage values."
+          },
+          "confidence": {
+            "type": "number",
+            "minimum": 0,
+            "maximum": 1
+          }
+        }
+      }
+    },
+    "warnings": {
+      "type": "array",
+      "items": { "type": "string" },
+      "description": "Extraction caveats, such as ambiguous spans or low-confidence regions."
+    }
+  }
+}
