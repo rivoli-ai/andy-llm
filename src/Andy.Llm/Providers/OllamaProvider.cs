@@ -321,7 +321,7 @@ public class OllamaProvider : Andy.Model.Llm.ILlmProvider
 
         try
         {
-            while (!reader.EndOfStream && !cancellationToken.IsCancellationRequested)
+            while (!cancellationToken.IsCancellationRequested)
             {
                 string? line = null;
                 try
@@ -331,6 +331,11 @@ public class OllamaProvider : Andy.Model.Llm.ILlmProvider
                 catch (OperationCanceledException)
                 {
                     _logger.LogDebug("Ollama streaming cancelled during read");
+                    break;
+                }
+
+                if (line is null)
+                {
                     break;
                 }
 
