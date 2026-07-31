@@ -271,7 +271,7 @@ public class AnthropicProvider : Andy.Model.Llm.ILlmProvider
             string? eventName = null;
             string? dataLine = null;
 
-            while (!reader.EndOfStream && !cancellationToken.IsCancellationRequested)
+            while (!cancellationToken.IsCancellationRequested)
             {
                 string? line;
                 try
@@ -284,8 +284,13 @@ public class AnthropicProvider : Andy.Model.Llm.ILlmProvider
                     break;
                 }
 
+                if (line is null)
+                {
+                    break;
+                }
+
                 // Blank line = end of an SSE event. Process whatever we have.
-                if (string.IsNullOrEmpty(line))
+                if (line.Length == 0)
                 {
                     if (eventName != null && dataLine != null)
                     {

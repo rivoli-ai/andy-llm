@@ -68,7 +68,7 @@ By participating in this project, you agree to abide by our Code of Conduct:
 ### Development Setup
 
 1. **Prerequisites**
-   - .NET 8.0 SDK or later
+   - .NET 10.0 SDK or later
    - Visual Studio 2022, VS Code, or JetBrains Rider
    - Git
 

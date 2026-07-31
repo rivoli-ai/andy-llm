@@ -4,7 +4,7 @@ This guide will help you understand and use the Andy.Llm library effectively.
 
 ## Prerequisites
 
-- .NET 8.0 or later
+- .NET 10.0 or later
 - An API key from at least one supported provider:
   - **OpenAI**: API key from platform.openai.com
   - **Cerebras**: API key from Cerebras Cloud

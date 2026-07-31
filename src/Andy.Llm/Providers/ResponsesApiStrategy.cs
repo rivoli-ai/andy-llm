@@ -143,9 +143,14 @@ internal class ResponsesApiStrategy : IOpenAIApiStrategy
         var accumulatedText = new StringBuilder();
         var streamState = new StreamState();
 
-        while (!reader.EndOfStream && !cancellationToken.IsCancellationRequested)
+        while (!cancellationToken.IsCancellationRequested)
         {
             var line = await reader.ReadLineAsync(cancellationToken);
+
+            if (line is null)
+            {
+                break;
+            }
 
             if (string.IsNullOrEmpty(line))
             {
