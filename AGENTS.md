@@ -18,13 +18,13 @@ This file contains the shared project guidance for coding-agent sessions.
 
 ### Platform-Specific Notes (macOS)
 
-- Never use Mono or `.exe` files. This is a .NET 8.0 project running natively on macOS.
+- Never use Mono or `.exe` files. This is a .NET 10.0 project running natively on macOS.
 - Use `dotnet run` instead of compiling to `.exe` and running with Mono.
 - Use `dotnet <command>` for all .NET operations.
 
 ## Project Information
 
-- **Target Framework**: .NET 8.0
+- **Target Framework**: .NET 10.0
 - **Test Framework**: xUnit
 - **Coverage Tool**: Coverlet
 - **Report Generator**: ReportGenerator global tool

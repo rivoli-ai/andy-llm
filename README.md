@@ -14,7 +14,7 @@ A flexible, provider-agnostic .NET library for integrating with Large Language M
 2. **OpenAI Compatibility**: First-class support for OpenAI-compatible APIs
 3. **Extensibility**: Easy to add new providers without modifying core logic
 4. **Type Safety**: Strongly-typed models and interfaces
-5. **Modern .NET**: Built on .NET 8.0 with latest C# features
+5. **Modern .NET**: Built on .NET 10.0 with latest C# features
 6. **Production Ready**: Comprehensive error handling, logging, and testing
 7. **Resilient**: Built-in retry policies and circuit breakers with Polly
 8. **Observable**: Telemetry, metrics, and distributed tracing support
