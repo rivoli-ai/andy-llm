@@ -16,6 +16,12 @@
   </ItemGroup>
 
   <ItemGroup>
+    <!-- Canonical structured-output JSON Schemas (LLM-I105), surfaced through
+         CanonicalSchemas so consumers and tests share the exact same documents. -->
+    <EmbeddedResource Include="StructuredOutput/Schemas/*.json" />
+  </ItemGroup>
+
+  <ItemGroup>
     <InternalsVisibleTo Include="Andy.Llm.Tests" />
   </ItemGroup>
 

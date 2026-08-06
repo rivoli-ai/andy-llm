@@ -1,0 +1,57 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "AnalysisPlan",
+  "description": "A research-analysis plan decomposed into tasks with explicit dependencies. Each task may declare the JSON Schema of the output it is expected to produce.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["goal", "tasks"],
+  "properties": {
+    "goal": {
+      "type": "string",
+      "minLength": 1,
+      "description": "The overall research or analysis goal the plan achieves."
+    },
+    "assumptions": {
+      "type": "array",
+      "items": { "type": "string" },
+      "description": "Assumptions the plan relies on."
+    },
+    "tasks": {
+      "type": "array",
+      "minItems": 1,
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["id", "title", "instructions", "dependsOn"],
+        "properties": {
+          "id": {
+            "type": "string",
+            "minLength": 1,
+            "description": "Stable task identifier referenced by other tasks' dependsOn lists."
+          },
+          "title": { "type": "string", "minLength": 1 },
+          "instructions": {
+            "type": "string",
+            "minLength": 1,
+            "description": "What the executing agent should do for this task."
+          },
+          "dependsOn": {
+            "type": "array",
+            "uniqueItems": true,
+            "items": { "type": "string" },
+            "description": "Ids of tasks that must complete before this task starts."
+          },
+          "toolHint": {
+            "type": "string",
+            "enum": ["search", "fetch", "calculate", "analyze", "write", "none"],
+            "description": "The tool most likely needed to execute the task."
+          },
+          "outputSchema": {
+            "type": "object",
+            "description": "Inline JSON Schema describing this task's expected structured output."
+          }
+        }
+      }
+    }
+  }
+}

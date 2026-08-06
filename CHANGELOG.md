@@ -7,6 +7,17 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+- `Andy.Llm.StructuredOutput` namespace for schema-governed structured output:
+  `JsonSchemaPolicy` screens JSON Schemas against configurable size, depth, and
+  keyword-count limits and rejects unsupported vocabulary and `$ref` with typed
+  issues; `JsonSchemaValidator` validates instances against the supported
+  keyword subset; `StructuredOutputParser` classifies provider output into a
+  `StructuredOutputResult` envelope distinguishing success, refusal, truncation,
+  malformed JSON, schema mismatch, invalid schema, and unsupported capability
+- Canonical structured-output schemas (analysis plan, child-task result,
+  classification, extraction) shipped as embedded resources via `CanonicalSchemas`
+
 ### Fixed
 - Environment-only setup examples now register the provider factory before use
 - Gateway environment configuration no longer creates an enabled provider when
