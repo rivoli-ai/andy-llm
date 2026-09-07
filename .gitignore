@@ -100,3 +100,4 @@ nunit-*.xml
 *.exe
 *.tmp
 debug_types.exe
+.coord/state/
