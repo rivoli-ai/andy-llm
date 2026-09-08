@@ -248,7 +248,7 @@ public class OpenRouterProviderTests
     }
 
     [Fact]
-    public async Task CompleteAsync_NonSuccess_ThrowsWithStatusAndBody()
+    public async Task CompleteAsync_NonSuccess_ThrowsStructuredStatusAndMessage()
     {
         var (provider, handler) = Build();
         handler.Enqueue(new HttpResponseMessage(HttpStatusCode.PaymentRequired)
@@ -258,7 +258,7 @@ public class OpenRouterProviderTests
                 Encoding.UTF8, "application/json")
         });
 
-        var ex = await Assert.ThrowsAsync<InvalidOperationException>(() =>
+        var ex = await Assert.ThrowsAsync<Andy.Llm.Errors.LlmProviderException>(() =>
             provider.CompleteAsync(new LlmRequest
             {
                 Messages = new[] { new Message { Role = Role.User, Content = "hi" } }
@@ -266,6 +266,28 @@ public class OpenRouterProviderTests
 
         Assert.Contains("402", ex.Message);
         Assert.Contains("Insufficient credits", ex.Message);
+    }
+
+    [Fact]
+    public async Task StreamCompleteAsync_RateLimitRetainsHttpAndUpstreamMetadata()
+    {
+        var (provider, handler) = Build();
+        var response = new HttpResponseMessage(HttpStatusCode.TooManyRequests)
+        {
+            Content = new StringContent("""{"error":{"message":"Provider returned error","metadata":{"provider_name":"Moonshot AI","raw":"Model is temporarily rate-limited.","retry_after_seconds":9}},"user_id":"private-user"}""")
+        };
+        response.Headers.RetryAfter = new System.Net.Http.Headers.RetryConditionHeaderValue(TimeSpan.FromSeconds(3));
+        handler.Enqueue(response);
+        var error = await Assert.ThrowsAsync<Andy.Llm.Errors.LlmProviderException>(async () =>
+        {
+            await foreach (var chunk in provider.StreamCompleteAsync(new LlmRequest { Messages = [] }))
+            { }
+        });
+        Assert.Equal(429, error.Error.StatusCode);
+        Assert.Equal(3, error.Error.RetryAfterSeconds);
+        Assert.Equal("Moonshot AI", error.Error.Provider);
+        Assert.Contains("rate-limited", error.Error.Message);
+        Assert.DoesNotContain("private-user", error.Message);
     }
 
     [Fact]
@@ -412,7 +434,7 @@ public class OpenRouterProviderTests
     }
 
     [Fact]
-    public async Task StreamCompleteAsync_NonSuccess_YieldsErrorFrame()
+    public async Task StreamCompleteAsync_NonSuccess_ThrowsStructuredFailure()
     {
         var (provider, handler) = Build();
         handler.Enqueue(new HttpResponseMessage(HttpStatusCode.Unauthorized)
@@ -421,20 +443,16 @@ public class OpenRouterProviderTests
                 Encoding.UTF8, "application/json")
         });
 
-        var chunks = new List<LlmStreamResponse>();
-        await foreach (var chunk in provider.StreamCompleteAsync(new LlmRequest
+        var error = await Assert.ThrowsAsync<Andy.Llm.Errors.LlmProviderException>(async () =>
         {
-            Messages = new[] { new Message { Role = Role.User, Content = "x" } }
-        }))
-        {
-            chunks.Add(chunk);
-        }
-
-        var error = Assert.Single(chunks);
-        Assert.True(error.IsComplete);
-        Assert.NotNull(error.Error);
-        Assert.Contains("401", error.Error);
-        Assert.Contains("No auth credentials found", error.Error);
+            await foreach (var chunk in provider.StreamCompleteAsync(new LlmRequest
+            {
+                Messages = new[] { new Message { Role = Role.User, Content = "x" } }
+            }))
+            { }
+        });
+        Assert.Equal(401, error.Error.StatusCode);
+        Assert.Equal("No auth credentials found", error.Error.Message);
     }
 
     [Fact]

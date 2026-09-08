@@ -728,3 +728,10 @@ For security concerns, please email security@rivoli-ai.com
 ## Changelog
 
 See [CHANGELOG.md](CHANGELOG.md) for version history and release notes.
+
+## 2026-09-07: Structured provider failures
+
+`LlmProviderException.Error` preserves provider, HTTP status, retry-after seconds
+and a bounded human message. OpenRouter captures HTTP metadata before disposing
+the response. `ErrorReportingLlmProvider` normalizes complete and streaming failures
+for hosts while preserving cancellation and unsupported-stream fallback (#42).

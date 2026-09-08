@@ -229,8 +229,7 @@ public class OpenRouterProvider : Andy.Model.Llm.ILlmProvider
             // and AnthropicProvider.
             _logger.LogError("OpenRouter non-success {Status} for {ConfigName}: {Body}",
                 (int)httpResponse.StatusCode, _configName, Truncate(responseText));
-            throw new InvalidOperationException(
-                $"OpenRouter request failed (status {(int)httpResponse.StatusCode}): {Truncate(responseText)}");
+            throw Andy.Llm.Errors.LlmProviderException.FromHttpResponse(Name, httpResponse, responseText);
         }
 
         var root = JsonNode.Parse(responseText)
@@ -279,12 +278,7 @@ public class OpenRouterProvider : Andy.Model.Llm.ILlmProvider
         if (!httpResponse.IsSuccessStatusCode)
         {
             var errorBody = await httpResponse.Content.ReadAsStringAsync(cancellationToken);
-            yield return new LlmStreamResponse
-            {
-                IsComplete = true,
-                Error = $"OpenRouter request failed (status {(int)httpResponse.StatusCode}): {Truncate(errorBody)}"
-            };
-            yield break;
+            throw Andy.Llm.Errors.LlmProviderException.FromHttpResponse(Name, httpResponse, errorBody);
         }
 
         await using var stream = await httpResponse.Content.ReadAsStreamAsync(cancellationToken);
