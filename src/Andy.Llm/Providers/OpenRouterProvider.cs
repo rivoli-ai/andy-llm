@@ -232,6 +232,7 @@ public class OpenRouterProvider : Andy.Model.Llm.ILlmProvider
             throw Andy.Llm.Errors.LlmProviderException.FromHttpResponse(Name, httpResponse, responseText);
         }
 
+        responseText = KeepAliveResponse.Normalize(responseText, Name);
         var root = JsonNode.Parse(responseText)
             ?? throw new InvalidOperationException("OpenRouter returned an empty response body.");
 
