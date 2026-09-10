@@ -273,6 +273,7 @@ public class OpenAIProvider : Andy.Model.Llm.ILlmProvider
             openAiOptions.OrganizationId = _config.Organization;
         }
 
+        openAiOptions.AddPolicy(new KeepAliveResponsePolicy(_configName), System.ClientModel.Primitives.PipelinePosition.PerCall);
         var openAiClient = new OpenAIClient(new ApiKeyCredential(_config.ApiKey!), openAiOptions);
         var chatClient = openAiClient.GetChatClient(_defaultModel);
         return new ChatCompletionsStrategy(chatClient, _logger);

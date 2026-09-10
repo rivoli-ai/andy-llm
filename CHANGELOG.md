@@ -8,6 +8,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 ### Fixed
+- 2026-09-09: Completed #11 keep-alive handling for OpenRouter and OpenAI-compatible
+  non-streaming completions. Leading comments preserve the JSON response; empty or
+  comment-only bodies surface a structured 504 timeout for caller retries. Added
+  regression coverage for completion content, tool calls, errors, and streaming.
 - Environment-only setup examples now register the provider factory before use
 - Gateway environment configuration no longer creates an enabled provider when
   one or more constructor-required `ANDY_MODELS_*` values are missing

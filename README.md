@@ -321,6 +321,11 @@ The library supports configuration through environment variables for all major p
 
 OpenRouter exposes free, tool-capable models (e.g. `openai/gpt-oss-20b:free`) — great for trying the library at zero cost. See [docs/openrouter-provider.md](docs/openrouter-provider.md).
 
+Non-streaming completions tolerate leading OpenRouter keep-alive comments, including
+when using an OpenAI-compatible configuration. Empty or comment-only responses throw
+`LlmProviderException` with a synthetic `Error.StatusCode` of `504`, so callers can
+apply their retry policy. The library does not automatically resubmit these requests.
+
 #### Local/Ollama
 - `OLLAMA_API_BASE` - Your local endpoint (required, e.g., http://localhost:11434)
 - `OLLAMA_MODEL` - Model to use (required, e.g., llama2)
